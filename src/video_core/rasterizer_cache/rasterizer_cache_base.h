@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include <boost/icl/interval_map.hpp>
 #include <boost/range/iterator_range.hpp>
+#include "video_core/rasterizer_cache/hires_replacer.h"
 #include "video_core/rasterizer_cache/sampler_params.h"
 #include "video_core/rasterizer_cache/surface_params.h"
 #include "video_core/rasterizer_cache/utils.h"
@@ -184,6 +185,7 @@ private:
 private:
     Memory::MemorySystem& memory;
     Runtime& runtime;
+    HiresReplacer replacer;
     PageMap cached_pages;
     SurfaceMap dirty_regions;
     std::vector<Surface> remove_surfaces;
@@ -204,6 +206,7 @@ private:
     };
 
     RenderTargets render_targets;
+    const bool& dump_textures;
 };
 
 } // namespace VideoCore

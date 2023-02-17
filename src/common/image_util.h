@@ -19,7 +19,7 @@ namespace Common {
  */
 bool DecodePNG(std::span<const u8> in_data, std::vector<u8>& out_data, u32& width, u32& height);
 
-bool EncodePNG(std::span<u8> in_data, const std::string& out_path, u32 width, u32 height,
+bool EncodePNG(std::span<const u8> in_data, const std::string& out_path, u32 width, u32 height,
                u32 stride, s32 level);
 
 } // namespace Common

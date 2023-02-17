@@ -28,7 +28,8 @@ inline auto RangeFromInterval(auto& map, const auto& interval) {
 template <class T>
 RasterizerCache<T>::RasterizerCache(Memory::MemorySystem& memory_, Runtime& runtime_)
     : memory{memory_}, runtime{runtime_}, resolution_scale_factor{
-                                              VideoCore::GetResolutionScaleFactor()} {
+                                              VideoCore::GetResolutionScaleFactor()},
+    dump_textures{Settings::values.dump_textures.GetValue()} {
     using TextureConfig = Pica::TexturingRegs::TextureConfig;
 
     // Create null handles for all cached resources
@@ -876,6 +877,10 @@ void RasterizerCache<T>::UploadSurface(const Surface& surface, SurfaceInterval i
     const auto upload_data = source_ptr.GetWriteBytes(load_info.end - load_info.addr);
     DecodeTexture(load_info, load_info.addr, load_info.end, upload_data, staging.mapped,
                   runtime.NeedsConvertion(surface->pixel_format));
+
+    if (dump_textures) {
+        replacer.DumpSurface(*surface, staging.mapped);
+    }
 
     const BufferTextureCopy upload = {
         .buffer_offset = 0,

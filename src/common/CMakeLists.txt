@@ -66,6 +66,7 @@ add_library(common STATIC
     detached_tasks.h
     bit_field.h
     bit_set.h
+    bit_util.h
     cityhash.cpp
     cityhash.h
     color.h
@@ -110,6 +111,7 @@ add_library(common STATIC
     scm_rev.cpp
     scm_rev.h
     scope_exit.h
+    scratch_buffer.h
     settings.cpp
     settings.h
     serialization/atomic.h
@@ -145,8 +147,8 @@ add_library(common STATIC
 
 create_target_directory_groups(common)
 
-target_link_libraries(common PUBLIC fmt::fmt microprofile Boost::boost Boost::serialization)
-target_link_libraries(common PRIVATE libzstd_static spng_static)
+target_link_libraries(common PUBLIC fmt::fmt microprofile Boost::boost Boost::serialization spng_static)
+target_link_libraries(common PRIVATE libzstd_static)
 set_target_properties(common PROPERTIES INTERPROCEDURAL_OPTIMIZATION ${ENABLE_LTO})
 
 if ("x86_64" IN_LIST ARCHITECTURE)

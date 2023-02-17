@@ -57,7 +57,7 @@ bool DecodePNG(std::span<const u8> in_data, std::vector<u8>& out_data, u32& widt
     return true;
 }
 
-bool EncodePNG(std::span<u8> in_data, const std::string& out_path, u32 width, u32 height,
+bool EncodePNG(std::span<const u8> in_data, const std::string& out_path, u32 width, u32 height,
                u32 stride, s32 level) {
     auto ctx = make_spng_ctx(SPNG_CTX_ENCODER);
     if (!ctx) [[unlikely]] {
