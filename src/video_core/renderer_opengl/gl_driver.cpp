@@ -5,6 +5,7 @@
 #include <glad/glad.h>
 #include "common/assert.h"
 #include "core/core.h"
+#include "video_core/rasterizer_cache/pixel_format.h"
 #include "video_core/renderer_opengl/gl_driver.h"
 
 namespace OpenGL {
@@ -96,6 +97,21 @@ bool Driver::HasBug(DriverBug bug) const {
     return True(bugs & bug);
 }
 
+bool Driver::IsCustomFormatSupported(VideoCore::CustomPixelFormat format) const {
+    switch (format) {
+    case VideoCore::CustomPixelFormat::RGBA8:
+        return true;
+    case VideoCore::CustomPixelFormat::BC1:
+    case VideoCore::CustomPixelFormat::BC3:
+    case VideoCore::CustomPixelFormat::BC5:
+        return ext_texture_compression_s3tc;
+    case VideoCore::CustomPixelFormat::BC7:
+        return arb_texture_compression_bptc;
+    case VideoCore::CustomPixelFormat::ASTC:
+        return is_gles;
+    }
+}
+
 void Driver::ReportDriverInfo() {
     // Report the context version and the vendor string
     gl_version = std::string_view{reinterpret_cast<const char*>(glGetString(GL_VERSION))};
@@ -135,6 +151,8 @@ void Driver::CheckExtensionSupport() {
     arb_buffer_storage = GLAD_GL_ARB_buffer_storage;
     ext_clip_cull_distance = GLAD_GL_EXT_clip_cull_distance;
     arb_direct_state_access = GLAD_GL_ARB_direct_state_access;
+    ext_texture_compression_s3tc = GLAD_GL_EXT_texture_compression_s3tc;
+    arb_texture_compression_bptc = GLAD_GL_ARB_texture_compression_bptc;
 }
 
 void Driver::FindBugs() {

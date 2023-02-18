@@ -4,14 +4,17 @@
 
 #pragma once
 
-#include <type_traits>
-#include <span>
 #include <memory>
-#include "common/common_types.h"
+#include <span>
+#include <type_traits>
 
 namespace Common {
 
-template <typename T, u32 alignment = 0>
+/**
+ * A ScratchBuffer is a simple heap allocated array without member initialization.
+ * Main usage is for temporary buffers passed to threads for example
+ */
+template <typename T>
 class ScratchBuffer {
     static_assert(std::is_trivial_v<T>, "Must use a POD type");
 
@@ -28,8 +31,12 @@ public:
         return buffer.get();
     }
 
-    [[nodiscard]] std::span<const T> Span() const noexcept {
-        return std::span<const T>{buffer.get(), size};
+    [[nodiscard]] std::span<const T> Span(u32 index = 0) const noexcept {
+        return std::span<const T>{buffer.get() + index, size - index};
+    }
+
+    [[nodiscard]] std::span<T> Span(u32 index = 0) noexcept {
+        return std::span<T>{buffer.get() + index, size - index};
     }
 
 private:

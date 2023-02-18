@@ -100,10 +100,10 @@ std::string BuildCommaSeparatedExtensions(std::vector<std::string> available_ext
 
 } // Anonymous namespace
 
-RendererVulkan::RendererVulkan(Memory::MemorySystem& memory_, Frontend::EmuWindow& window,
+RendererVulkan::RendererVulkan(Core::System& system_, Frontend::EmuWindow& window,
                                Frontend::EmuWindow* secondary_window)
-    : RendererBase{window, secondary_window}, memory{memory_},
-      telemetry_session{Core::System::GetInstance().TelemetrySession()},
+    : RendererBase{window, secondary_window}, system{system_}, memory{system.Memory()},
+      telemetry_session{system.TelemetrySession()},
       instance{window, Settings::values.physical_device.GetValue()}, scheduler{instance,
                                                                                renderpass_cache},
       renderpass_cache{instance, scheduler}, desc_manager{instance, scheduler},
@@ -111,8 +111,9 @@ RendererVulkan::RendererVulkan(Memory::MemorySystem& memory_, Frontend::EmuWindo
                                                                               renderpass_cache},
       vertex_buffer{instance, scheduler, vk::BufferUsageFlagBits::eVertexBuffer,
                     VERTEX_BUFFER_SIZE},
-      rasterizer{memory,       render_window, instance,        scheduler,
-                 desc_manager, runtime,       renderpass_cache} {
+      rasterizer{
+          memory,  system.CustomTexManager(), render_window, instance, scheduler, desc_manager,
+          runtime, renderpass_cache} {
     Report();
     CompileShaders();
     BuildLayouts();
@@ -986,9 +987,7 @@ void RendererVulkan::SwapBuffers() {
 
     m_current_frame++;
 
-    Core::System& system = Core::System::GetInstance();
     system.perf_stats->EndSystemFrame();
-
     render_window.PollEvents();
 
     system.frame_limiter.DoFrameLimiting(system.CoreTiming().GetGlobalTimeUs());

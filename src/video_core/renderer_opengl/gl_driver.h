@@ -5,6 +5,11 @@
 #pragma once
 
 #include <string_view>
+#include "common/common_types.h"
+
+namespace VideoCore {
+enum class CustomPixelFormat : u32;
+}
 
 namespace OpenGL {
 
@@ -39,6 +44,9 @@ public:
 
     /// Returns true of the driver has a particular bug stated in the DriverBug enum
     bool HasBug(DriverBug bug) const;
+
+    /// Returns true if the driver supports the provided custom format
+    bool IsCustomFormatSupported(VideoCore::CustomPixelFormat format) const;
 
     /// Returns the vendor of the currently selected physical device
     Vendor GetVendor() const {
@@ -90,6 +98,8 @@ private:
     bool arb_buffer_storage{};
     bool ext_clip_cull_distance{};
     bool arb_direct_state_access{};
+    bool ext_texture_compression_s3tc{};
+    bool arb_texture_compression_bptc{};
 
     std::string_view gl_version{};
     std::string_view gpu_vendor{};

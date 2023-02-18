@@ -10,6 +10,7 @@
 #include "common/microprofile.h"
 #include "core/memory.h"
 #include "video_core/pica_state.h"
+#include "video_core/rasterizer_cache/custom_tex_manager.h"
 #include "video_core/rasterizer_cache/rasterizer_cache_base.h"
 #include "video_core/rasterizer_cache/surface_base.h"
 #include "video_core/video_core.h"
@@ -26,10 +27,13 @@ inline auto RangeFromInterval(auto& map, const auto& interval) {
 }
 
 template <class T>
-RasterizerCache<T>::RasterizerCache(Memory::MemorySystem& memory_, Runtime& runtime_)
-    : memory{memory_}, runtime{runtime_}, resolution_scale_factor{
-                                              VideoCore::GetResolutionScaleFactor()},
-    dump_textures{Settings::values.dump_textures.GetValue()} {
+RasterizerCache<T>::RasterizerCache(Memory::MemorySystem& memory_,
+                                    CustomTexManager& custom_tex_manager_, Runtime& runtime_)
+    : memory{memory_}, runtime{runtime_}, custom_tex_manager{custom_tex_manager_},
+      resolution_scale_factor{VideoCore::GetResolutionScaleFactor()},
+      dump_textures{Settings::values.dump_textures.GetValue()},
+      use_custom_textures{Settings::values.custom_textures.GetValue()} {
+
     using TextureConfig = Pica::TexturingRegs::TextureConfig;
 
     // Create null handles for all cached resources
@@ -624,8 +628,15 @@ auto RasterizerCache<T>::GetFramebufferSurfaces(bool using_color_fb, bool using_
     // Update resolution_scale_factor and reset cache if changed
     const bool resolution_scale_changed =
         resolution_scale_factor != VideoCore::GetResolutionScaleFactor();
-    if (resolution_scale_changed) [[unlikely]] {
+    const bool custom_textures_changed =
+        use_custom_textures != Settings::values.custom_textures.GetValue();
+    if (resolution_scale_changed || custom_textures_changed) [[unlikely]] {
         resolution_scale_factor = VideoCore::GetResolutionScaleFactor();
+        use_custom_textures = Settings::values.custom_textures.GetValue();
+        if (use_custom_textures) {
+            custom_tex_manager.FindCustomTextures();
+        }
+
         UnregisterAll();
     }
 
@@ -866,21 +877,28 @@ void RasterizerCache<T>::UploadSurface(const Surface& surface, SurfaceInterval i
 
     MICROPROFILE_SCOPE(RasterizerCache_SurfaceLoad);
 
-    const auto staging = runtime.FindStaging(
-        load_info.width * load_info.height * surface->GetInternalBytesPerPixel(), true);
-
     MemoryRef source_ptr = memory.GetPhysicalRef(load_info.addr);
     if (!source_ptr) [[unlikely]] {
         return;
     }
 
     const auto upload_data = source_ptr.GetWriteBytes(load_info.end - load_info.addr);
+    if (dump_textures) {
+        custom_tex_manager.DumpTexture(load_info, upload_data);
+    }
+
+    // Check if we need to replace the texture
+    if (use_custom_textures && UploadCustomSurface(surface, load_info, upload_data)) {
+        return;
+    }
+
+    // Upload the 3DS texture to the host GPU
+    const u32 upload_size =
+        load_info.width * load_info.height * surface->GetInternalBytesPerPixel();
+    const StagingData staging = runtime.FindStaging(upload_size, true);
+
     DecodeTexture(load_info, load_info.addr, load_info.end, upload_data, staging.mapped,
                   runtime.NeedsConvertion(surface->pixel_format));
-
-    if (dump_textures) {
-        replacer.DumpSurface(*surface, staging.mapped);
-    }
 
     const BufferTextureCopy upload = {
         .buffer_offset = 0,
@@ -892,14 +910,69 @@ void RasterizerCache<T>::UploadSurface(const Surface& surface, SurfaceInterval i
 }
 
 template <class T>
+bool RasterizerCache<T>::UploadCustomSurface(const Surface& surface, const SurfaceParams& load_info,
+                                             std::span<u8> upload_data) {
+    const u32 level = surface->LevelOf(load_info.addr);
+    const bool is_base_level = level == 0;
+    const Texture& texture = custom_tex_manager.GetTexture(load_info, upload_data);
+
+    // The old texture pack system did not support mipmaps so older packs might do
+    // wonky things. For example Henriko's pack has mipmaps larger than the base
+    // level. To avoid crashes just don't upload mipmaps
+    if (custom_tex_manager.CompatibilityMode() && !is_base_level) {
+        return true;
+    }
+    if (!texture) {
+        return false;
+    }
+
+    // Swap the internal surface allocation to the desired dimentions and format
+    if (is_base_level && !surface->Swap(texture.width, texture.height, texture.format)) {
+        // This means the backend doesn't support the custom compression format.
+        // We could implement a CPU/GPU decoder but it's always better for packs to
+        // have compatible compression formats.
+        LOG_ERROR(HW_GPU, "Custom compressed format {} unsupported by host GPU", texture.format);
+        return false;
+    }
+
+    // Ensure surface has a compatible allocation before proceeding
+    if (!surface->IsCustom() || surface->CustomFormat() != texture.format) {
+        LOG_ERROR(HW_GPU, "Surface does not have a compatible allocation, ignoring");
+        return true;
+    }
+
+    // Copy and decode the custom texture to the staging buffer
+    const u32 custom_size = static_cast<u32>(texture.staging_size);
+    const StagingData staging = runtime.FindStaging(custom_size, true);
+    custom_tex_manager.DecodeToStaging(texture, staging);
+
+    // Upload surface
+    const BufferTextureCopy upload = {
+        .buffer_offset = 0,
+        .buffer_size = custom_size,
+        .texture_rect = {0, texture.height, texture.width, 0},
+        .texture_level = level,
+    };
+    surface->Upload(upload, staging);
+
+    // Manually generate mipmaps in compatibility mode
+    if (custom_tex_manager.CompatibilityMode()) {
+        runtime.GenerateMipmaps(*surface);
+    }
+
+    return true;
+}
+
+template <class T>
 void RasterizerCache<T>::DownloadSurface(const Surface& surface, SurfaceInterval interval) {
     const SurfaceParams flush_info = surface->FromInterval(interval);
     const u32 flush_start = boost::icl::first(interval);
     const u32 flush_end = boost::icl::last_next(interval);
     ASSERT(flush_start >= surface->addr && flush_end <= surface->end);
 
-    const auto staging = runtime.FindStaging(
-        flush_info.width * flush_info.height * surface->GetInternalBytesPerPixel(), false);
+    const u32 flush_size =
+        flush_info.width * flush_info.height * surface->GetInternalBytesPerPixel();
+    const StagingData staging = runtime.FindStaging(flush_size, false);
 
     const BufferTextureCopy download = {
         .buffer_offset = 0,

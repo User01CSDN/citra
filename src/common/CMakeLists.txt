@@ -75,7 +75,7 @@ add_library(common STATIC
     common_precompiled_headers.h
     common_types.h
     construct.h
-    dds.h
+    dds-ktx.h
     error.cpp
     error.h
     file_util.cpp
@@ -147,8 +147,8 @@ add_library(common STATIC
 
 create_target_directory_groups(common)
 
-target_link_libraries(common PUBLIC fmt::fmt microprofile Boost::boost Boost::serialization spng_static)
-target_link_libraries(common PRIVATE libzstd_static)
+target_link_libraries(common PUBLIC fmt::fmt microprofile Boost::boost Boost::serialization)
+target_link_libraries(common PRIVATE libzstd_static spng::spng)
 set_target_properties(common PROPERTIES INTERPROCEDURAL_OPTIMIZATION ${ENABLE_LTO})
 
 if ("x86_64" IN_LIST ARCHITECTURE)

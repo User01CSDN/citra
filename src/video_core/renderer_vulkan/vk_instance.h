@@ -14,6 +14,10 @@ namespace Frontend {
 class EmuWindow;
 }
 
+namespace VideoCore {
+enum class CustomPixelFormat : u32;
+}
+
 VK_DEFINE_HANDLE(VmaAllocator)
 
 namespace Vulkan {
@@ -39,6 +43,7 @@ public:
 
     /// Returns the FormatTraits struct for the provided pixel format
     const FormatTraits& GetTraits(VideoCore::PixelFormat pixel_format) const;
+    const FormatTraits& GetTraits(VideoCore::CustomPixelFormat pixel_format) const;
 
     /// Returns the FormatTraits struct for the provided attribute format and count
     const FormatTraits& GetTraits(Pica::PipelineRegs::VertexAttributeFormat format,
@@ -271,6 +276,7 @@ private:
 
     /// Creates the format compatibility table for the current device
     void CreateFormatTable();
+    void CreateCustomFormatTable();
 
     /// Creates the attribute format table for the current device
     void CreateAttribTable();
@@ -302,6 +308,7 @@ private:
     vk::Queue graphics_queue;
     std::vector<vk::PhysicalDevice> physical_devices;
     std::array<FormatTraits, VideoCore::PIXEL_FORMAT_COUNT> format_table;
+    std::array<FormatTraits, 10> custom_format_table;
     std::array<FormatTraits, 16> attrib_table;
     std::vector<std::string> available_extensions;
     u32 present_queue_family_index{0};

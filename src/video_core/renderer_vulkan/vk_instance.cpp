@@ -6,6 +6,7 @@
 #include "common/assert.h"
 #include "common/settings.h"
 #include "core/frontend/emu_window.h"
+#include "video_core/rasterizer_cache/custom_tex_manager.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_platform.h"
 
@@ -106,6 +107,25 @@ vk::Format MakeFormat(VideoCore::PixelFormat format) {
     default:
         return vk::Format::eR8G8B8A8Unorm; ///< Use default case for the texture formats
     }
+}
+
+vk::Format MakeCustomFormat(VideoCore::CustomPixelFormat format) {
+    switch (format) {
+    case VideoCore::CustomPixelFormat::RGBA8:
+        return vk::Format::eR8G8B8A8Unorm;
+    case VideoCore::CustomPixelFormat::BC1:
+        return vk::Format::eBc1RgbaUnormBlock;
+    case VideoCore::CustomPixelFormat::BC3:
+        return vk::Format::eBc3UnormBlock;
+    case VideoCore::CustomPixelFormat::BC5:
+        return vk::Format::eBc5UnormBlock;
+    case VideoCore::CustomPixelFormat::BC7:
+        return vk::Format::eBc7UnormBlock;
+    case VideoCore::CustomPixelFormat::ASTC:
+        return vk::Format::eAstc4x4UnormBlock;
+    }
+    LOG_ERROR(Render_Vulkan, "Unknown custom format {}", format);
+    return vk::Format::eR8G8B8A8Unorm;
 }
 
 vk::Format MakeAttributeFormat(Pica::PipelineRegs::VertexAttributeFormat format, u32 count,
@@ -350,6 +370,7 @@ Instance::Instance(Frontend::EmuWindow& window, u32 physical_device_index)
 
     CreateDevice();
     CreateFormatTable();
+    CreateCustomFormatTable();
     CreateAttribTable();
     CollectTelemetryParameters();
 }
@@ -378,6 +399,11 @@ const FormatTraits& Instance::GetTraits(VideoCore::PixelFormat pixel_format) con
 
     const u32 index = static_cast<u32>(pixel_format);
     return format_table[index];
+}
+
+const FormatTraits& Instance::GetTraits(VideoCore::CustomPixelFormat pixel_format) const {
+    const u32 index = static_cast<u32>(pixel_format);
+    return custom_format_table[index];
 }
 
 const FormatTraits& Instance::GetTraits(Pica::PipelineRegs::VertexAttributeFormat format,
@@ -419,7 +445,7 @@ FormatTraits Instance::DetermineTraits(VideoCore::PixelFormat pixel_format, vk::
         pixel_format == VideoCore::PixelFormat::D24S8;
 
     // Find the most inclusive usage flags for this format
-    vk::ImageUsageFlags best_usage;
+    vk::ImageUsageFlags best_usage{};
     if (supports_blit || supports_transfer) {
         best_usage |= vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst |
                       vk::ImageUsageFlagBits::eTransferSrc;
@@ -459,7 +485,7 @@ void Instance::CreateFormatTable() {
     };
 
     for (const auto& pixel_format : pixel_formats) {
-        const auto format = MakeFormat(pixel_format);
+        const vk::Format format = MakeFormat(pixel_format);
         FormatTraits traits = DetermineTraits(pixel_format, format);
 
         const bool is_suitable =
@@ -484,6 +510,41 @@ void Instance::CreateFormatTable() {
 
         const u32 index = static_cast<u32>(pixel_format);
         format_table[index] = traits;
+    }
+}
+
+void Instance::CreateCustomFormatTable() {
+    // The traits are the same for RGBA8
+    custom_format_table[0] = format_table[static_cast<u32>(VideoCore::PixelFormat::RGBA8)];
+
+    constexpr std::array custom_formats = {
+        VideoCore::CustomPixelFormat::BC1,  VideoCore::CustomPixelFormat::BC3,
+        VideoCore::CustomPixelFormat::BC5,  VideoCore::CustomPixelFormat::BC7,
+        VideoCore::CustomPixelFormat::ASTC,
+    };
+
+    for (const auto& custom_format : custom_formats) {
+        const vk::Format format = MakeCustomFormat(custom_format);
+        const vk::FormatProperties format_properties = physical_device.getFormatProperties(format);
+
+        // Compressed formats don't support blit_dst in general so just check for transfer
+        const vk::FormatFeatureFlags transfer_usage = vk::FormatFeatureFlagBits::eSampledImage;
+        const bool supports_transfer =
+            (format_properties.optimalTilingFeatures & transfer_usage) == transfer_usage;
+
+        vk::ImageUsageFlags best_usage{};
+        if (supports_transfer) {
+            best_usage |= vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst |
+                          vk::ImageUsageFlagBits::eTransferSrc;
+        }
+
+        const u32 index = static_cast<u32>(custom_format);
+        custom_format_table[index] = FormatTraits{
+            .transfer_support = supports_transfer,
+            .usage = best_usage,
+            .aspect = vk::ImageAspectFlagBits::eColor,
+            .native = format,
+        };
     }
 }
 

@@ -114,6 +114,9 @@ if (ENABLE_SDL2 AND NOT USE_SYSTEM_SDL2)
     add_subdirectory(sdl2)
 endif()
 
+# Zlib
+add_subdirectory(zlib-ng)
+
 # Zstandard
 set(ZSTD_LEGACY_SUPPORT OFF)
 set(ZSTD_BUILD_PROGRAMS OFF)

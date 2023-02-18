@@ -35,6 +35,15 @@ enum class PixelFormat : u32 {
     Invalid = 255,
 };
 
+enum class CustomPixelFormat : u32 {
+    RGBA8 = 0,
+    BC1 = 1,
+    BC3 = 2,
+    BC5 = 3,
+    BC7 = 4,
+    ASTC = 5,
+};
+
 enum class SurfaceType : u32 {
     Color = 0,
     Texture = 1,
@@ -111,6 +120,8 @@ constexpr u32 GetBytesPerPixel(PixelFormat format) {
 }
 
 std::string_view PixelFormatAsString(PixelFormat format);
+
+std::string_view CustomPixelFormatAsString(CustomPixelFormat format);
 
 bool CheckFormatsBlittable(PixelFormat source_format, PixelFormat dest_format);
 

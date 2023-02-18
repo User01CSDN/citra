@@ -6,6 +6,7 @@
 #include "common/archives.h"
 #include "common/logging/log.h"
 #include "common/settings.h"
+#include "core/core.h"
 #include "video_core/pica.h"
 #include "video_core/pica_state.h"
 #include "video_core/renderer_base.h"
@@ -31,8 +32,8 @@ Memory::MemorySystem* g_memory;
 
 /// Initialize the video core
 ResultStatus Init(Frontend::EmuWindow& emu_window, Frontend::EmuWindow* secondary_window,
-                  Memory::MemorySystem& memory) {
-    g_memory = &memory;
+                  Core::System& system) {
+    g_memory = &system.Memory();
     Pica::Init();
 
     const Settings::GraphicsAPI graphics_api = Settings::values.graphics_api.GetValue();
@@ -40,10 +41,10 @@ ResultStatus Init(Frontend::EmuWindow& emu_window, Frontend::EmuWindow* secondar
     case Settings::GraphicsAPI::OpenGL:
     case Settings::GraphicsAPI::OpenGLES:
         OpenGL::GLES = graphics_api == Settings::GraphicsAPI::OpenGLES;
-        g_renderer = std::make_unique<OpenGL::RendererOpenGL>(memory, emu_window, secondary_window);
+        g_renderer = std::make_unique<OpenGL::RendererOpenGL>(system, emu_window, secondary_window);
         break;
     case Settings::GraphicsAPI::Vulkan:
-        g_renderer = std::make_unique<Vulkan::RendererVulkan>(memory, emu_window, secondary_window);
+        g_renderer = std::make_unique<Vulkan::RendererVulkan>(system, emu_window, secondary_window);
         break;
     default:
         LOG_CRITICAL(Render, "Invalid graphics API enum value {}", graphics_api);

@@ -15,6 +15,10 @@ namespace Frontend {
 class EmuWindow;
 }
 
+namespace VideoCore {
+class CustomTexManager;
+}
+
 namespace OpenGL {
 
 struct ScreenInfo;
@@ -24,8 +28,9 @@ class ShaderProgramManager;
 
 class RasterizerOpenGL : public VideoCore::RasterizerAccelerated {
 public:
-    explicit RasterizerOpenGL(Memory::MemorySystem& memory, Frontend::EmuWindow& emu_window,
-                              Driver& driver);
+    explicit RasterizerOpenGL(Memory::MemorySystem& memory,
+                              VideoCore::CustomTexManager& custom_tex_manager,
+                              Frontend::EmuWindow& emu_window, Driver& driver);
     ~RasterizerOpenGL() override;
 
     void LoadDiskResources(const std::atomic_bool& stop_loading,

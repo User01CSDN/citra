@@ -100,7 +100,7 @@ PipelineCache::Shader::Shader(const Instance& instance, vk::ShaderStageFlagBits 
                               std::string code)
     : Shader{instance} {
     module = Compile(code, stage, instance.GetDevice(), ShaderOptimization::High);
-    MarkBuilt();
+    MarkDone();
 }
 
 PipelineCache::Shader::~Shader() {
@@ -139,7 +139,7 @@ bool PipelineCache::GraphicsPipeline::Build(bool fail_on_compile_required) {
     if (fail_on_compile_required) {
         // Check if all shader modules are ready
         for (auto& shader : stages) {
-            if (shader && !shader->IsBuilt()) {
+            if (shader && !shader->IsDone()) {
                 return false;
             }
         }
@@ -309,7 +309,7 @@ bool PipelineCache::GraphicsPipeline::Build(bool fail_on_compile_required) {
             continue;
         }
 
-        shader->WaitBuilt();
+        shader->WaitDone();
         shader_stages[shader_count++] = vk::PipelineShaderStageCreateInfo{
             .stage = MakeShaderStage(i),
             .module = shader->Handle(),
@@ -392,7 +392,7 @@ bool PipelineCache::GraphicsPipeline::Build(bool fail_on_compile_required) {
         UNREACHABLE();
     }
 
-    MarkBuilt();
+    MarkDone();
     return true;
 }
 
@@ -489,7 +489,7 @@ bool PipelineCache::BindPipeline(const PipelineInfo& info, bool wait_built) {
     }
 
     GraphicsPipeline* const pipeline{it->second.get()};
-    if (!wait_built && !pipeline->IsBuilt()) {
+    if (!wait_built && !pipeline->IsDone()) {
         return false;
     }
 
@@ -497,8 +497,8 @@ bool PipelineCache::BindPipeline(const PipelineInfo& info, bool wait_built) {
     ApplyDynamic(info, is_dirty);
 
     if (current_pipeline != pipeline || is_dirty) {
-        if (!pipeline->IsBuilt()) {
-            scheduler.Record([pipeline](vk::CommandBuffer) { pipeline->WaitBuilt(); });
+        if (!pipeline->IsDone()) {
+            scheduler.Record([pipeline](vk::CommandBuffer) { pipeline->WaitDone(); });
         }
 
         scheduler.Record([pipeline](vk::CommandBuffer cmdbuf) {
@@ -549,7 +549,7 @@ bool PipelineCache::UseProgrammableVertexShader(const Pica::Regs& regs,
             workers.QueueWork([device, &shader] {
                 shader.module = Compile(shader.program, vk::ShaderStageFlagBits::eVertex, device,
                                         ShaderOptimization::High);
-                shader.MarkBuilt();
+                shader.MarkDone();
             });
         }
 
@@ -589,7 +589,7 @@ bool PipelineCache::UseFixedGeometryShader(const Pica::Regs& regs) {
             const std::string code = GenerateFixedGeometryShader(gs_config);
             shader.module =
                 Compile(code, vk::ShaderStageFlagBits::eGeometry, device, ShaderOptimization::High);
-            shader.MarkBuilt();
+            shader.MarkDone();
         });
     }
 
@@ -620,13 +620,13 @@ void PipelineCache::UseFragmentShader(const Pica::Regs& regs) {
         if (emit_spirv) {
             const std::vector code = GenerateFragmentShaderSPV(config);
             shader.module = CompileSPV(code, device);
-            shader.MarkBuilt();
+            shader.MarkDone();
         } else {
             workers.QueueWork([config, device, &shader]() {
                 const std::string code = GenerateFragmentShader(config);
                 shader.module = Compile(code, vk::ShaderStageFlagBits::eFragment, device,
-                                        ShaderOptimization::High);
-                shader.MarkBuilt();
+                                        ShaderOptimization::Debug);
+                shader.MarkDone();
             });
         }
     }

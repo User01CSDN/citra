@@ -47,6 +47,23 @@ std::string_view PixelFormatAsString(PixelFormat format) {
     }
 }
 
+std::string_view CustomPixelFormatAsString(CustomPixelFormat format) {
+    switch (format) {
+    case CustomPixelFormat::RGBA8:
+        return "RGBA8";
+    case CustomPixelFormat::BC1:
+        return "BC1";
+    case CustomPixelFormat::BC3:
+        return "BC3";
+    case CustomPixelFormat::BC5:
+        return "BC5";
+    case CustomPixelFormat::BC7:
+        return "BC7";
+    case CustomPixelFormat::ASTC:
+        return "ASTC";
+    }
+}
+
 bool CheckFormatsBlittable(PixelFormat source_format, PixelFormat dest_format) {
     SurfaceType source_type = GetFormatType(source_format);
     SurfaceType dest_type = GetFormatType(dest_format);

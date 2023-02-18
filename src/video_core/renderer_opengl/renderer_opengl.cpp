@@ -273,14 +273,13 @@ static std::array<GLfloat, 3 * 2> MakeOrthographicMatrix(const float width, cons
     return matrix;
 }
 
-RendererOpenGL::RendererOpenGL(Memory::MemorySystem& memory_, Frontend::EmuWindow& window,
+RendererOpenGL::RendererOpenGL(Core::System& system_, Frontend::EmuWindow& window,
                                Frontend::EmuWindow* secondary_window)
-    : RendererBase{window, secondary_window}, memory{memory_},
+    : RendererBase{window, secondary_window}, system{system_}, memory{system.Memory()},
       driver{Settings::values.graphics_api.GetValue() == Settings::GraphicsAPI::OpenGLES,
              Settings::values.renderer_debug.GetValue()},
-      rasterizer{memory, render_window, driver}, frame_dumper{
-                                                     Core::System::GetInstance().VideoDumper(),
-                                                     window} {
+      rasterizer{memory, system.CustomTexManager(), render_window, driver},
+      frame_dumper{system.VideoDumper(), window} {
 
     const Vendor vendor = driver.GetVendor();
     if (vendor == Vendor::Generic || vendor == Vendor::Unknown) {
@@ -326,8 +325,6 @@ void RendererOpenGL::SwapBuffers() {
     }
 
     m_current_frame++;
-
-    Core::System& system = Core::System::GetInstance();
     system.perf_stats->EndSystemFrame();
 
     render_window.PollEvents();

@@ -4,8 +4,8 @@
 #pragma once
 
 #include <atomic>
-#include <deque>
 #include <limits>
+#include <mutex>
 #include <thread>
 #include <vector>
 #include "common/common_types.h"

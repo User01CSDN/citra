@@ -7,9 +7,10 @@
 #include <algorithm>
 #include <optional>
 #include <unordered_map>
+#include <unordered_set>
 #include <boost/icl/interval_map.hpp>
 #include <boost/range/iterator_range.hpp>
-#include "video_core/rasterizer_cache/hires_replacer.h"
+#include "common/thread_worker.h"
 #include "video_core/rasterizer_cache/sampler_params.h"
 #include "video_core/rasterizer_cache/surface_params.h"
 #include "video_core/rasterizer_cache/utils.h"
@@ -37,7 +38,7 @@ enum class MatchFlags {
 
 DECLARE_ENUM_FLAG_OPERATORS(MatchFlags);
 
-class RasterizerAccelerated;
+class CustomTexManager;
 
 template <class T>
 class RasterizerCache : NonCopyable {
@@ -57,8 +58,14 @@ class RasterizerCache : NonCopyable {
     using SurfaceRect_Tuple = std::tuple<Surface, Common::Rectangle<u32>>;
     using PageMap = boost::icl::interval_map<u32, int>;
 
+    struct RenderTargets {
+        Surface color_surface;
+        Surface depth_surface;
+    };
+
 public:
-    RasterizerCache(Memory::MemorySystem& memory, Runtime& runtime);
+    RasterizerCache(Memory::MemorySystem& memory, CustomTexManager& custom_tex_manager,
+                    Runtime& runtime);
     ~RasterizerCache();
 
     /// Perform hardware accelerated texture copy according to the provided configuration
@@ -150,6 +157,10 @@ private:
     /// Copies pixel data in interval from the guest VRAM to the host GPU surface
     void UploadSurface(const Surface& surface, SurfaceInterval interval);
 
+    /// Uploads a custom texture associated with upload_data to the target surface
+    bool UploadCustomSurface(const Surface& surface, const SurfaceParams& load_info,
+                             std::span<u8> upload_data);
+
     /// Copies pixel data in interval from the host GPU surface to the guest VRAM
     void DownloadSurface(const Surface& surface, SurfaceInterval interval);
 
@@ -185,7 +196,7 @@ private:
 private:
     Memory::MemorySystem& memory;
     Runtime& runtime;
-    HiresReplacer replacer;
+    CustomTexManager& custom_tex_manager;
     PageMap cached_pages;
     SurfaceMap dirty_regions;
     std::vector<Surface> remove_surfaces;
@@ -199,14 +210,11 @@ private:
     std::unordered_map<SamplerParams, SamplerId> samplers;
 
     SlotVector<Sampler> slot_samplers;
-
-    struct RenderTargets {
-        Surface color_surface;
-        Surface depth_surface;
-    };
-
     RenderTargets render_targets;
-    const bool& dump_textures;
+
+    // Custom textures
+    bool dump_textures;
+    bool use_custom_textures;
 };
 
 } // namespace VideoCore

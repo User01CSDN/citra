@@ -20,8 +20,9 @@
 #include "video_core/renderer_vulkan/vk_swapchain.h"
 
 namespace Core {
+class System;
 class TelemetrySession;
-}
+} // namespace Core
 
 namespace Memory {
 class MemorySystem;
@@ -61,7 +62,7 @@ class RendererVulkan : public VideoCore::RendererBase {
     static constexpr std::size_t PRESENT_PIPELINES = 3;
 
 public:
-    explicit RendererVulkan(Memory::MemorySystem& memory, Frontend::EmuWindow& window,
+    explicit RendererVulkan(Core::System& system, Frontend::EmuWindow& window,
                             Frontend::EmuWindow* secondary_window);
     ~RendererVulkan() override;
 
@@ -125,6 +126,7 @@ private:
     void LoadColorToActiveVkTexture(u8 color_r, u8 color_g, u8 color_b, const TextureInfo& texture);
 
 private:
+    Core::System& system;
     Memory::MemorySystem& memory;
     Core::TelemetrySession& telemetry_session;
 

@@ -17,14 +17,11 @@
 
 VK_DEFINE_HANDLE(VmaAllocation)
 
-namespace Vulkan {
+namespace VideoCore {
+enum class CustomPixelFormat : u32;
+}
 
-struct StagingData {
-    vk::Buffer buffer;
-    u32 size = 0;
-    std::span<u8> mapped{};
-    u64 buffer_offset = 0;
-};
+namespace Vulkan {
 
 struct Allocation {
     vk::Image image;
@@ -35,15 +32,24 @@ struct Allocation {
     VmaAllocation allocation;
     vk::ImageAspectFlags aspect;
     vk::Format format;
+    bool is_mutable;
+    u32 width;
+    u32 height;
+    u32 levels;
+
+    bool Matches(u32 width_, u32 height_, u32 levels_, vk::Format format_) const noexcept {
+        return std::tie(width, height, levels, format) ==
+               std::tie(width_, height_, levels_, format_);
+    }
 };
 
 struct HostTextureTag {
     vk::Format format = vk::Format::eUndefined;
-    VideoCore::PixelFormat pixel_format = VideoCore::PixelFormat::Invalid;
     VideoCore::TextureType type = VideoCore::TextureType::Texture2D;
     u32 width = 1;
     u32 height = 1;
     u32 levels = 1;
+    u32 is_mutable = 0; // This is a u32 to ensure alignment for hashing
 
     auto operator<=>(const HostTextureTag&) const noexcept = default;
 
@@ -90,15 +96,14 @@ public:
     void Recycle(const HostTextureTag tag, Allocation&& alloc);
 
     /// Maps an internal staging buffer of the provided size of pixel uploads/downloads
-    [[nodiscard]] StagingData FindStaging(u32 size, bool upload);
+    [[nodiscard]] VideoCore::StagingData FindStaging(u32 size, bool upload);
 
     /// Allocates a vulkan image possibly resusing an existing one
     [[nodiscard]] Allocation Allocate(u32 width, u32 height, u32 levels,
                                       VideoCore::PixelFormat format, VideoCore::TextureType type);
 
     /// Allocates a vulkan image
-    [[nodiscard]] Allocation Allocate(u32 width, u32 height, u32 levels,
-                                      VideoCore::PixelFormat pixel_format,
+    [[nodiscard]] Allocation Allocate(u32 width, u32 height, u32 levels, bool is_mutable,
                                       VideoCore::TextureType type, vk::Format format,
                                       vk::ImageUsageFlags usage, vk::ImageAspectFlags aspect);
 
@@ -112,7 +117,7 @@ public:
     bool BlitTextures(Surface& surface, Surface& dest, const VideoCore::TextureBlit& blit);
 
     /// Generates mipmaps for all the available levels of the texture
-    void GenerateMipmaps(Surface& surface, u32 max_level);
+    void GenerateMipmaps(Surface& surface);
 
     /// Returns all source formats that support reinterpretation to the dest format
     [[nodiscard]] const ReinterpreterList& GetPossibleReinterpretations(
@@ -176,10 +181,14 @@ public:
     }
 
     /// Uploads pixel data in staging to a rectangle region of the surface texture
-    void Upload(const VideoCore::BufferTextureCopy& upload, const StagingData& staging);
+    void Upload(const VideoCore::BufferTextureCopy& upload, const VideoCore::StagingData& staging);
 
     /// Downloads pixel data to staging from a rectangle region of the surface texture
-    void Download(const VideoCore::BufferTextureCopy& download, const StagingData& staging);
+    void Download(const VideoCore::BufferTextureCopy& download,
+                  const VideoCore::StagingData& staging);
+
+    /// Swaps the internal allocation to match the provided dimentions and format
+    bool Swap(u32 width, u32 height, VideoCore::CustomPixelFormat format);
 
     /// Returns the bpp of the internal surface format
     u32 GetInternalBytesPerPixel() const;
@@ -201,14 +210,16 @@ public:
 
 private:
     /// Uploads pixel data to scaled texture
-    void ScaledUpload(const VideoCore::BufferTextureCopy& upload, const StagingData& staging);
+    void ScaledUpload(const VideoCore::BufferTextureCopy& upload,
+                      const VideoCore::StagingData& staging);
 
     /// Downloads scaled image by downscaling the requested rectangle
-    void ScaledDownload(const VideoCore::BufferTextureCopy& download, const StagingData& stagings);
+    void ScaledDownload(const VideoCore::BufferTextureCopy& download,
+                        const VideoCore::StagingData& stagings);
 
     /// Downloads scaled depth stencil data
     void DepthStencilDownload(const VideoCore::BufferTextureCopy& download,
-                              const StagingData& staging);
+                              const VideoCore::StagingData& staging);
 
 private:
     TextureRuntime& runtime;

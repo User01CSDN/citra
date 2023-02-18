@@ -3,6 +3,7 @@
 // Refer to the license.txt file included.
 
 #include "common/microprofile.h"
+#include "video_core/rasterizer_cache/custom_tex_manager.h"
 #include "video_core/rasterizer_cache/texture_codec.h"
 #include "video_core/rasterizer_cache/utils.h"
 #include "video_core/renderer_vulkan/pica_to_vk.h"
@@ -18,9 +19,11 @@ MICROPROFILE_DEFINE(Vulkan_ImageAlloc, "Vulkan", "Texture Allocation", MP_RGB(19
 
 namespace Vulkan {
 
+namespace {
+
 using VideoCore::GetFormatType;
 using VideoCore::MipLevels;
-using VideoCore::PixelFormatAsString;
+using VideoCore::StagingData;
 using VideoCore::TextureType;
 
 struct RecordParams {
@@ -33,7 +36,7 @@ struct RecordParams {
     vk::Image dst_image;
 };
 
-[[nodiscard]] vk::Filter MakeFilter(VideoCore::PixelFormat pixel_format) {
+vk::Filter MakeFilter(VideoCore::PixelFormat pixel_format) {
     switch (pixel_format) {
     case VideoCore::PixelFormat::D16:
     case VideoCore::PixelFormat::D24:
@@ -94,7 +97,7 @@ u32 UnpackDepthStencil(const StagingData& data, vk::Format dest) {
         break;
     }
     default:
-        LOG_ERROR(Render_Vulkan, "Unimplemtend convertion for depth format {}",
+        LOG_ERROR(Render_Vulkan, "Unimplemented convertion for depth format {}",
                   vk::to_string(dest));
         UNREACHABLE();
     }
@@ -103,8 +106,10 @@ u32 UnpackDepthStencil(const StagingData& data, vk::Format dest) {
     return depth_offset;
 }
 
-constexpr u64 UPLOAD_BUFFER_SIZE = 32 * 1024 * 1024;
-constexpr u64 DOWNLOAD_BUFFER_SIZE = 32 * 1024 * 1024;
+constexpr u64 UPLOAD_BUFFER_SIZE = 128 * 1024 * 1024;
+constexpr u64 DOWNLOAD_BUFFER_SIZE = 16 * 1024 * 1024;
+
+} // Anonymous namespace
 
 TextureRuntime::TextureRuntime(const Instance& instance, Scheduler& scheduler,
                                RenderpassCache& renderpass_cache, DescriptorManager& desc_manager)
@@ -146,10 +151,9 @@ TextureRuntime::~TextureRuntime() {
 
 StagingData TextureRuntime::FindStaging(u32 size, bool upload) {
     auto& buffer = upload ? upload_buffer : download_buffer;
-    auto [data, offset, invalidate] = buffer.Map(size, 4);
+    auto [data, offset, invalidate] = buffer.Map(size, 16);
 
     return StagingData{
-        .buffer = buffer.Handle(),
         .size = size,
         .mapped = std::span<u8>{data, size},
         .buffer_offset = offset,
@@ -163,24 +167,24 @@ void TextureRuntime::Finish() {
 Allocation TextureRuntime::Allocate(u32 width, u32 height, u32 levels,
                                     VideoCore::PixelFormat format, VideoCore::TextureType type) {
     const FormatTraits traits = instance.GetTraits(format);
-    return Allocate(width, height, levels, format, type, traits.native, traits.usage,
+    const bool is_mutable = format == VideoCore::PixelFormat::RGBA8;
+    return Allocate(width, height, levels, is_mutable, type, traits.native, traits.usage,
                     traits.aspect);
 }
 
-Allocation TextureRuntime::Allocate(u32 width, u32 height, u32 levels,
-                                    VideoCore::PixelFormat pixel_format,
+Allocation TextureRuntime::Allocate(u32 width, u32 height, u32 levels, bool is_mutable,
                                     VideoCore::TextureType type, vk::Format format,
                                     vk::ImageUsageFlags usage, vk::ImageAspectFlags aspect) {
     MICROPROFILE_SCOPE(Vulkan_ImageAlloc);
 
-    ASSERT(pixel_format != VideoCore::PixelFormat::Invalid && levels >= 1);
+    ASSERT(format != vk::Format::eUndefined && levels >= 1);
     const HostTextureTag key = {
         .format = format,
-        .pixel_format = pixel_format,
         .type = type,
         .width = width,
         .height = height,
         .levels = levels,
+        .is_mutable = is_mutable,
     };
 
     if (auto it = texture_recycler.find(key); it != texture_recycler.end()) {
@@ -189,18 +193,17 @@ Allocation TextureRuntime::Allocate(u32 width, u32 height, u32 levels,
         return alloc;
     }
 
-    const bool create_storage_view = pixel_format == VideoCore::PixelFormat::RGBA8;
     const u32 layers = type == VideoCore::TextureType::CubeMap ? 6 : 1;
 
     vk::ImageCreateFlags flags;
     if (type == VideoCore::TextureType::CubeMap) {
         flags |= vk::ImageCreateFlagBits::eCubeCompatible;
     }
-    if (create_storage_view) {
+    if (is_mutable) {
         flags |= vk::ImageCreateFlagBits::eMutableFormat;
     }
 
-    const bool need_format_list = create_storage_view && instance.IsImageFormatListSupported();
+    const bool need_format_list = is_mutable && instance.IsImageFormatListSupported();
     const std::array format_list = {
         vk::Format::eR8G8B8A8Unorm,
         vk::Format::eR32Uint,
@@ -290,6 +293,10 @@ Allocation TextureRuntime::Allocate(u32 width, u32 height, u32 levels,
         .allocation = allocation,
         .aspect = aspect,
         .format = format,
+        .is_mutable = is_mutable,
+        .width = width,
+        .height = height,
+        .levels = levels,
     };
 }
 
@@ -722,7 +729,35 @@ bool TextureRuntime::BlitTextures(Surface& source, Surface& dest,
     return true;
 }
 
-void TextureRuntime::GenerateMipmaps(Surface& surface, u32 max_level) {}
+void TextureRuntime::GenerateMipmaps(Surface& surface) {
+    return;
+    if (surface.custom_format != VideoCore::CustomPixelFormat::RGBA8) {
+        LOG_ERROR(Render_Vulkan, "Generating mipmaps for compressed formats unsupported!");
+        return;
+    }
+
+    renderpass_cache.ExitRenderpass();
+
+    // Always use the allocation width on custom textures
+    u32 current_width = surface.alloc.width;
+    u32 current_height = surface.alloc.height;
+    const u32 levels = surface.levels;
+
+    for (u32 i = 1; i < levels; i++) {
+        const VideoCore::Rect2D src_rect{0, current_height, current_width, 0};
+        current_width = current_width > 1 ? current_width >> 1 : 1;
+        current_height = current_height > 1 ? current_height >> 1 : 1;
+        const VideoCore::Rect2D dst_rect{0, current_height, current_width, 0};
+
+        const VideoCore::TextureBlit blit = {
+            .src_level = i - 1,
+            .dst_level = i,
+            .src_rect = src_rect,
+            .dst_rect = dst_rect,
+        };
+        BlitTextures(surface, surface, blit);
+    }
+}
 
 const ReinterpreterList& TextureRuntime::GetPossibleReinterpretations(
     VideoCore::PixelFormat dest_format) const {
@@ -751,23 +786,25 @@ Surface::Surface(const VideoCore::SurfaceParams& params, vk::Format format,
     : VideoCore::SurfaceBase{params}, runtime{runtime}, instance{runtime.GetInstance()},
       scheduler{runtime.GetScheduler()} {
     if (format != vk::Format::eUndefined) {
-        alloc = runtime.Allocate(GetScaledWidth(), GetScaledHeight(), levels, pixel_format,
-                                 texture_type, format, usage, aspect);
+        alloc = runtime.Allocate(GetScaledWidth(), GetScaledHeight(), levels, false, texture_type,
+                                 format, usage, aspect);
     }
 }
 
 Surface::~Surface() {
-    if (pixel_format != VideoCore::PixelFormat::Invalid) {
-        const HostTextureTag tag = {
-            .format = alloc.format,
-            .pixel_format = pixel_format,
-            .type = texture_type,
-            .width = GetScaledWidth(),
-            .height = GetScaledHeight(),
-        };
-
-        runtime.Recycle(tag, std::move(alloc));
+    if (pixel_format == VideoCore::PixelFormat::Invalid) {
+        return;
     }
+
+    const HostTextureTag tag = {
+        .format = alloc.format,
+        .type = texture_type,
+        .width = alloc.width,
+        .height = alloc.height,
+        .levels = alloc.levels,
+        .is_mutable = alloc.is_mutable,
+    };
+    runtime.Recycle(tag, std::move(alloc));
 }
 
 void Surface::Upload(const VideoCore::BufferTextureCopy& upload, const StagingData& staging) {
@@ -784,79 +821,78 @@ void Surface::Upload(const VideoCore::BufferTextureCopy& upload, const StagingDa
             .src_image = alloc.image,
         };
 
-        scheduler.Record(
-            [format = alloc.format, params, staging, upload](vk::CommandBuffer cmdbuf) {
-                u32 num_copies = 1;
-                std::array<vk::BufferImageCopy, 2> buffer_image_copies;
+        scheduler.Record([buffer = runtime.upload_buffer.Handle(), format = alloc.format, params,
+                          staging, upload](vk::CommandBuffer cmdbuf) {
+            u32 num_copies = 1;
+            std::array<vk::BufferImageCopy, 2> buffer_image_copies;
 
-                const VideoCore::Rect2D rect = upload.texture_rect;
-                buffer_image_copies[0] = vk::BufferImageCopy{
-                    .bufferOffset = staging.buffer_offset + upload.buffer_offset,
-                    .bufferRowLength = rect.GetWidth(),
-                    .bufferImageHeight = rect.GetHeight(),
-                    .imageSubresource{
-                        .aspectMask = params.aspect,
-                        .mipLevel = upload.texture_level,
-                        .baseArrayLayer = 0,
-                        .layerCount = 1,
-                    },
-                    .imageOffset = {static_cast<s32>(rect.left), static_cast<s32>(rect.bottom), 0},
-                    .imageExtent = {rect.GetWidth(), rect.GetHeight(), 1},
-                };
+            const VideoCore::Rect2D rect = upload.texture_rect;
+            buffer_image_copies[0] = vk::BufferImageCopy{
+                .bufferOffset = staging.buffer_offset + upload.buffer_offset,
+                .bufferRowLength = rect.GetWidth(),
+                .bufferImageHeight = rect.GetHeight(),
+                .imageSubresource{
+                    .aspectMask = params.aspect,
+                    .mipLevel = upload.texture_level,
+                    .baseArrayLayer = 0,
+                    .layerCount = 1,
+                },
+                .imageOffset = {static_cast<s32>(rect.left), static_cast<s32>(rect.bottom), 0},
+                .imageExtent = {rect.GetWidth(), rect.GetHeight(), 1},
+            };
 
-                if (params.aspect & vk::ImageAspectFlagBits::eStencil) {
-                    buffer_image_copies[0].imageSubresource.aspectMask =
-                        vk::ImageAspectFlagBits::eDepth;
-                    vk::BufferImageCopy& stencil_copy = buffer_image_copies[1];
-                    stencil_copy = buffer_image_copies[0];
-                    stencil_copy.bufferOffset += UnpackDepthStencil(staging, format);
-                    stencil_copy.imageSubresource.aspectMask = vk::ImageAspectFlagBits::eStencil;
-                    num_copies++;
-                }
+            if (params.aspect & vk::ImageAspectFlagBits::eStencil) {
+                buffer_image_copies[0].imageSubresource.aspectMask =
+                    vk::ImageAspectFlagBits::eDepth;
+                vk::BufferImageCopy& stencil_copy = buffer_image_copies[1];
+                stencil_copy = buffer_image_copies[0];
+                stencil_copy.bufferOffset += UnpackDepthStencil(staging, format);
+                stencil_copy.imageSubresource.aspectMask = vk::ImageAspectFlagBits::eStencil;
+                num_copies++;
+            }
 
-                const vk::ImageMemoryBarrier read_barrier = {
-                    .srcAccessMask = params.src_access,
-                    .dstAccessMask = vk::AccessFlagBits::eTransferWrite,
-                    .oldLayout = vk::ImageLayout::eGeneral,
-                    .newLayout = vk::ImageLayout::eTransferDstOptimal,
-                    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                    .image = params.src_image,
-                    .subresourceRange{
-                        .aspectMask = params.aspect,
-                        .baseMipLevel = upload.texture_level,
-                        .levelCount = 1,
-                        .baseArrayLayer = 0,
-                        .layerCount = VK_REMAINING_ARRAY_LAYERS,
-                    },
-                };
-                const vk::ImageMemoryBarrier write_barrier = {
-                    .srcAccessMask = vk::AccessFlagBits::eTransferWrite,
-                    .dstAccessMask = params.src_access,
-                    .oldLayout = vk::ImageLayout::eTransferDstOptimal,
-                    .newLayout = vk::ImageLayout::eGeneral,
-                    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                    .image = params.src_image,
-                    .subresourceRange{
-                        .aspectMask = params.aspect,
-                        .baseMipLevel = upload.texture_level,
-                        .levelCount = 1,
-                        .baseArrayLayer = 0,
-                        .layerCount = VK_REMAINING_ARRAY_LAYERS,
-                    },
-                };
+            const vk::ImageMemoryBarrier read_barrier = {
+                .srcAccessMask = params.src_access,
+                .dstAccessMask = vk::AccessFlagBits::eTransferWrite,
+                .oldLayout = vk::ImageLayout::eGeneral,
+                .newLayout = vk::ImageLayout::eTransferDstOptimal,
+                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .image = params.src_image,
+                .subresourceRange{
+                    .aspectMask = params.aspect,
+                    .baseMipLevel = upload.texture_level,
+                    .levelCount = 1,
+                    .baseArrayLayer = 0,
+                    .layerCount = VK_REMAINING_ARRAY_LAYERS,
+                },
+            };
+            const vk::ImageMemoryBarrier write_barrier = {
+                .srcAccessMask = vk::AccessFlagBits::eTransferWrite,
+                .dstAccessMask = params.src_access,
+                .oldLayout = vk::ImageLayout::eTransferDstOptimal,
+                .newLayout = vk::ImageLayout::eGeneral,
+                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .image = params.src_image,
+                .subresourceRange{
+                    .aspectMask = params.aspect,
+                    .baseMipLevel = upload.texture_level,
+                    .levelCount = 1,
+                    .baseArrayLayer = 0,
+                    .layerCount = VK_REMAINING_ARRAY_LAYERS,
+                },
+            };
 
-                cmdbuf.pipelineBarrier(params.pipeline_flags, vk::PipelineStageFlagBits::eTransfer,
-                                       vk::DependencyFlagBits::eByRegion, {}, {}, read_barrier);
+            cmdbuf.pipelineBarrier(params.pipeline_flags, vk::PipelineStageFlagBits::eTransfer,
+                                   vk::DependencyFlagBits::eByRegion, {}, {}, read_barrier);
 
-                cmdbuf.copyBufferToImage(staging.buffer, params.src_image,
-                                         vk::ImageLayout::eTransferDstOptimal, num_copies,
-                                         buffer_image_copies.data());
+            cmdbuf.copyBufferToImage(buffer, params.src_image, vk::ImageLayout::eTransferDstOptimal,
+                                     num_copies, buffer_image_copies.data());
 
-                cmdbuf.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, params.pipeline_flags,
-                                       vk::DependencyFlagBits::eByRegion, {}, {}, write_barrier);
-            });
+            cmdbuf.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, params.pipeline_flags,
+                                   vk::DependencyFlagBits::eByRegion, {}, {}, write_barrier);
+        });
 
         runtime.upload_buffer.Commit(staging.size);
     }
@@ -883,7 +919,8 @@ void Surface::Download(const VideoCore::BufferTextureCopy& download, const Stagi
             .src_image = alloc.image,
         };
 
-        scheduler.Record([params, staging, download](vk::CommandBuffer cmdbuf) {
+        scheduler.Record([buffer = runtime.download_buffer.Handle(), params, staging,
+                          download](vk::CommandBuffer cmdbuf) {
             const VideoCore::Rect2D rect = download.texture_rect;
             const vk::BufferImageCopy buffer_image_copy = {
                 .bufferOffset = staging.buffer_offset + download.buffer_offset,
@@ -939,8 +976,8 @@ void Surface::Download(const VideoCore::BufferTextureCopy& download, const Stagi
             cmdbuf.pipelineBarrier(params.pipeline_flags, vk::PipelineStageFlagBits::eTransfer,
                                    vk::DependencyFlagBits::eByRegion, {}, {}, read_barrier);
 
-            cmdbuf.copyImageToBuffer(params.src_image, vk::ImageLayout::eTransferSrcOptimal,
-                                     staging.buffer, buffer_image_copy);
+            cmdbuf.copyImageToBuffer(params.src_image, vk::ImageLayout::eTransferSrcOptimal, buffer,
+                                     buffer_image_copy);
 
             cmdbuf.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, params.pipeline_flags,
                                    vk::DependencyFlagBits::eByRegion, memory_write_barrier, {},
@@ -948,6 +985,39 @@ void Surface::Download(const VideoCore::BufferTextureCopy& download, const Stagi
         });
         runtime.download_buffer.Commit(staging.size);
     }
+}
+
+bool Surface::Swap(u32 width, u32 height, VideoCore::CustomPixelFormat format) {
+    const FormatTraits& traits = instance.GetTraits(format);
+    if (!traits.transfer_support) {
+        return false;
+    }
+
+    const vk::Format custom_vk_format = traits.native;
+    if (alloc.Matches(width, height, levels, custom_vk_format)) {
+        return true;
+    }
+
+    const HostTextureTag tag = {
+        .format = alloc.format,
+        .type = texture_type,
+        .width = alloc.width,
+        .height = alloc.height,
+        .levels = levels,
+        .is_mutable = alloc.is_mutable,
+    };
+    runtime.Recycle(tag, std::move(alloc));
+
+    is_custom = true;
+    custom_format = format;
+    alloc = runtime.Allocate(width, height, levels, false, texture_type, custom_vk_format,
+                             traits.usage, traits.aspect);
+
+    LOG_DEBUG(Render_Vulkan, "Swapped {}x{} {} surface at address {:#x} to {}x{} {}",
+              GetScaledWidth(), GetScaledHeight(), VideoCore::PixelFormatAsString(pixel_format),
+              addr, width, height, VideoCore::CustomPixelFormatAsString(format));
+
+    return true;
 }
 
 u32 Surface::GetInternalBytesPerPixel() const {
@@ -1041,7 +1111,7 @@ vk::ImageView Surface::StorageView() noexcept {
 
     ASSERT_MSG(pixel_format == VideoCore::PixelFormat::RGBA8,
                "Attempted to retrieve storage view from unsupported surface with format {}",
-               PixelFormatAsString(pixel_format));
+               VideoCore::PixelFormatAsString(pixel_format));
 
     const vk::ImageViewCreateInfo storage_view_info = {
         .image = alloc.image,
@@ -1268,8 +1338,8 @@ Sampler::Sampler(TextureRuntime& runtime, VideoCore::SamplerParams params)
         .maxAnisotropy = properties.limits.maxSamplerAnisotropy,
         .compareEnable = false,
         .compareOp = vk::CompareOp::eAlways,
-        .minLod = lod_min,
-        .maxLod = lod_max,
+        .minLod = 0.f * lod_min,
+        .maxLod = 0.f * lod_max,
         .borderColor =
             use_border_color ? vk::BorderColor::eFloatCustomEXT : vk::BorderColor::eIntOpaqueBlack,
         .unnormalizedCoordinates = false,

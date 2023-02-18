@@ -13,25 +13,27 @@ namespace Common {
 
 struct AsyncHandle {
 public:
-    [[nodiscard]] bool IsBuilt() noexcept {
-        return is_built.load(std::memory_order::relaxed);
+    AsyncHandle(bool is_done_ = false) : is_done{is_done_} {}
+
+    [[nodiscard]] bool IsDone() noexcept {
+        return is_done.load(std::memory_order::relaxed);
     }
 
-    void WaitBuilt() noexcept {
+    void WaitDone() noexcept {
         std::unique_lock lock{mutex};
-        condvar.wait(lock, [this] { return is_built.load(std::memory_order::relaxed); });
+        condvar.wait(lock, [this] { return is_done.load(std::memory_order::relaxed); });
     }
 
-    void MarkBuilt() noexcept {
+    void MarkDone(bool done = true) noexcept {
         std::scoped_lock lock{mutex};
-        is_built = true;
+        is_done = done;
         condvar.notify_all();
     }
 
 private:
     std::condition_variable condvar;
     std::mutex mutex;
-    std::atomic_bool is_built{false};
+    std::atomic_bool is_done{false};
 };
 
 } // namespace Common
