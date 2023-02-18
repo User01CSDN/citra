@@ -13,20 +13,64 @@
 #include "video_core/renderer_opengl/gl_stream_buffer.h"
 #include "video_core/renderer_opengl/texture_filters/texture_filterer.h"
 
+namespace VideoCore {
+enum class CustomPixelFormat : u32;
+}
+
 namespace OpenGL {
 
 struct FormatTuple {
     GLint internal_format;
     GLenum format;
     GLenum type;
+
+    bool operator==(const FormatTuple& other) const noexcept {
+        return std::tie(internal_format, format, type) ==
+               std::tie(other.internal_format, other.format, other.type);
+    }
 };
 
-struct StagingData {
-    GLuint buffer;
-    u32 size = 0;
-    std::span<u8> mapped{};
-    u64 buffer_offset = 0;
+struct Allocation {
+    OGLTexture texture;
+    FormatTuple tuple;
+    u32 width;
+    u32 height;
+    u32 levels;
+
+    bool Matches(u32 width_, u32 height_, u32 levels_, const FormatTuple& tuple_) const {
+        return std::tie(width, height, levels, tuple) == std::tie(width_, height_, levels_, tuple_);
+    }
 };
+
+struct HostTextureTag {
+    FormatTuple tuple{};
+    VideoCore::TextureType type{};
+    u32 width = 0;
+    u32 height = 0;
+    u32 levels = 1;
+
+    bool operator==(const HostTextureTag& other) const noexcept {
+        return std::tie(tuple, type, width, height, levels) ==
+               std::tie(other.tuple, other.type, other.width, other.height, other.levels);
+    }
+
+    const u64 Hash() const {
+        return Common::ComputeHash64(this, sizeof(HostTextureTag));
+    }
+};
+
+} // namespace OpenGL
+
+namespace std {
+template <>
+struct hash<OpenGL::HostTextureTag> {
+    std::size_t operator()(const OpenGL::HostTextureTag& tag) const noexcept {
+        return tag.Hash();
+    }
+};
+} // namespace std
+
+namespace OpenGL {
 
 class Driver;
 class Surface;
@@ -44,16 +88,20 @@ public:
     ~TextureRuntime();
 
     /// Maps an internal staging buffer of the provided size of pixel uploads/downloads
-    StagingData FindStaging(u32 size, bool upload);
+    VideoCore::StagingData FindStaging(u32 size, bool upload);
 
     /// Returns the OpenGL format tuple associated with the provided pixel format
     const FormatTuple& GetFormatTuple(VideoCore::PixelFormat pixel_format);
+    const FormatTuple& GetFormatTuple(VideoCore::CustomPixelFormat pixel_format);
 
     /// Causes a GPU command flush
     void Finish() const {}
 
+    /// Takes back ownership of the allocation for recycling
+    void Recycle(const HostTextureTag tag, Allocation&& alloc);
+
     /// Allocates an OpenGL texture with the specified dimentions and format
-    OGLTexture Allocate(u32 width, u32 height, u32 levels, VideoCore::PixelFormat format,
+    Allocation Allocate(u32 width, u32 height, u32 levels, const FormatTuple& tuple,
                         VideoCore::TextureType type);
 
     /// Fills the rectangle of the texture with the clear value provided
@@ -66,7 +114,7 @@ public:
     bool BlitTextures(Surface& surface, Surface& dest, const VideoCore::TextureBlit& blit);
 
     /// Generates mipmaps for all the available levels of the texture
-    void GenerateMipmaps(Surface& surface, u32 max_level);
+    void GenerateMipmaps(Surface& surface);
 
     /// Returns all source formats that support reinterpretation to the dest format
     [[nodiscard]] const ReinterpreterList& GetPossibleReinterpretations(
@@ -94,7 +142,7 @@ private:
     Driver& driver;
     TextureFilterer filterer;
     std::array<ReinterpreterList, VideoCore::PIXEL_FORMAT_COUNT> reinterpreters;
-    std::unordered_multimap<VideoCore::HostTextureTag, OGLTexture> texture_recycler;
+    std::unordered_multimap<HostTextureTag, Allocation> texture_recycler;
     std::unordered_map<u64, OGLFramebuffer, Common::IdentityHash<u64>> framebuffer_cache;
     StreamBuffer upload_buffer;
     std::vector<u8> download_buffer;
@@ -108,14 +156,18 @@ public:
 
     /// Returns the surface image handle
     GLuint Handle() const noexcept {
-        return texture.handle;
+        return alloc.texture.handle;
     }
 
     /// Uploads pixel data in staging to a rectangle region of the surface texture
-    void Upload(const VideoCore::BufferTextureCopy& upload, const StagingData& staging);
+    void Upload(const VideoCore::BufferTextureCopy& upload, const VideoCore::StagingData& staging);
 
     /// Downloads pixel data to staging from a rectangle region of the surface texture
-    void Download(const VideoCore::BufferTextureCopy& download, const StagingData& staging);
+    void Download(const VideoCore::BufferTextureCopy& download,
+                  const VideoCore::StagingData& staging);
+
+    /// Swaps the internal allocation to match the provided dimentions and format
+    bool Swap(u32 width, u32 height, VideoCore::CustomPixelFormat format);
 
     /// Returns the bpp of the internal surface format
     u32 GetInternalBytesPerPixel() const {
@@ -124,15 +176,17 @@ public:
 
 private:
     /// Uploads pixel data to scaled texture
-    void ScaledUpload(const VideoCore::BufferTextureCopy& upload, const StagingData& staging);
+    void ScaledUpload(const VideoCore::BufferTextureCopy& upload,
+                      const VideoCore::StagingData& staging);
 
     /// Downloads scaled image by downscaling the requested rectangle
-    void ScaledDownload(const VideoCore::BufferTextureCopy& download, const StagingData& staging);
+    void ScaledDownload(const VideoCore::BufferTextureCopy& download,
+                        const VideoCore::StagingData& staging);
 
 private:
     TextureRuntime& runtime;
     const Driver& driver;
-    OGLTexture texture{};
+    Allocation alloc;
 };
 
 class Framebuffer : public VideoCore::FramebufferBase {

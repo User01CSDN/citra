@@ -36,9 +36,12 @@ constexpr std::size_t TEXTURE_BUFFER_SIZE = 1 * 1024 * 1024;
 
 } // Anonymous namespace
 
-RasterizerOpenGL::RasterizerOpenGL(Memory::MemorySystem& memory_, Frontend::EmuWindow& emu_window,
-                                   Driver& driver_)
-    : RasterizerAccelerated{memory_}, driver{driver_}, runtime{driver}, res_cache{memory, runtime},
+RasterizerOpenGL::RasterizerOpenGL(Memory::MemorySystem& memory,
+                                   VideoCore::CustomTexManager& custom_tex_manager,
+                                   Frontend::EmuWindow& emu_window, Driver& driver_)
+    : RasterizerAccelerated{memory}, driver{driver_}, runtime{driver}, res_cache{memory,
+                                                                                 custom_tex_manager,
+                                                                                 runtime},
       shader_program_manager{emu_window, driver, !driver.IsOpenGLES()},
       vertex_buffer{GL_ARRAY_BUFFER, VERTEX_BUFFER_SIZE}, uniform_buffer{GL_UNIFORM_BUFFER,
                                                                          UNIFORM_BUFFER_SIZE},

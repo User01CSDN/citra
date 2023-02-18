@@ -10,6 +10,10 @@
 #include <memory>
 #include "core/frontend/emu_window.h"
 
+namespace Core {
+class System;
+}
+
 namespace Frontend {
 class EmuWindow;
 }
@@ -44,7 +48,7 @@ enum class ResultStatus {
 
 /// Initialize the video core
 ResultStatus Init(Frontend::EmuWindow& emu_window, Frontend::EmuWindow* secondary_window,
-                  Memory::MemorySystem& memory);
+                  Core::System& system);
 
 /// Shutdown the video core
 void Shutdown();

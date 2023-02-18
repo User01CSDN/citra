@@ -9,10 +9,8 @@
 #include <string>
 #include <boost/serialization/version.hpp>
 #include "common/common_types.h"
-#include "core/custom_tex_cache.h"
 #include "core/frontend/applets/mii_selector.h"
 #include "core/frontend/applets/swkbd.h"
-#include "core/frontend/image_interface.h"
 #include "core/loader/loader.h"
 #include "core/memory.h"
 #include "core/perf_stats.h"
@@ -58,8 +56,9 @@ class Backend;
 }
 
 namespace VideoCore {
+class CustomTexManager;
 class RendererBase;
-}
+} // namespace VideoCore
 
 namespace Core {
 
@@ -257,11 +256,11 @@ public:
     /// Gets a const reference to the cheat engine
     [[nodiscard]] const Cheats::CheatEngine& CheatEngine() const;
 
-    /// Gets a reference to the custom texture cache system
-    [[nodiscard]] Core::CustomTexCache& CustomTexCache();
+    /// Gets a reference to the custom texture management system
+    [[nodiscard]] VideoCore::CustomTexManager& CustomTexManager();
 
-    /// Gets a const reference to the custom texture cache system
-    [[nodiscard]] const Core::CustomTexCache& CustomTexCache() const;
+    /// Gets a const reference to the custom texture management system
+    [[nodiscard]] const VideoCore::CustomTexManager& CustomTexManager() const;
 
     /// Gets a reference to the video dumper backend
     [[nodiscard]] VideoDumper::Backend& VideoDumper();
@@ -299,14 +298,6 @@ public:
 
     [[nodiscard]] std::shared_ptr<Frontend::SoftwareKeyboard> GetSoftwareKeyboard() const {
         return registered_swkbd;
-    }
-
-    /// Image interface
-
-    void RegisterImageInterface(std::shared_ptr<Frontend::ImageInterface> image_interface);
-
-    [[nodiscard]] std::shared_ptr<Frontend::ImageInterface> GetImageInterface() const {
-        return registered_image_interface;
     }
 
     void SaveState(u32 slot) const;
@@ -367,10 +358,7 @@ private:
     std::unique_ptr<VideoDumper::Backend> video_dumper;
 
     /// Custom texture cache system
-    std::unique_ptr<Core::CustomTexCache> custom_tex_cache;
-
-    /// Image interface
-    std::shared_ptr<Frontend::ImageInterface> registered_image_interface;
+    std::unique_ptr<VideoCore::CustomTexManager> custom_tex_manager;
 
     /// RPC Server for scripting support
     std::unique_ptr<RPC::RPCServer> rpc_server;

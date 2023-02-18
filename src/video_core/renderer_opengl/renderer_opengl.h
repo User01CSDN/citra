@@ -11,6 +11,10 @@
 #include "video_core/renderer_opengl/gl_driver.h"
 #include "video_core/renderer_opengl/gl_rasterizer.h"
 
+namespace Core {
+class System;
+}
+
 namespace Layout {
 struct FramebufferLayout;
 }
@@ -60,7 +64,7 @@ class RasterizerOpenGL;
 
 class RendererOpenGL : public VideoCore::RendererBase {
 public:
-    explicit RendererOpenGL(Memory::MemorySystem& memory, Frontend::EmuWindow& window,
+    explicit RendererOpenGL(Core::System& system, Frontend::EmuWindow& window,
                             Frontend::EmuWindow* secondary_window);
     ~RendererOpenGL() override;
 
@@ -122,6 +126,7 @@ private:
     void LoadColorToActiveGLTexture(u8 color_r, u8 color_g, u8 color_b, const TextureInfo& texture);
 
 private:
+    Core::System& system;
     Memory::MemorySystem& memory;
     Driver driver;
     OpenGLState state;

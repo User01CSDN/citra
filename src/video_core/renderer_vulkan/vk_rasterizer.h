@@ -15,6 +15,10 @@ namespace Frontend {
 class EmuWindow;
 }
 
+namespace VideoCore {
+class CustomTexManager;
+}
+
 namespace Vulkan {
 
 struct ScreenInfo;
@@ -28,10 +32,11 @@ class RasterizerVulkan : public VideoCore::RasterizerAccelerated {
     friend class RendererVulkan;
 
 public:
-    explicit RasterizerVulkan(Memory::MemorySystem& memory, Frontend::EmuWindow& emu_window,
-                              const Instance& instance, Scheduler& scheduler,
-                              DescriptorManager& desc_manager, TextureRuntime& runtime,
-                              RenderpassCache& renderpass_cache);
+    explicit RasterizerVulkan(Memory::MemorySystem& memory,
+                              VideoCore::CustomTexManager& custom_tex_manager,
+                              Frontend::EmuWindow& emu_window, const Instance& instance,
+                              Scheduler& scheduler, DescriptorManager& desc_manager,
+                              TextureRuntime& runtime, RenderpassCache& renderpass_cache);
     ~RasterizerVulkan() override;
 
     void LoadDiskResources(const std::atomic_bool& stop_loading,

@@ -77,18 +77,10 @@ struct BufferTextureCopy {
     u32 texture_level;
 };
 
-struct HostTextureTag {
-    PixelFormat format{};
-    TextureType type{};
-    u32 width = 0;
-    u32 height = 0;
-    u32 levels = 1;
-
-    auto operator<=>(const HostTextureTag&) const noexcept = default;
-
-    const u64 Hash() const {
-        return Common::ComputeHash64(this, sizeof(HostTextureTag));
-    }
+struct StagingData {
+    u32 size = 0;
+    std::span<u8> mapped{};
+    u64 buffer_offset = 0;
 };
 
 struct TextureCubeConfig {
@@ -144,13 +136,6 @@ void DecodeTexture(const SurfaceParams& surface_info, PAddr start_addr, PAddr en
 } // namespace VideoCore
 
 namespace std {
-template <>
-struct hash<VideoCore::HostTextureTag> {
-    std::size_t operator()(const VideoCore::HostTextureTag& tag) const noexcept {
-        return tag.Hash();
-    }
-};
-
 template <>
 struct hash<VideoCore::TextureCubeConfig> {
     std::size_t operator()(const VideoCore::TextureCubeConfig& config) const noexcept {

@@ -10,7 +10,6 @@
 #include "video_core/regs_framebuffer.h"
 #include "video_core/regs_pipeline.h"
 #include "video_core/regs_rasterizer.h"
-#include "video_core/renderer_vulkan/pica_to_vk.h"
 #include "video_core/renderer_vulkan/renderer_vulkan.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_rasterizer.h"
@@ -69,12 +68,15 @@ struct DrawParams {
 
 } // Anonymous namespace
 
-RasterizerVulkan::RasterizerVulkan(Memory::MemorySystem& memory_, Frontend::EmuWindow& emu_window,
-                                   const Instance& instance, Scheduler& scheduler,
-                                   DescriptorManager& desc_manager, TextureRuntime& runtime,
-                                   RenderpassCache& renderpass_cache)
-    : RasterizerAccelerated{memory_}, instance{instance}, scheduler{scheduler}, runtime{runtime},
-      renderpass_cache{renderpass_cache}, desc_manager{desc_manager}, res_cache{memory, runtime},
+RasterizerVulkan::RasterizerVulkan(Memory::MemorySystem& memory,
+                                   VideoCore::CustomTexManager& custom_tex_manager,
+                                   Frontend::EmuWindow& emu_window, const Instance& instance,
+                                   Scheduler& scheduler, DescriptorManager& desc_manager,
+                                   TextureRuntime& runtime, RenderpassCache& renderpass_cache)
+    : RasterizerAccelerated{memory}, instance{instance}, scheduler{scheduler}, runtime{runtime},
+      renderpass_cache{renderpass_cache}, desc_manager{desc_manager}, res_cache{memory,
+                                                                                custom_tex_manager,
+                                                                                runtime},
       pipeline_cache{instance, scheduler, renderpass_cache, desc_manager},
       null_surface{NULL_PARAMS, vk::Format::eR8G8B8A8Unorm, NULL_USAGE,
                    vk::ImageAspectFlagBits::eColor, runtime},

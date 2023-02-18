@@ -70,6 +70,3 @@
 [submodule "sirit"]
 	path = externals/sirit
 	url = https://github.com/GPUCode/sirit
-[submodule "externals/libspng"]
-	path = externals/libspng
-	url = https://github.com/randy408/libspng

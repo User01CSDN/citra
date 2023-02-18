@@ -3,14 +3,12 @@
 // Refer to the license.txt file included.
 
 #include <spng.h>
-#include "common/dds.h"
+#define DDSKTX_IMPLEMENT
 #include "common/file_util.h"
 #include "common/image_util.h"
 #include "common/logging/log.h"
 
 namespace Common {
-
-using namespace Common::DirectX;
 
 namespace {
 
@@ -26,18 +24,38 @@ auto make_spng_ctx(int flags) {
 
 } // Anonymous namespace
 
-bool DecodePNG(std::span<const u8> in_data, std::vector<u8>& out_data, u32& width, u32& height) {
+bool ParsePNG(std::span<const u8> png_data, size_t& decoded_size, u32& width, u32& height) {
     auto ctx = make_spng_ctx(0);
     if (!ctx) [[unlikely]] {
         return false;
     }
 
-    if (spng_set_png_buffer(ctx.get(), in_data.data(), in_data.size())) {
+    if (spng_set_png_buffer(ctx.get(), png_data.data(), png_data.size())) {
         return false;
     }
 
     spng_ihdr ihdr{};
     if (spng_get_ihdr(ctx.get(), &ihdr)) {
+        return false;
+    }
+    width = ihdr.width;
+    height = ihdr.height;
+
+    const int format = SPNG_FMT_RGBA8;
+    if (spng_decoded_image_size(ctx.get(), format, &decoded_size)) {
+        return false;
+    }
+
+    return true;
+}
+
+bool DecodePNG(std::span<const u8> png_data, std::span<u8> out_data) {
+    auto ctx = make_spng_ctx(0);
+    if (!ctx) [[unlikely]] {
+        return false;
+    }
+
+    if (spng_set_png_buffer(ctx.get(), png_data.data(), png_data.size())) {
         return false;
     }
 
@@ -46,30 +64,46 @@ bool DecodePNG(std::span<const u8> in_data, std::vector<u8>& out_data, u32& widt
     if (spng_decoded_image_size(ctx.get(), format, &decoded_len)) {
         return false;
     }
+    ASSERT(out_data.size() == decoded_len);
 
-    out_data.resize(decoded_len);
-    if (spng_decode_image(ctx.get(), out_data.data(), decoded_len, format, SPNG_DECODE_TRNS)) {
+    if (spng_decode_image(ctx.get(), out_data.data(), decoded_len, format, 0)) {
         return false;
     }
 
-    width = ihdr.width;
-    height = ihdr.height;
     return true;
 }
 
-bool EncodePNG(std::span<const u8> in_data, const std::string& out_path, u32 width, u32 height,
-               u32 stride, s32 level) {
+bool ParseDDSKTX(std::span<const u8> in_data, std::vector<u8>& out_data, u32& width, u32& height,
+                 ddsktx_format& format) {
+    ddsktx_texture_info tc{};
+    if (!ddsktx_parse(&tc, in_data.data(), in_data.size(), nullptr)) {
+        return false;
+    }
+
+    width = tc.width;
+    height = tc.height;
+    format = tc.format;
+
+    ddsktx_sub_data sub_data{};
+    ddsktx_get_sub(&tc, &sub_data, in_data.data(), in_data.size(), 0, 0, 0);
+
+    out_data.resize(sub_data.size_bytes);
+    std::memcpy(out_data.data(), sub_data.buff, sub_data.size_bytes);
+
+    return true;
+}
+
+bool EncodePNG(const std::string& out_path, std::span<u8> in_data, u32 width, u32 height,
+               s32 level) {
     auto ctx = make_spng_ctx(SPNG_CTX_ENCODER);
     if (!ctx) [[unlikely]] {
         return false;
     }
 
-    auto outfile = FileUtil::IOFile(out_path, "wb");
-    if (spng_set_png_file(ctx.get(), outfile.Handle())) {
+    if (spng_set_option(ctx.get(), SPNG_IMG_COMPRESSION_LEVEL, level)) {
         return false;
     }
-
-    if (spng_set_option(ctx.get(), SPNG_IMG_COMPRESSION_LEVEL, level)) {
+    if (spng_set_option(ctx.get(), SPNG_ENCODE_TO_BUFFER, 1)) {
         return false;
     }
 
@@ -82,23 +116,21 @@ bool EncodePNG(std::span<const u8> in_data, const std::string& out_path, u32 wid
         return false;
     }
 
-    if (spng_encode_image(ctx.get(), nullptr, 0, SPNG_FMT_PNG,
-                          SPNG_ENCODE_PROGRESSIVE | SPNG_ENCODE_FINALIZE)) {
+    if (spng_encode_image(ctx.get(), in_data.data(), in_data.size(), SPNG_FMT_PNG,
+                          SPNG_ENCODE_FINALIZE)) {
         return false;
     }
 
-    for (u32 row = 0; row < height; row++) {
-        const int err = spng_encode_row(ctx.get(), &in_data[row * stride], stride);
-        if (err == SPNG_EOI) {
-            break;
-        }
+    int ret{};
+    size_t png_size{};
+    u8* png_buf = reinterpret_cast<u8*>(spng_get_png_buffer(ctx.get(), &png_size, &ret));
 
-        if (err) {
-            LOG_ERROR(Common, "Failed to save {} by {} image to {} at level {}: error {}", width,
-                      height, out_path, level, err);
-            return false;
-        }
+    if (!png_buf) {
+        return false;
     }
+
+    auto file = FileUtil::IOFile(out_path, "wb");
+    file.WriteBytes(png_buf, png_size);
 
     size_t image_len = 0;
     spng_decoded_image_size(ctx.get(), SPNG_FMT_PNG, &image_len);
@@ -106,6 +138,16 @@ bool EncodePNG(std::span<const u8> in_data, const std::string& out_path, u32 wid
               out_path, level);
 
     return true;
+}
+
+void FlipTexture(std::span<u8> in_data, u32 width, u32 height, u32 stride) {
+    for (u32 line = 0; line < height / 2; line++) {
+        const u32 offset_1 = line * stride;
+        const u32 offset_2 = (height - line - 1) * stride;
+        // Swap lines
+        std::swap_ranges(in_data.begin() + offset_1, in_data.begin() + offset_1 + stride,
+                         in_data.begin() + offset_2);
+    }
 }
 
 } // namespace Common
