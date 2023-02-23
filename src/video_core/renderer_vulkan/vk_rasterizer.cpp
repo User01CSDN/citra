@@ -129,8 +129,7 @@ RasterizerVulkan::RasterizerVulkan(Memory::MemorySystem& memory,
 
     const Sampler& null_sampler = res_cache.GetSampler(VideoCore::NULL_SAMPLER_ID);
     for (u32 i = 0; i < 4; i++) {
-        pipeline_cache.BindTexture(i, null_surface.ImageView());
-        pipeline_cache.BindSampler(i, null_sampler.Handle());
+        pipeline_cache.BindTexture(i, null_surface.ImageView(), null_sampler.Handle());
     }
 
     for (u32 i = 0; i < 7; i++) {
@@ -629,20 +628,16 @@ void RasterizerVulkan::SyncTextureUnits(const Framebuffer& framebuffer) {
 
                     auto surface = res_cache.GetTextureCube(config);
                     if (surface) {
-                        pipeline_cache.BindTexture(3, surface->ImageView());
+                        pipeline_cache.BindTexture(3, surface->ImageView(), sampler.Handle());
                     } else {
-                        pipeline_cache.BindTexture(3, null_surface.ImageView());
+                        pipeline_cache.BindTexture(3, null_surface.ImageView(), sampler.Handle());
                     }
-
-                    pipeline_cache.BindSampler(3, sampler.Handle());
                     continue; // Texture unit 0 setup finished. Continue to next unit
                 }
                 default:
                     break;
                 }
             }
-
-            pipeline_cache.BindSampler(texture_index, sampler.Handle());
 
             auto surface = res_cache.GetTextureSurface(texture);
             if (surface) {
@@ -658,9 +653,10 @@ void RasterizerVulkan::SyncTextureUnits(const Framebuffer& framebuffer) {
                         .extent = {temp.GetScaledWidth(), temp.GetScaledHeight()},
                     };
                     runtime.CopyTextures(static_cast<Surface&>(*framebuffer.Color()), temp, copy);
-                    pipeline_cache.BindTexture(texture_index, temp.ImageView());
+                    pipeline_cache.BindTexture(texture_index, temp.ImageView(), sampler.Handle());
                 } else {
-                    pipeline_cache.BindTexture(texture_index, surface->ImageView());
+                    pipeline_cache.BindTexture(texture_index, surface->ImageView(),
+                                               sampler.Handle());
                 }
 
             } else {
@@ -671,12 +667,13 @@ void RasterizerVulkan::SyncTextureUnits(const Framebuffer& framebuffer) {
                 // the geometry in question.
                 // For example: a bug in Pokemon X/Y causes NULL-texture squares to be drawn
                 // on the male character's face, which in the OpenGL default appear black.
-                pipeline_cache.BindTexture(texture_index, null_surface.ImageView());
+                pipeline_cache.BindTexture(texture_index, null_surface.ImageView(),
+                                           sampler.Handle());
             }
         } else {
             const Sampler& null_sampler = res_cache.GetSampler(VideoCore::NULL_SAMPLER_ID);
-            pipeline_cache.BindTexture(texture_index, null_surface.ImageView());
-            pipeline_cache.BindSampler(texture_index, null_sampler.Handle());
+            pipeline_cache.BindTexture(texture_index, null_surface.ImageView(),
+                                       null_sampler.Handle());
         }
     }
 }

@@ -165,7 +165,7 @@ private:
 
     /// Display information for top and bottom screens respectively
     std::array<ScreenInfo, 3> screen_infos{};
-    std::array<vk::DescriptorImageInfo, 4> present_textures{};
+    std::array<vk::DescriptorImageInfo, 3> present_textures{};
     PresentUniformData draw_info{};
     vk::ClearColorValue clear_color{};
 };

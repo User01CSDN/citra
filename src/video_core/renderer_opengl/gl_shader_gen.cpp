@@ -1538,7 +1538,7 @@ do {
     }
 
     out += '}';
-
+    LOG_INFO(Render_OpenGL, "{}", out);
     return {std::move(out)};
 }
 

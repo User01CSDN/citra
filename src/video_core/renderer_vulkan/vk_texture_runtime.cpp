@@ -730,7 +730,6 @@ bool TextureRuntime::BlitTextures(Surface& source, Surface& dest,
 }
 
 void TextureRuntime::GenerateMipmaps(Surface& surface) {
-    return;
     if (surface.custom_format != VideoCore::CustomPixelFormat::RGBA8) {
         LOG_ERROR(Render_Vulkan, "Generating mipmaps for compressed formats unsupported!");
         return;
@@ -1338,8 +1337,8 @@ Sampler::Sampler(TextureRuntime& runtime, VideoCore::SamplerParams params)
         .maxAnisotropy = properties.limits.maxSamplerAnisotropy,
         .compareEnable = false,
         .compareOp = vk::CompareOp::eAlways,
-        .minLod = 0.f * lod_min,
-        .maxLod = 0.f * lod_max,
+        .minLod = lod_min,
+        .maxLod = lod_max,
         .borderColor =
             use_border_color ? vk::BorderColor::eFloatCustomEXT : vk::BorderColor::eIntOpaqueBlack,
         .unnormalizedCoordinates = false,

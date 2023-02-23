@@ -128,11 +128,10 @@ void DescriptorPool::Allocate(std::size_t begin, std::size_t end) {
     vk::DescriptorPool& pool = pools.emplace_back();
 
     // Choose a sane pool size good for most games
-    static constexpr std::array<vk::DescriptorPoolSize, 5> pool_sizes = {{
-        {vk::DescriptorType::eUniformBuffer, 4096},
-        {vk::DescriptorType::eSampledImage, 4096},
-        {vk::DescriptorType::eSampler, 4096},
-        {vk::DescriptorType::eUniformTexelBuffer, 2048},
+    static constexpr std::array<vk::DescriptorPoolSize, 4> pool_sizes = {{
+        {vk::DescriptorType::eUniformBuffer, 1024},
+        {vk::DescriptorType::eCombinedImageSampler, 2048},
+        {vk::DescriptorType::eUniformTexelBuffer, 1024},
         {vk::DescriptorType::eStorageImage, 1024},
     }};
 

@@ -667,10 +667,8 @@ Id FragmentModule::SampleTexture(u32 texture_unit) {
     // This LOD formula is the same as the LOD lower limit defined in OpenGL.
     // f(x, y) >= max{m_u, m_v, m_w}
     // (See OpenGL 4.6 spec, 8.14.1 - Scale Factor and Level-of-Detail)
-    const auto SampleLod = [this, texture_unit](Id tex_id, Id tex_sampler_id, Id texcoord_id) {
-        const Id tex{OpLoad(image2d_id, tex_id)};
-        const Id tex_sampler{OpLoad(sampler_id, tex_sampler_id)};
-        const Id sampled_image{OpSampledImage(TypeSampledImage(image2d_id), tex, tex_sampler)};
+    const auto SampleLod = [this, texture_unit](Id tex_id, Id texcoord_id) {
+        const Id sampled_image{OpLoad(TypeSampledImage(image2d_id), tex_id)};
         const Id tex_image{OpImage(image2d_id, sampled_image)};
         const Id tex_size{OpImageQuerySizeLod(ivec_ids.Get(2), tex_image, ConstS32(0))};
         const Id texcoord{OpLoad(vec_ids.Get(2), texcoord_id)};
@@ -687,11 +685,9 @@ Id FragmentModule::SampleTexture(u32 texture_unit) {
                                         spv::ImageOperandsMask::Lod, biased_lod);
     };
 
-    const auto Sample = [this](Id tex_id, Id tex_sampler_id, bool projection) {
+    const auto Sample = [this](Id tex_id, bool projection) {
         const Id image_type = tex_id.value == tex_cube_id.value ? image_cube_id : image2d_id;
-        const Id tex{OpLoad(image_type, tex_id)};
-        const Id tex_sampler{OpLoad(sampler_id, tex_sampler_id)};
-        const Id sampled_image{OpSampledImage(TypeSampledImage(image_type), tex, tex_sampler)};
+        const Id sampled_image{OpLoad(TypeSampledImage(image_type), tex_id)};
         const Id texcoord0{OpLoad(vec_ids.Get(2), texcoord0_id)};
         const Id texcoord0_w{OpLoad(f32_id, texcoord0_w_id)};
         const Id coord{OpCompositeConstruct(vec_ids.Get(3),
@@ -709,11 +705,11 @@ Id FragmentModule::SampleTexture(u32 texture_unit) {
         // Only unit 0 respects the texturing type
         switch (state.texture0_type) {
         case Pica::TexturingRegs::TextureConfig::Texture2D:
-            return SampleLod(tex0_id, tex0_sampler_id, texcoord0_id);
+            return SampleLod(tex0_id, texcoord0_id);
         case Pica::TexturingRegs::TextureConfig::Projection2D:
-            return Sample(tex0_id, tex0_sampler_id, true);
+            return Sample(tex0_id, true);
         case Pica::TexturingRegs::TextureConfig::TextureCube:
-            return Sample(tex_cube_id, tex_cube_sampler_id, false);
+            return Sample(tex_cube_id, false);
         case Pica::TexturingRegs::TextureConfig::Shadow2D:
             return SampleShadow();
         // case Pica::TexturingRegs::TextureConfig::ShadowCube:
@@ -726,12 +722,12 @@ Id FragmentModule::SampleTexture(u32 texture_unit) {
             return zero_vec;
         }
     case 1:
-        return SampleLod(tex1_id, tex1_sampler_id, texcoord1_id);
+        return SampleLod(tex1_id, texcoord1_id);
     case 2:
         if (state.texture2_use_coord1) {
-            return SampleLod(tex2_id, tex2_sampler_id, texcoord1_id);
+            return SampleLod(tex2_id, texcoord1_id);
         } else {
-            return SampleLod(tex2_id, tex2_sampler_id, texcoord2_id);
+            return SampleLod(tex2_id, texcoord2_id);
         }
     case 3:
         if (state.proctex.enable) {
@@ -1445,15 +1441,11 @@ void FragmentModule::DefineInterface() {
     texture_buffer_lut_lf_id = DefineUniformConst(TypeSampledImage(image_buffer_id), 0, 2);
     texture_buffer_lut_rg_id = DefineUniformConst(TypeSampledImage(image_buffer_id), 0, 3);
     texture_buffer_lut_rgba_id = DefineUniformConst(TypeSampledImage(image_buffer_id), 0, 4);
-    tex0_id = DefineUniformConst(image2d_id, 1, 0);
-    tex1_id = DefineUniformConst(image2d_id, 1, 1);
-    tex2_id = DefineUniformConst(image2d_id, 1, 2);
-    tex_cube_id = DefineUniformConst(image_cube_id, 1, 3);
-    tex0_sampler_id = DefineUniformConst(sampler_id, 2, 0);
-    tex1_sampler_id = DefineUniformConst(sampler_id, 2, 1);
-    tex2_sampler_id = DefineUniformConst(sampler_id, 2, 2);
-    tex_cube_sampler_id = DefineUniformConst(sampler_id, 2, 3);
-    shadow_texture_px_id = DefineUniformConst(image_r32_id, 3, 0, true);
+    tex0_id = DefineUniformConst(TypeSampledImage(image2d_id), 1, 0);
+    tex1_id = DefineUniformConst(TypeSampledImage(image2d_id), 1, 1);
+    tex2_id = DefineUniformConst(TypeSampledImage(image2d_id), 1, 2);
+    tex_cube_id = DefineUniformConst(TypeSampledImage(image_cube_id), 1, 3);
+    shadow_texture_px_id = DefineUniformConst(image_r32_id, 2, 0, true);
 
     // Define built-ins
     gl_frag_coord_id = DefineVar(vec_ids.Get(4), spv::StorageClass::Input);

@@ -226,11 +226,11 @@ void RendererVulkan::BeginRendering(Frame* frame) {
     for (std::size_t i = 0; i < screen_infos.size(); i++) {
         const auto& info = screen_infos[i];
         present_textures[i] = vk::DescriptorImageInfo{
+            .sampler = present_samplers[current_sampler],
             .imageView = info.image_view,
             .imageLayout = vk::ImageLayout::eGeneral,
         };
     }
-    present_textures[3].sampler = present_samplers[current_sampler];
 
     vk::DescriptorSet set = desc_manager.AllocateSet(present_descriptor_layout);
     instance.GetDevice().updateDescriptorSetWithTemplate(set, present_update_template,
@@ -320,51 +320,33 @@ void RendererVulkan::CompileShaders() {
 }
 
 void RendererVulkan::BuildLayouts() {
-    const std::array present_layout_bindings = {
-        vk::DescriptorSetLayoutBinding{
-            .binding = 0,
-            .descriptorType = vk::DescriptorType::eSampledImage,
-            .descriptorCount = 3,
-            .stageFlags = vk::ShaderStageFlagBits::eFragment,
-        },
-        vk::DescriptorSetLayoutBinding{
-            .binding = 1,
-            .descriptorType = vk::DescriptorType::eSampler,
-            .descriptorCount = 1,
-            .stageFlags = vk::ShaderStageFlagBits::eFragment,
-        },
+    const vk::DescriptorSetLayoutBinding present_layout_binding = {
+        .binding = 0,
+        .descriptorType = vk::DescriptorType::eCombinedImageSampler,
+        .descriptorCount = 3,
+        .stageFlags = vk::ShaderStageFlagBits::eFragment,
     };
 
     const vk::DescriptorSetLayoutCreateInfo present_layout_info = {
-        .bindingCount = static_cast<u32>(present_layout_bindings.size()),
-        .pBindings = present_layout_bindings.data(),
+        .bindingCount = 1,
+        .pBindings = &present_layout_binding,
     };
 
     const vk::Device device = instance.GetDevice();
     present_descriptor_layout = device.createDescriptorSetLayout(present_layout_info);
 
-    const std::array update_template_entries = {
-        vk::DescriptorUpdateTemplateEntry{
-            .dstBinding = 0,
-            .dstArrayElement = 0,
-            .descriptorCount = 3,
-            .descriptorType = vk::DescriptorType::eSampledImage,
-            .offset = 0,
-            .stride = sizeof(vk::DescriptorImageInfo),
-        },
-        vk::DescriptorUpdateTemplateEntry{
-            .dstBinding = 1,
-            .dstArrayElement = 0,
-            .descriptorCount = 1,
-            .descriptorType = vk::DescriptorType::eSampler,
-            .offset = 3 * sizeof(vk::DescriptorImageInfo),
-            .stride = 0,
-        },
+    const vk::DescriptorUpdateTemplateEntry update_template_entry = {
+        .dstBinding = 0,
+        .dstArrayElement = 0,
+        .descriptorCount = 3,
+        .descriptorType = vk::DescriptorType::eCombinedImageSampler,
+        .offset = 0,
+        .stride = sizeof(vk::DescriptorImageInfo),
     };
 
     const vk::DescriptorUpdateTemplateCreateInfo template_info = {
-        .descriptorUpdateEntryCount = static_cast<u32>(update_template_entries.size()),
-        .pDescriptorUpdateEntries = update_template_entries.data(),
+        .descriptorUpdateEntryCount = 1,
+        .pDescriptorUpdateEntries = &update_template_entry,
         .templateType = vk::DescriptorUpdateTemplateType::eDescriptorSet,
         .descriptorSetLayout = present_descriptor_layout,
     };

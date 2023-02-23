@@ -635,8 +635,9 @@ void PipelineCache::UseFragmentShader(const Pica::Regs& regs) {
     shader_hashes[ProgramType::FS] = config.Hash();
 }
 
-void PipelineCache::BindTexture(u32 binding, vk::ImageView image_view) {
+void PipelineCache::BindTexture(u32 binding, vk::ImageView image_view, vk::Sampler sampler) {
     const vk::DescriptorImageInfo image_info = {
+        .sampler = sampler,
         .imageView = image_view,
         .imageLayout = vk::ImageLayout::eGeneral,
     };
@@ -648,7 +649,7 @@ void PipelineCache::BindStorageImage(u32 binding, vk::ImageView image_view) {
         .imageView = image_view,
         .imageLayout = vk::ImageLayout::eGeneral,
     };
-    desc_manager.SetBinding(3, binding, DescriptorData{image_info});
+    desc_manager.SetBinding(2, binding, DescriptorData{image_info});
 }
 
 void PipelineCache::BindBuffer(u32 binding, vk::Buffer buffer, u32 offset, u32 size) {
@@ -668,16 +669,6 @@ void PipelineCache::BindTexelBuffer(u32 binding, vk::BufferView buffer_view) {
         .buffer_view = buffer_view,
     };
     desc_manager.SetBinding(0, binding, data);
-}
-
-void PipelineCache::BindSampler(u32 binding, vk::Sampler sampler) {
-    const DescriptorData data = {
-        .image_info =
-            vk::DescriptorImageInfo{
-                .sampler = sampler,
-            },
-    };
-    desc_manager.SetBinding(2, binding, data);
 }
 
 void PipelineCache::ApplyDynamic(const PipelineInfo& info, bool is_dirty) {

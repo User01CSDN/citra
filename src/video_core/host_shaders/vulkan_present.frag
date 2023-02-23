@@ -18,9 +18,8 @@ layout (push_constant, std140) uniform DrawInfo {
     int reverse_interlaced;
 };
 
-layout (set = 0, binding = 0) uniform texture2D screen_textures[3];
-layout (set = 0, binding = 1) uniform sampler screen_sampler;
+layout (set = 0, binding = 0) uniform sampler2D screen_textures[3];
 
 void main() {
-    color = texture(sampler2D(screen_textures[screen_id_l], screen_sampler), frag_tex_coord);
+    color = texture(screen_textures[screen_id_l], frag_tex_coord);
 }

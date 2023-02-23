@@ -64,7 +64,6 @@ bool DecodePNG(std::span<const u8> png_data, std::span<u8> out_data) {
     if (spng_decoded_image_size(ctx.get(), format, &decoded_len)) {
         return false;
     }
-    ASSERT(out_data.size() == decoded_len);
 
     if (spng_decode_image(ctx.get(), out_data.data(), decoded_len, format, 0)) {
         return false;

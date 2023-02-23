@@ -31,21 +31,10 @@ constexpr static std::array RASTERIZER_SETS = {
         // Texture set
         .bindings =
             {
-                vk::DescriptorType::eSampledImage,
-                vk::DescriptorType::eSampledImage,
-                vk::DescriptorType::eSampledImage,
-                vk::DescriptorType::eSampledImage,
-            },
-        .binding_count = 4,
-    },
-    Bindings{
-        // Sampler set
-        .bindings =
-            {
-                vk::DescriptorType::eSampler,
-                vk::DescriptorType::eSampler,
-                vk::DescriptorType::eSampler,
-                vk::DescriptorType::eSampler,
+                vk::DescriptorType::eCombinedImageSampler,
+                vk::DescriptorType::eCombinedImageSampler,
+                vk::DescriptorType::eCombinedImageSampler,
+                vk::DescriptorType::eCombinedImageSampler,
             },
         .binding_count = 4,
     },
@@ -76,6 +65,7 @@ constexpr vk::ShaderStageFlags ToVkStageFlags(vk::DescriptorType type) {
     switch (type) {
     case vk::DescriptorType::eSampler:
     case vk::DescriptorType::eSampledImage:
+    case vk::DescriptorType::eCombinedImageSampler:
     case vk::DescriptorType::eUniformTexelBuffer:
     case vk::DescriptorType::eStorageImage:
         flags = vk::ShaderStageFlagBits::eFragment;

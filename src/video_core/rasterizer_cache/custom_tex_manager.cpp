@@ -204,7 +204,7 @@ void CustomTexManager::DecodeToStaging(const Texture& texture, const StagingData
         }
         if (compatibility_mode) {
             const u32 stride = texture.width * 4;
-            // FlipTexture(staging.mapped, texture.width, texture.height, stride);
+            FlipTexture(staging.mapped, texture.width, texture.height, stride);
         }
         break;
     case CustomFileFormat::DDS:

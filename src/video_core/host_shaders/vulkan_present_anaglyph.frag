@@ -30,11 +30,10 @@ layout (push_constant, std140) uniform DrawInfo {
     int reverse_interlaced;
 };
 
-layout (set = 0, binding = 0) uniform texture2D screen_textures[3];
-layout (set = 0, binding = 1) uniform sampler screen_sampler;
+layout (set = 0, binding = 0) uniform sampler2D screen_textures[3];
 
 void main() {
-    vec4 color_tex_l = texture(sampler2D(screen_textures[screen_id_l], screen_sampler), frag_tex_coord);
-    vec4 color_tex_r = texture(sampler2D(screen_textures[screen_id_r], screen_sampler), frag_tex_coord);
+    vec4 color_tex_l = texture(screen_textures[screen_id_l], frag_tex_coord);
+    vec4 color_tex_r = texture(screen_textures[screen_id_r], frag_tex_coord);
     color = vec4(color_tex_l.rgb*l+color_tex_r.rgb*r, color_tex_l.a);
 }

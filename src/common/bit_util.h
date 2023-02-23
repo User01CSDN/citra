@@ -47,7 +47,7 @@ template <typename T>
 template <typename T>
 requires std::is_unsigned_v<T>
 [[nodiscard]] constexpr bool IsPow2(T value) {
-    return std::has_single_bit(value);
+    return value != 0 && (value & (value - 1)) == 0;
 }
 
 template <typename T>
