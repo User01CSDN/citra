@@ -96,6 +96,11 @@ TextureRuntime::TextureRuntime(Driver& driver)
 
 TextureRuntime::~TextureRuntime() = default;
 
+void TextureRuntime::Clear() {
+    framebuffer_cache.clear();
+    texture_recycler.clear();
+}
+
 StagingData TextureRuntime::FindStaging(u32 size, bool upload) {
     if (!upload) {
         if (size > download_buffer.size()) {

@@ -32,11 +32,15 @@ RenderpassCache::~RenderpassCache() {
         }
     }
 
-    for (auto& [key, framebuffer] : framebuffers) {
-        device.destroyFramebuffer(framebuffer);
-    }
-
+    ClearFramebuffers();
     device.destroyRenderPass(present_renderpass);
+}
+
+void RenderpassCache::ClearFramebuffers() {
+    for (auto& [key, framebuffer] : framebuffers) {
+        instance.GetDevice().destroyFramebuffer(framebuffer);
+    }
+    framebuffers.clear();
 }
 
 void RenderpassCache::EnterRenderpass(Surface* const color, Surface* const depth_stencil,

@@ -97,6 +97,9 @@ public:
     /// Causes a GPU command flush
     void Finish() const {}
 
+    /// Destroys runtime cached resources
+    void Clear();
+
     /// Takes back ownership of the allocation for recycling
     void Recycle(const HostTextureTag tag, Allocation&& alloc);
 

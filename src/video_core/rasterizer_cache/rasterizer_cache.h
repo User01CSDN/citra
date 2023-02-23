@@ -1264,6 +1264,7 @@ void RasterizerCache<T>::UnregisterAll() {
     }
     texture_cube_cache.clear();
     remove_surfaces.clear();
+    runtime.Clear();
 }
 
 template <class T>

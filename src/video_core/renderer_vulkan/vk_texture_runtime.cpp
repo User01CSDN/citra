@@ -130,23 +130,7 @@ TextureRuntime::TextureRuntime(const Instance& instance, Scheduler& scheduler,
 }
 
 TextureRuntime::~TextureRuntime() {
-    VmaAllocator allocator = instance.GetAllocator();
-    vk::Device device = instance.GetDevice();
-    device.waitIdle();
-
-    for (const auto& [key, alloc] : texture_recycler) {
-        vmaDestroyImage(allocator, alloc.image, alloc.allocation);
-        device.destroyImageView(alloc.image_view);
-        if (alloc.depth_view) {
-            device.destroyImageView(alloc.depth_view);
-            device.destroyImageView(alloc.stencil_view);
-        }
-        if (alloc.storage_view) {
-            device.destroyImageView(alloc.storage_view);
-        }
-    }
-
-    texture_recycler.clear();
+    Clear();
 }
 
 StagingData TextureRuntime::FindStaging(u32 size, bool upload) {
@@ -162,6 +146,29 @@ StagingData TextureRuntime::FindStaging(u32 size, bool upload) {
 
 void TextureRuntime::Finish() {
     scheduler.Finish();
+}
+
+void TextureRuntime::Clear() {
+    scheduler.Finish();
+
+    VmaAllocator allocator = instance.GetAllocator();
+    vk::Device device = instance.GetDevice();
+    device.waitIdle();
+
+    renderpass_cache.ClearFramebuffers();
+    for (const auto& [key, alloc] : texture_recycler) {
+        vmaDestroyImage(allocator, alloc.image, alloc.allocation);
+        device.destroyImageView(alloc.image_view);
+        if (alloc.depth_view) {
+            device.destroyImageView(alloc.depth_view);
+            device.destroyImageView(alloc.stencil_view);
+        }
+        if (alloc.storage_view) {
+            device.destroyImageView(alloc.storage_view);
+        }
+    }
+
+    texture_recycler.clear();
 }
 
 Allocation TextureRuntime::Allocate(u32 width, u32 height, u32 levels,

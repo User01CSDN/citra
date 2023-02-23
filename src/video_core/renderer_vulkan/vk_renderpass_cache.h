@@ -49,6 +49,9 @@ public:
     RenderpassCache(const Instance& instance, Scheduler& scheduler);
     ~RenderpassCache();
 
+    /// Destroys cached framebuffers
+    void ClearFramebuffers();
+
     /// Begins a new renderpass only when no other renderpass is currently active
     void EnterRenderpass(const Framebuffer& framebuffer, bool do_clear = false,
                          vk::ClearValue clear = {});
