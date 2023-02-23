@@ -123,6 +123,13 @@ std::string TabsToSpaces(int tab_size, std::string in) {
     return in;
 }
 
+void TruncateToCString(std::string* s) {
+    const size_t terminator = s->find_first_of('\0');
+    if (terminator != s->npos) {
+        s->resize(terminator);
+    }
+}
+
 std::string ReplaceAll(std::string result, const std::string& src, const std::string& dest) {
     std::size_t pos = 0;
 

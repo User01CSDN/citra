@@ -101,12 +101,19 @@ add_library(common STATIC
     microprofile.cpp
     microprofile.h
     microprofileui.h
+    minizip_util.h
     misc.cpp
     param_package.cpp
     param_package.h
     polyfill_thread.h
     precompiled_headers.h
     quaternion.h
+    resource_pack/manager.cpp
+    resource_pack/manager.h
+    resource_pack/manifest.cpp
+    resource_pack/manifest.h
+    resource_pack/resource_pack.cpp
+    resource_pack/resource_pack.h
     ring_buffer.h
     scm_rev.cpp
     scm_rev.h
@@ -148,7 +155,7 @@ add_library(common STATIC
 create_target_directory_groups(common)
 
 target_link_libraries(common PUBLIC fmt::fmt microprofile Boost::boost Boost::serialization)
-target_link_libraries(common PRIVATE libzstd_static spng::spng)
+target_link_libraries(common PRIVATE libzstd_static spng::spng json-headers minizip-ng inih)
 set_target_properties(common PROPERTIES INTERPROCEDURAL_OPTIMIZATION ${ENABLE_LTO})
 
 if ("x86_64" IN_LIST ARCHITECTURE)

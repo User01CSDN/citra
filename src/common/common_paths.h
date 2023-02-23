@@ -52,6 +52,7 @@
 #define LOAD_DIR "load"
 #define SHADER_DIR "shaders"
 #define STATES_DIR "states"
+#define RESOURCEPACK_DIR "resource_packs"
 
 // Filenames
 // Files in the directory returned by GetUserPath(UserPath::LogDir)

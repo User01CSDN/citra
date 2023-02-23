@@ -473,6 +473,48 @@ u64 ScanDirectoryTree(const std::string& directory, FSTEntry& parent_entry,
     return ForeachDirectoryEntry(&num_entries, directory, callback) ? num_entries : 0;
 }
 
+std::vector<std::string> DoFileSearch(const std::vector<std::string>& directories,
+                                      const std::vector<std::string>& exts, bool recursive) {
+    std::vector<std::string> result;
+
+    bool accept_all = exts.empty();
+    const auto callback = [&exts, accept_all](const FSTEntry& entry) {
+        if (accept_all) {
+            return true;
+        }
+        if (entry.isDirectory) {
+            return false;
+        }
+        return std::any_of(exts.begin(), exts.end(), [&](const std::string& ext) {
+            const std::string& name = entry.virtualName;
+            return name.length() >= ext.length() &&
+                   strcasecmp(name.c_str() + name.length() - ext.length(), ext.c_str()) == 0;
+        });
+    };
+
+    for (const std::string& directory : directories) {
+        FSTEntry top;
+        ScanDirectoryTree(directory, top, recursive);
+
+        const std::function<void(FSTEntry&)> DoEntry = [&](FSTEntry& entry) {
+            if (callback(entry)) {
+                result.push_back(entry.physicalName);
+            }
+            for (auto& child : entry.children) {
+                DoEntry(child);
+            }
+        };
+
+        for (auto& child : top.children)
+            DoEntry(child);
+    }
+
+    // Remove duplicates
+    std::sort(result.begin(), result.end());
+    result.erase(std::unique(result.begin(), result.end()), result.end());
+    return result;
+}
+
 void GetAllFilesFromNestedEntries(FSTEntry& directory, std::vector<FSTEntry>& output) {
     std::vector<FSTEntry> files;
     for (auto& entry : directory.children) {
@@ -744,6 +786,7 @@ void SetUserPath(const std::string& path) {
     g_paths.emplace(UserPath::DumpDir, user_path + DUMP_DIR DIR_SEP);
     g_paths.emplace(UserPath::LoadDir, user_path + LOAD_DIR DIR_SEP);
     g_paths.emplace(UserPath::StatesDir, user_path + STATES_DIR DIR_SEP);
+    g_paths.emplace(UserPath::ResourcePackDir, user_path + RESOURCEPACK_DIR DIR_SEP);
     g_default_paths = g_paths;
 }
 

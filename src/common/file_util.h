@@ -40,6 +40,7 @@ enum class UserPath {
     StatesDir,
     SysDataDir,
     UserDir,
+    ResourcePackDir,
 };
 
 // Replaces install-specific paths with standard placeholders, and back again
@@ -158,6 +159,17 @@ bool ForeachDirectoryEntry(u64* num_entries_out, const std::string& directory,
  */
 u64 ScanDirectoryTree(const std::string& directory, FSTEntry& parent_entry,
                       unsigned int recursion = 0);
+
+/**
+ * Searches a list of directories for files with any of the provided extensions
+ * @param directories the list of directories to search
+ * @param exts the extensions of the files to consider
+ * @param resursive if the search should be recursive
+ * @return the list of files that were found
+ */
+std::vector<std::string> DoFileSearch(const std::vector<std::string>& directories,
+                                      const std::vector<std::string>& exts = {},
+                                      bool recursive = false);
 
 /**
  * Recursively searches through a FSTEntry for files, and stores them.

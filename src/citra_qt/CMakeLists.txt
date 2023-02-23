@@ -165,6 +165,8 @@ add_executable(citra-qt
     multiplayer/state.h
     multiplayer/validation.h
     precompiled_headers.h
+    resource_pack_manager.cpp
+    resource_pack_manager.h
     uisettings.cpp
     uisettings.h
     updater/updater.cpp
@@ -264,7 +266,8 @@ endif()
 create_target_directory_groups(citra-qt)
 
 target_link_libraries(citra-qt PRIVATE audio_core common core input_common network video_core)
-target_link_libraries(citra-qt PRIVATE Boost::boost glad vma vulkan-headers nihstro-headers Qt5::Widgets Qt5::Multimedia)
+target_link_libraries(citra-qt PRIVATE Boost::boost glad vma vulkan-headers nihstro-headers)
+target_link_libraries(citra-qt PRIVATE Qt5::Widgets Qt5::Multimedia)
 target_link_libraries(citra-qt PRIVATE ${PLATFORM_LIBRARIES} Threads::Threads)
 
 if (NOT WIN32)

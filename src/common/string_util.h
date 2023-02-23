@@ -27,6 +27,8 @@ namespace Common {
 
 [[nodiscard]] std::string TabsToSpaces(int tab_size, std::string in);
 
+void TruncateToCString(std::string* s);
+
 void SplitString(const std::string& str, char delim, std::vector<std::string>& output);
 
 // "C:/Windows/winhelp.exe" to "C:/Windows/", "winhelp", ".exe"
