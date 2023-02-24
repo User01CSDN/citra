@@ -87,23 +87,6 @@ std::string_view AudioEmulationName(AudioEmulation emulation) {
     }
 };
 
-std::string_view TextureFilterName(TextureFilter filter) {
-    switch (filter) {
-    case TextureFilter::Linear:
-        return "Linear";
-    case TextureFilter::Anime4K:
-        return "Anime4K Ultrafast";
-    case TextureFilter::Bicubic:
-        return "Bicubic";
-    case TextureFilter::NearestNeighbor:
-        return "Nearest Neighbor";
-    case TextureFilter::ScaleForce:
-        return "ScaleForce";
-    case TextureFilter::xBRZ:
-        return "xBRZ freescale";
-    }
-};
-
 void LogSettings() {
     const auto log_setting = [](std::string_view name, const auto& value) {
         LOG_INFO(Config, "{}: {}", name, value);
@@ -123,7 +106,7 @@ void LogSettings() {
     log_setting("Renderer_VSyncNew", values.use_vsync_new.GetValue());
     log_setting("Renderer_PostProcessingShader", values.pp_shader_name.GetValue());
     log_setting("Renderer_LinearFilter", values.linear_filter.GetValue());
-    log_setting("Renderer_TextureFilterName", TextureFilterName(values.texture_filter.GetValue()));
+    log_setting("Renderer_TextureFilterName", values.texture_filter_name.GetValue());
     log_setting("Stereoscopy_Render3d", values.render_3d.GetValue());
     log_setting("Stereoscopy_Factor3d", values.factor_3d.GetValue());
     log_setting("Stereoscopy_MonoRenderOption", values.mono_render_option.GetValue());
@@ -202,7 +185,7 @@ void RestoreGlobalState(bool is_powered_on) {
     values.use_vsync_new.SetGlobal(true);
     values.resolution_factor.SetGlobal(true);
     values.frame_limit.SetGlobal(true);
-    values.texture_filter.SetGlobal(true);
+    values.texture_filter_name.SetGlobal(true);
     values.layout_option.SetGlobal(true);
     values.swap_screen.SetGlobal(true);
     values.upright_screen.SetGlobal(true);

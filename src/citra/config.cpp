@@ -130,8 +130,8 @@ void Config::ReadValues() {
         static_cast<u16>(sdl2_config->GetInteger("Renderer", "frame_limit", 100));
     Settings::values.use_vsync_new =
         static_cast<u16>(sdl2_config->GetInteger("Renderer", "use_vsync_new", 1));
-    Settings::values.texture_filter = static_cast<Settings::TextureFilter>(
-        sdl2_config->GetInteger("Renderer", "texture_filter", 0));
+    Settings::values.texture_filter_name =
+        sdl2_config->GetString("Renderer", "texture_filter_name", "none");
 
     Settings::values.mono_render_option = static_cast<Settings::MonoRenderOption>(
         sdl2_config->GetInteger("Renderer", "mono_render_option", 0));

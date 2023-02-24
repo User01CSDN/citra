@@ -7,25 +7,20 @@
 #include <memory>
 #include <string_view>
 #include <vector>
-#include "common/settings.h"
 #include "video_core/rasterizer_cache/pixel_format.h"
 #include "video_core/renderer_opengl/texture_filters/texture_filter_base.h"
-
-namespace Settings {
-enum class TextureFilter : u32;
-}
 
 namespace OpenGL {
 
 class TextureFilterer {
 public:
-    static constexpr Settings::TextureFilter NONE = Settings::TextureFilter::Linear;
+    static constexpr std::string_view NONE = "Linear (Default)";
 
 public:
-    explicit TextureFilterer(Settings::TextureFilter filter, u16 scale_factor);
+    explicit TextureFilterer(std::string_view filter_name, u16 scale_factor);
 
     // Returns true if the filter actually changed
-    bool Reset(Settings::TextureFilter new_filter_name, u16 new_scale_factor);
+    bool Reset(std::string_view new_filter_name, u16 new_scale_factor);
 
     // Returns true if there is no active filter
     bool IsNull() const;
@@ -34,8 +29,10 @@ public:
     bool Filter(const OGLTexture& src_tex, Common::Rectangle<u32> src_rect,
                 const OGLTexture& dst_tex, Common::Rectangle<u32> dst_rect, SurfaceType type);
 
+    static std::vector<std::string_view> GetFilterNames();
+
 private:
-    Settings::TextureFilter filter_name;
+    std::string_view filter_name = NONE;
     std::unique_ptr<TextureFilterBase> filter;
 };
 

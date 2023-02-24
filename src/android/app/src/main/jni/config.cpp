@@ -110,8 +110,8 @@ void Config::ReadValues() {
         static_cast<int>(sdl2_config->GetInteger("Core", "cpu_clock_percentage", 100));
 
     // Premium
-    Settings::values.texture_filter = static_cast<Settings::TextureFilter>(
-        sdl2_config->GetInteger("Premium", "texture_filter", 0));
+    Settings::values.texture_filter_name =
+        sdl2_config->GetString("Premium", "texture_filter_name", "none");
 
     // Renderer
     Settings::values.use_gles = sdl2_config->GetBoolean("Renderer", "use_gles", true);
