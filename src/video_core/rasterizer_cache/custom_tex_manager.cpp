@@ -95,7 +95,7 @@ void CustomTexManager::FindCustomTextures() {
 
         // Parse the texture filename. We only really care about the hash,
         // the rest should be queried from the file itself.
-        if (std::sscanf(file.virtualName.c_str(), "tex1_%ux%u_%lX_%u.%s", &width, &height, &hash,
+        if (std::sscanf(file.virtualName.c_str(), "tex1_%ux%u_%llX_%u.%s", &width, &height, &hash,
                         &format, ext.data()) != 5) {
             continue;
         }
