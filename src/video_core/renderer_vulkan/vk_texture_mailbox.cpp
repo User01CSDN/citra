@@ -3,6 +3,7 @@
 // Refer to the license.txt file included.
 
 #include "common/microprofile.h"
+#include "common/settings.h"
 #include "common/thread.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_renderpass_cache.h"
@@ -20,7 +21,8 @@ namespace Vulkan {
 PresentMailbox::PresentMailbox(const Instance& instance_, Swapchain& swapchain_,
                                Scheduler& scheduler_, RenderpassCache& renderpass_cache_)
     : instance{instance_}, swapchain{swapchain_}, scheduler{scheduler_},
-      renderpass_cache{renderpass_cache_}, graphics_queue{instance.GetGraphicsQueue()} {
+      renderpass_cache{renderpass_cache_}, graphics_queue{instance.GetGraphicsQueue()},
+      vsync_enabled{Settings::values.use_vsync_new.GetValue()} {
 
     const vk::Device device = instance.GetDevice();
     const vk::CommandPoolCreateInfo pool_info = {
@@ -196,13 +198,18 @@ void PresentMailbox::CopyToSwapchain(Frame* frame) {
     swapchain_cv.wait(lock, [this]() { return !swapchain.NeedsRecreation(); });
 #endif
 
+    // Check if the vsync setting was changed
+    const bool use_vsync = Settings::values.use_vsync_new.GetValue();
+    if (vsync_enabled != use_vsync) [[unlikely]] {
+        vsync_enabled = use_vsync;
+        RecreateSwapchain();
+    }
+
     while (!swapchain.AcquireNextImage()) {
 #if ANDROID
         swapchain_cv.wait(lock, [this]() { return !swapchain.NeedsRecreation(); });
 #else
-        std::scoped_lock lock{scheduler.QueueMutex()};
-        graphics_queue.waitIdle();
-        swapchain.Create();
+        RecreateSwapchain();
 #endif
     }
 
@@ -328,6 +335,12 @@ void PresentMailbox::CopyToSwapchain(Frame* frame) {
     }
 
     swapchain.Present();
+}
+
+void PresentMailbox::RecreateSwapchain() {
+    std::scoped_lock lock{scheduler.QueueMutex()};
+    graphics_queue.waitIdle();
+    swapchain.Create();
 }
 
 } // namespace Vulkan

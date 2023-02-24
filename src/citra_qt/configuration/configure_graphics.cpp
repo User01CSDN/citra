@@ -25,11 +25,11 @@ ConfigureGraphics::ConfigureGraphics(QWidget* parent)
     const bool hw_renderer_enabled = ui->toggle_hw_renderer->isChecked();
     ui->toggle_hw_renderer->setEnabled(not_running);
     ui->hw_renderer_group->setEnabled(hw_renderer_enabled && not_running);
-    ui->toggle_vsync_new->setEnabled(not_running);
     ui->graphics_api_combo->setEnabled(not_running);
     ui->toggle_shader_jit->setEnabled(not_running);
     ui->toggle_disk_shader_cache->setEnabled(hw_renderer_enabled && not_running);
     ui->physical_device_combo->setEnabled(not_running);
+    ui->toggle_async_shaders->setEnabled(not_running);
     SetPhysicalDeviceComboVisibility(ui->graphics_api_combo->currentIndex());
 
     connect(ui->graphics_api_combo, qOverload<int>(&QComboBox::currentIndexChanged), this,

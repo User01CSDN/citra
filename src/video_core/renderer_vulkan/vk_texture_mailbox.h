@@ -47,6 +47,7 @@ public:
 private:
     void PresentThread(std::stop_token token);
     void CopyToSwapchain(Frame* frame);
+    void RecreateSwapchain();
 
 private:
     const Instance& instance;
@@ -61,6 +62,7 @@ private:
     std::jthread present_thread;
     std::mutex swapchain_mutex;
     std::condition_variable swapchain_cv;
+    bool vsync_enabled{};
 };
 
 } // namespace Vulkan

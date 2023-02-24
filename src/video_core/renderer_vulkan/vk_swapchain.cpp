@@ -38,6 +38,7 @@ void Swapchain::Create(vk::SurfaceKHR new_surface) {
         surface = new_surface;
     }
 
+    SetPresentMode();
     SetSurfaceProperties();
 
     const std::array queue_family_indices = {
