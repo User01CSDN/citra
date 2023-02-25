@@ -54,8 +54,6 @@ std::tuple<u8*, u64, bool> StreamBuffer::Map(u64 size, u64 alignment) {
         offset = Common::AlignUp(offset, alignment);
     }
 
-    WaitPendingOperations(offset);
-
     bool invalidate{false};
     if (offset + size > stream_buffer_size) {
         // The buffer would overflow, save the amount of used watches and reset the state.
@@ -69,6 +67,9 @@ std::tuple<u8*, u64, bool> StreamBuffer::Map(u64 size, u64 alignment) {
         wait_cursor = 0;
         wait_bound = 0;
     }
+
+    const u64 mapped_upper_bound = offset + size;
+    WaitPendingOperations(mapped_upper_bound);
 
     return std::make_tuple(mapped + offset, offset, invalidate);
 }
@@ -128,7 +129,7 @@ void StreamBuffer::WaitPendingOperations(u64 requested_upper_bound) {
     if (!invalidation_mark) {
         return;
     }
-    while (requested_upper_bound < wait_bound && wait_cursor < *invalidation_mark) {
+    while (requested_upper_bound > wait_bound && wait_cursor < *invalidation_mark) {
         auto& watch = previous_watches[wait_cursor];
         wait_bound = watch.upper_bound;
         scheduler.Wait(watch.tick);

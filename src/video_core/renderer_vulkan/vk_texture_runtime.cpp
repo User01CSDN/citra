@@ -106,7 +106,7 @@ u32 UnpackDepthStencil(const StagingData& data, vk::Format dest) {
     return depth_offset;
 }
 
-constexpr u64 UPLOAD_BUFFER_SIZE = 64 * 1024 * 1024;
+constexpr u64 UPLOAD_BUFFER_SIZE = 128 * 1024 * 1024;
 constexpr u64 DOWNLOAD_BUFFER_SIZE = 16 * 1024 * 1024;
 
 } // Anonymous namespace
