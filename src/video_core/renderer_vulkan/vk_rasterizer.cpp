@@ -562,13 +562,6 @@ bool RasterizerVulkan::Draw(bool accelerate, bool is_indexed) {
     // Mark framebuffer surfaces as dirty
     res_cache.InvalidateRenderTargets(framebuffer);
 
-    static int counter = 20;
-    counter--;
-    if (counter == 0) {
-        scheduler.DispatchWork();
-        counter = 20;
-    }
-
     return succeeded;
 }
 
