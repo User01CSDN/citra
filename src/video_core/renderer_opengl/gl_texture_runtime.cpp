@@ -307,7 +307,6 @@ void TextureRuntime::GenerateMipmaps(Surface& surface) {
     state.Apply();
 
     glActiveTexture(GL_TEXTURE0);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, surface.levels - 1);
     glGenerateMipmap(GL_TEXTURE_2D);
 }
 
