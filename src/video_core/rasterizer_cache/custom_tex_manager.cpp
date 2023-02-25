@@ -42,7 +42,11 @@ CustomPixelFormat ToCustomPixelFormat(ddsktx_format format) {
     case DDSKTX_FORMAT_BC7:
         return CustomPixelFormat::BC7;
     case DDSKTX_FORMAT_ASTC4x4:
-        return CustomPixelFormat::ASTC;
+        return CustomPixelFormat::ASTC4;
+    case DDSKTX_FORMAT_ASTC6x6:
+        return CustomPixelFormat::ASTC6;
+    case DDSKTX_FORMAT_ASTC8x6:
+        return CustomPixelFormat::ASTC8;
     default:
         LOG_ERROR(Common, "Unknown dds/ktx pixel format {}", format);
         return CustomPixelFormat::RGBA8;
@@ -83,8 +87,8 @@ void CustomTexManager::FindCustomTextures() {
 
     u32 width{};
     u32 height{};
-    u64 hash{};
     u32 format{};
+    unsigned long long hash{};
     std::string ext(3, ' ');
 
     for (const FSTEntry& file : textures) {

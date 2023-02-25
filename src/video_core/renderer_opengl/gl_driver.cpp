@@ -107,7 +107,9 @@ bool Driver::IsCustomFormatSupported(VideoCore::CustomPixelFormat format) const 
         return ext_texture_compression_s3tc;
     case VideoCore::CustomPixelFormat::BC7:
         return arb_texture_compression_bptc;
-    case VideoCore::CustomPixelFormat::ASTC:
+    case VideoCore::CustomPixelFormat::ASTC4:
+    case VideoCore::CustomPixelFormat::ASTC6:
+    case VideoCore::CustomPixelFormat::ASTC8:
         return is_gles;
     }
 }

@@ -147,8 +147,7 @@ private:
     std::array<ReinterpreterList, VideoCore::PIXEL_FORMAT_COUNT> reinterpreters;
     std::unordered_multimap<HostTextureTag, Allocation> texture_recycler;
     std::unordered_map<u64, OGLFramebuffer, Common::IdentityHash<u64>> framebuffer_cache;
-    StreamBuffer upload_buffer;
-    std::vector<u8> download_buffer;
+    std::vector<u8> staging_buffer;
     OGLFramebuffer read_fbo, draw_fbo;
 };
 

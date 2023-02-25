@@ -41,7 +41,9 @@ enum class CustomPixelFormat : u32 {
     BC3 = 2,
     BC5 = 3,
     BC7 = 4,
-    ASTC = 5,
+    ASTC4 = 5,
+    ASTC6 = 6,
+    ASTC8 = 7,
 };
 
 enum class SurfaceType : u32 {

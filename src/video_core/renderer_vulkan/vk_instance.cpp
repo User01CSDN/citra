@@ -121,8 +121,12 @@ vk::Format MakeCustomFormat(VideoCore::CustomPixelFormat format) {
         return vk::Format::eBc5UnormBlock;
     case VideoCore::CustomPixelFormat::BC7:
         return vk::Format::eBc7UnormBlock;
-    case VideoCore::CustomPixelFormat::ASTC:
+    case VideoCore::CustomPixelFormat::ASTC4:
         return vk::Format::eAstc4x4UnormBlock;
+    case VideoCore::CustomPixelFormat::ASTC6:
+        return vk::Format::eAstc6x6UnormBlock;
+    case VideoCore::CustomPixelFormat::ASTC8:
+        return vk::Format::eAstc8x6UnormBlock;
     }
     LOG_ERROR(Render_Vulkan, "Unknown custom format {}", format);
     return vk::Format::eR8G8B8A8Unorm;
@@ -518,9 +522,10 @@ void Instance::CreateCustomFormatTable() {
     custom_format_table[0] = format_table[static_cast<u32>(VideoCore::PixelFormat::RGBA8)];
 
     constexpr std::array custom_formats = {
-        VideoCore::CustomPixelFormat::BC1,  VideoCore::CustomPixelFormat::BC3,
-        VideoCore::CustomPixelFormat::BC5,  VideoCore::CustomPixelFormat::BC7,
-        VideoCore::CustomPixelFormat::ASTC,
+        VideoCore::CustomPixelFormat::BC1,   VideoCore::CustomPixelFormat::BC3,
+        VideoCore::CustomPixelFormat::BC5,   VideoCore::CustomPixelFormat::BC7,
+        VideoCore::CustomPixelFormat::ASTC4, VideoCore::CustomPixelFormat::ASTC6,
+        VideoCore::CustomPixelFormat::ASTC8,
     };
 
     for (const auto& custom_format : custom_formats) {

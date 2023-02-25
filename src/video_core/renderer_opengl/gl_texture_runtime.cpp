@@ -2,7 +2,6 @@
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
-#include "common/microprofile.h"
 #include "common/scope_exit.h"
 #include "common/settings.h"
 #include "video_core/rasterizer_cache/utils.h"
@@ -53,6 +52,8 @@ static constexpr std::array CUSTOM_TUPLES = {
     FormatTuple{GL_COMPRESSED_RGBA_BPTC_UNORM_ARB, GL_COMPRESSED_RGBA_BPTC_UNORM_ARB,
                 GL_UNSIGNED_BYTE},
     FormatTuple{GL_COMPRESSED_RGBA_ASTC_4x4, GL_COMPRESSED_RGBA_ASTC_4x4, GL_UNSIGNED_BYTE},
+    FormatTuple{GL_COMPRESSED_RGBA_ASTC_6x6, GL_COMPRESSED_RGBA_ASTC_6x6, GL_UNSIGNED_BYTE},
+    FormatTuple{GL_COMPRESSED_RGBA_ASTC_8x6, GL_COMPRESSED_RGBA_ASTC_8x6, GL_UNSIGNED_BYTE},
 };
 
 [[nodiscard]] GLbitfield MakeBufferMask(VideoCore::SurfaceType type) {
@@ -72,15 +73,10 @@ static constexpr std::array CUSTOM_TUPLES = {
     return GL_COLOR_BUFFER_BIT;
 }
 
-constexpr std::size_t UPLOAD_BUFFER_SIZE = 32 * 1024 * 1024;
-constexpr std::size_t DOWNLOAD_BUFFER_SIZE = 4 * 1024 * 1024;
-
 TextureRuntime::TextureRuntime(Driver& driver)
     : driver{driver}, filterer{Settings::values.texture_filter_name.GetValue(),
-                               VideoCore::GetResolutionScaleFactor()},
-      upload_buffer{GL_PIXEL_UNPACK_BUFFER, UPLOAD_BUFFER_SIZE} {
+                               VideoCore::GetResolutionScaleFactor()} {
 
-    download_buffer.resize(DOWNLOAD_BUFFER_SIZE);
     read_fbo.Create();
     draw_fbo.Create();
 
@@ -102,22 +98,13 @@ void TextureRuntime::Clear() {
 }
 
 StagingData TextureRuntime::FindStaging(u32 size, bool upload) {
-    if (!upload) {
-        if (size > download_buffer.size()) {
-            download_buffer.resize(size);
-        }
-        return StagingData{
-            .size = size,
-            .mapped = std::span{download_buffer.data(), size},
-            .buffer_offset = 0,
-        };
+    if (size > staging_buffer.size()) {
+        staging_buffer.resize(size);
     }
-
-    auto [data, offset, invalidate] = upload_buffer.Map(size, 4);
     return StagingData{
         .size = size,
-        .mapped = std::span{data, size},
-        .buffer_offset = offset,
+        .mapped = std::span{staging_buffer.data(), size},
+        .buffer_offset = 0,
     };
 }
 
@@ -378,10 +365,6 @@ void Surface::Upload(const VideoCore::BufferTextureCopy& upload, const StagingDa
     } else {
         const VideoCore::Rect2D rect = upload.texture_rect;
         glPixelStorei(GL_UNPACK_ROW_LENGTH, static_cast<GLint>(rect.GetWidth()));
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, runtime.upload_buffer.Handle());
-
-        // Unmap the buffer FindStaging mapped beforehand
-        runtime.upload_buffer.Unmap(staging.size);
 
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, Handle());
@@ -390,11 +373,11 @@ void Surface::Upload(const VideoCore::BufferTextureCopy& upload, const StagingDa
         if (is_custom && custom_format != VideoCore::CustomPixelFormat::RGBA8) {
             glCompressedTexSubImage2D(GL_TEXTURE_2D, upload.texture_level, rect.left, rect.bottom,
                                       rect.GetWidth(), rect.GetHeight(), tuple.format, staging.size,
-                                      reinterpret_cast<void*>(staging.buffer_offset));
+                                      staging.mapped.data());
         } else {
             glTexSubImage2D(GL_TEXTURE_2D, upload.texture_level, rect.left, rect.bottom,
                             rect.GetWidth(), rect.GetHeight(), tuple.format, tuple.type,
-                            reinterpret_cast<void*>(staging.buffer_offset));
+                            staging.mapped.data());
         }
 
         glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);

@@ -59,8 +59,12 @@ std::string_view CustomPixelFormatAsString(CustomPixelFormat format) {
         return "BC5";
     case CustomPixelFormat::BC7:
         return "BC7";
-    case CustomPixelFormat::ASTC:
-        return "ASTC";
+    case CustomPixelFormat::ASTC4:
+        return "ASTC4";
+    case CustomPixelFormat::ASTC6:
+        return "ASTC6";
+    case CustomPixelFormat::ASTC8:
+        return "ASTC8";
     }
 }
 
