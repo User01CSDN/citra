@@ -821,6 +821,7 @@ void Config::SaveValues() {
     SaveAudioValues();
     SaveSystemValues();
     SaveUtilityValues();
+    qt_config->sync();
 }
 
 void Config::SaveAudioValues() {
