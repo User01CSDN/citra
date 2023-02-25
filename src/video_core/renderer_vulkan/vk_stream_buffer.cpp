@@ -10,60 +10,40 @@
 #include "video_core/renderer_vulkan/vk_scheduler.h"
 #include "video_core/renderer_vulkan/vk_stream_buffer.h"
 
+#include <vk_mem_alloc.h>
+
 namespace Vulkan {
 
 namespace {
 
+VmaAllocationCreateFlags MakeVMAFlags(BufferType type) {
+    switch (type) {
+    case BufferType::Upload:
+        return VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+    case BufferType::Download:
+        return VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
+    case BufferType::Stream:
+        return VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
+               VMA_ALLOCATION_CREATE_HOST_ACCESS_ALLOW_TRANSFER_INSTEAD_BIT;
+    }
+}
+
 constexpr u64 WATCHES_INITIAL_RESERVE = 0x4000;
 constexpr u64 WATCHES_RESERVE_CHUNK = 0x1000;
-
-/// Find a memory type with the passed requirements
-std::optional<u32> FindMemoryType(const vk::PhysicalDeviceMemoryProperties& properties,
-                                  vk::MemoryPropertyFlags wanted,
-                                  u32 filter = std::numeric_limits<u32>::max()) {
-    for (u32 i = 0; i < properties.memoryTypeCount; ++i) {
-        const auto flags = properties.memoryTypes[i].propertyFlags;
-        if ((flags & wanted) == wanted && (filter & (1U << i)) != 0) {
-            return i;
-        }
-    }
-    return std::nullopt;
-}
-
-/// Get the preferred host visible memory type.
-u32 GetMemoryType(const vk::PhysicalDeviceMemoryProperties& properties, bool readback,
-                  u32 filter = std::numeric_limits<u32>::max()) {
-    // Prefer device local host visible allocations. Both AMD and Nvidia now provide one.
-    // Otherwise search for a host visible allocation.
-    const vk::MemoryPropertyFlags HOST_MEMORY =
-        vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent;
-    const vk::MemoryPropertyFlags DYNAMIC_MEMORY =
-        HOST_MEMORY | (readback ? vk::MemoryPropertyFlagBits::eHostCached
-                                : vk::MemoryPropertyFlagBits::eDeviceLocal);
-
-    std::optional preferred_type = FindMemoryType(properties, DYNAMIC_MEMORY);
-    if (!preferred_type) {
-        preferred_type = FindMemoryType(properties, HOST_MEMORY);
-        ASSERT_MSG(preferred_type, "No host visible and coherent memory type found");
-    }
-    return preferred_type.value_or(0);
-}
 
 } // Anonymous namespace
 
 StreamBuffer::StreamBuffer(const Instance& instance_, Scheduler& scheduler_,
-                           vk::BufferUsageFlags usage_, u64 size, bool readback_)
-    : instance{instance_}, scheduler{scheduler_}, usage{usage_}, readback{readback_} {
+                           vk::BufferUsageFlags usage_, u64 size, BufferType type_)
+    : instance{instance_}, scheduler{scheduler_},
+      stream_buffer_size{size}, usage{usage_}, type{type_} {
     CreateBuffers(size);
     ReserveWatches(current_watches, WATCHES_INITIAL_RESERVE);
     ReserveWatches(previous_watches, WATCHES_INITIAL_RESERVE);
 }
 
 StreamBuffer::~StreamBuffer() {
-    const vk::Device device = instance.GetDevice();
-    device.unmapMemory(memory);
-    device.destroyBuffer(buffer);
-    device.freeMemory(memory);
+    vmaDestroyBuffer(instance.GetAllocator(), buffer, allocation);
 }
 
 std::tuple<u8*, u64, bool> StreamBuffer::Map(u64 size, u64 alignment) {
@@ -109,31 +89,35 @@ void StreamBuffer::Commit(u64 size) {
 }
 
 void StreamBuffer::CreateBuffers(u64 prefered_size) {
-    const vk::Device device = instance.GetDevice();
-    const auto memory_properties = instance.GetPhysicalDevice().getMemoryProperties();
-    const u32 preferred_type = GetMemoryType(memory_properties, readback);
-    const u32 preferred_heap = memory_properties.memoryTypes[preferred_type].heapIndex;
-
-    // Substract from the preferred heap size some bytes to avoid getting out of memory.
-    const VkDeviceSize heap_size = memory_properties.memoryHeaps[preferred_heap].size;
-    // As per DXVK's example, using `heap_size / 2`
-    const VkDeviceSize allocable_size = heap_size / 2;
-    buffer = device.createBuffer({
-        .size = std::min(prefered_size, allocable_size),
+    const vk::BufferCreateInfo buffer_info = {
+        .size = prefered_size,
         .usage = usage,
-    });
+    };
 
-    const auto requirements = device.getBufferMemoryRequirements(buffer);
-    const u32 required_flags = requirements.memoryTypeBits;
-    stream_buffer_size = static_cast<u64>(requirements.size);
+    const VmaAllocationCreateInfo alloc_create_info = {
+        .flags = MakeVMAFlags(type) | VMA_ALLOCATION_CREATE_MAPPED_BIT,
+        .usage = VMA_MEMORY_USAGE_AUTO,
+    };
 
-    memory = device.allocateMemory({
-        .allocationSize = requirements.size,
-        .memoryTypeIndex = GetMemoryType(memory_properties, required_flags),
-    });
+    VkBuffer unsafe_buffer{};
+    VkBufferCreateInfo unsafe_buffer_info = static_cast<VkBufferCreateInfo>(buffer_info);
+    VmaAllocationInfo alloc_info{};
+    vmaCreateBuffer(instance.GetAllocator(), &unsafe_buffer_info, &alloc_create_info,
+                    &unsafe_buffer, &allocation, &alloc_info);
+    buffer = vk::Buffer{unsafe_buffer};
 
-    device.bindBufferMemory(buffer, memory, 0);
-    mapped = reinterpret_cast<u8*>(device.mapMemory(memory, 0, VK_WHOLE_SIZE));
+    VkMemoryPropertyFlags memory_flags{};
+    vmaGetAllocationMemoryProperties(instance.GetAllocator(), allocation, &memory_flags);
+    if (type == BufferType::Stream) {
+        ASSERT_MSG(memory_flags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+                   "Stream buffer must be host visible!");
+        if (!(memory_flags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)) {
+            LOG_WARNING(Render_Vulkan,
+                        "Unable to use device local memory for stream buffer. It will be slower!");
+        }
+    }
+
+    mapped = reinterpret_cast<u8*>(alloc_info.pMappedData);
 }
 
 void StreamBuffer::ReserveWatches(std::vector<Watch>& watches, std::size_t grow_size) {

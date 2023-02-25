@@ -145,7 +145,6 @@ RasterizerVulkan::~RasterizerVulkan() {
     scheduler.Finish();
     const vk::Device device = instance.GetDevice();
 
-    device.destroySampler(default_sampler);
     device.destroyBufferView(texture_lf_view);
     device.destroyBufferView(texture_rg_view);
     device.destroyBufferView(texture_rgba_view);
@@ -363,8 +362,8 @@ bool RasterizerVulkan::AccelerateDrawBatch(bool is_indexed) {
         return false;
     }
 
-    // Vertex data analysis and setup might involve rasterizer cache memory flushes
-    // so perform it early to avoid invalidating our state in the middle of the draw
+    // Vertex data setup might involve scheduler flushes so perform it
+    // early to avoid invalidating our state in the middle of the draw.
     vertex_info = AnalyzeVertexArray(is_indexed, instance.GetMinVertexStrideAlignment());
     SetupVertexArray();
 
@@ -413,14 +412,15 @@ bool RasterizerVulkan::AccelerateDrawBatchInternal(bool is_indexed) {
 void RasterizerVulkan::SetupIndexArray() {
     const bool index_u8 = regs.pipeline.index_array.format == 0;
     const bool native_u8 = index_u8 && instance.IsIndexTypeUint8Supported();
-    const vk::IndexType index_type = native_u8 ? vk::IndexType::eUint8EXT : vk::IndexType::eUint16;
     const u32 index_buffer_size = regs.pipeline.num_vertices * (native_u8 ? 1 : 2);
+    const vk::IndexType index_type = native_u8 ? vk::IndexType::eUint8EXT : vk::IndexType::eUint16;
 
     const u8* index_data =
         memory.GetPhysicalPointer(regs.pipeline.vertex_attributes.GetPhysicalBaseAddress() +
                                   regs.pipeline.index_array.offset);
 
     auto [index_ptr, index_offset, _] = stream_buffer.Map(index_buffer_size, 2);
+
     if (index_u8 && !native_u8) {
         u16* index_ptr_u16 = reinterpret_cast<u16*>(index_ptr);
         for (u32 i = 0; i < regs.pipeline.num_vertices; i++) {

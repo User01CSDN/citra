@@ -140,7 +140,6 @@ private:
     std::array<u32, 16> binding_offsets{};
     std::array<bool, 16> enable_attributes{};
     std::array<vk::Buffer, 16> vertex_buffers;
-    vk::Sampler default_sampler;
     Surface null_surface;
     Surface null_storage_surface;
     PipelineInfo pipeline_info;

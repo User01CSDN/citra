@@ -106,7 +106,7 @@ u32 UnpackDepthStencil(const StagingData& data, vk::Format dest) {
     return depth_offset;
 }
 
-constexpr u64 UPLOAD_BUFFER_SIZE = 128 * 1024 * 1024;
+constexpr u64 UPLOAD_BUFFER_SIZE = 64 * 1024 * 1024;
 constexpr u64 DOWNLOAD_BUFFER_SIZE = 16 * 1024 * 1024;
 
 } // Anonymous namespace
@@ -115,9 +115,10 @@ TextureRuntime::TextureRuntime(const Instance& instance, Scheduler& scheduler,
                                RenderpassCache& renderpass_cache, DescriptorManager& desc_manager)
     : instance{instance}, scheduler{scheduler}, renderpass_cache{renderpass_cache},
       blit_helper{instance, scheduler, desc_manager, renderpass_cache},
-      upload_buffer{instance, scheduler, vk::BufferUsageFlagBits::eTransferSrc, UPLOAD_BUFFER_SIZE},
+      upload_buffer{instance, scheduler, vk::BufferUsageFlagBits::eTransferSrc, UPLOAD_BUFFER_SIZE,
+                    BufferType::Upload},
       download_buffer{instance, scheduler, vk::BufferUsageFlagBits::eTransferDst,
-                      DOWNLOAD_BUFFER_SIZE, true} {
+                      DOWNLOAD_BUFFER_SIZE, BufferType::Download} {
 
     auto Register = [this](VideoCore::PixelFormat dest,
                            std::unique_ptr<FormatReinterpreterBase>&& obj) {

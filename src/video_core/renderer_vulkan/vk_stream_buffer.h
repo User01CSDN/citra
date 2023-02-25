@@ -10,7 +10,15 @@
 #include <vector>
 #include "video_core/renderer_vulkan/vk_common.h"
 
+VK_DEFINE_HANDLE(VmaAllocation)
+
 namespace Vulkan {
+
+enum class BufferType : u32 {
+    Upload = 0,
+    Download = 1,
+    Stream = 2,
+};
 
 class Instance;
 class Scheduler;
@@ -20,7 +28,8 @@ class StreamBuffer final {
 
 public:
     explicit StreamBuffer(const Instance& instance, Scheduler& scheduler,
-                          vk::BufferUsageFlags usage, u64 size, bool readback = false);
+                          vk::BufferUsageFlags usage, u64 size,
+                          BufferType type = BufferType::Stream);
     ~StreamBuffer();
 
     /**
@@ -60,11 +69,11 @@ private:
     Scheduler& scheduler;     ///< Command scheduler.
 
     vk::Buffer buffer;        ///< Mapped buffer.
-    vk::DeviceMemory memory;  ///< Memory allocation.
+    VmaAllocation allocation; ///< VMA allocation
     u8* mapped{};             ///< Pointer to the mapped memory
     u64 stream_buffer_size{}; ///< Stream buffer size.
     vk::BufferUsageFlags usage{};
-    bool readback{}; ///< Flag indicating if the buffer should use cached memory
+    BufferType type;
 
     u64 offset{};      ///< Buffer iterator.
     u64 mapped_size{}; ///< Size reserved for the current copy.
