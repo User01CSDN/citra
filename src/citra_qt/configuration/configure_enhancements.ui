@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>400</width>
-    <height>643</height>
+    <height>657</height>
    </rect>
   </property>
   <property name="minimumSize">
@@ -352,6 +352,44 @@
        </widget>
       </item>
       <item>
+       <widget class="QWidget" name="" native="true">
+        <layout class="QHBoxLayout" name="proportion_layout">
+         <property name="leftMargin">
+          <number>0</number>
+         </property>
+         <property name="topMargin">
+          <number>0</number>
+         </property>
+         <property name="rightMargin">
+          <number>0</number>
+         </property>
+         <property name="bottomMargin">
+          <number>0</number>
+         </property>
+         <item>
+          <widget class="QLabel" name="label_3">
+           <property name="text">
+            <string>Large Screen Proportion:</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QDoubleSpinBox" name="large_screen_proportion">
+           <property name="minimum">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>16.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>4.000000000000000</double>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item>
        <widget class="QWidget" name="bg_color_group" native="true">
         <layout class="QHBoxLayout" name="bg_color_group_2">
          <property name="leftMargin">
@@ -454,6 +492,7 @@
   <tabstop>layout_combobox</tabstop>
   <tabstop>toggle_swap_screen</tabstop>
   <tabstop>toggle_upright_screen</tabstop>
+  <tabstop>large_screen_proportion</tabstop>
   <tabstop>bg_button</tabstop>
   <tabstop>toggle_custom_textures</tabstop>
   <tabstop>toggle_dump_textures</tabstop>

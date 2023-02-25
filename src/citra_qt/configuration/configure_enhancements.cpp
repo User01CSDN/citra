@@ -86,6 +86,7 @@ void ConfigureEnhancements::SetConfiguration() {
     ui->toggle_linear_filter->setChecked(Settings::values.linear_filter.GetValue());
     ui->toggle_swap_screen->setChecked(Settings::values.swap_screen.GetValue());
     ui->toggle_upright_screen->setChecked(Settings::values.upright_screen.GetValue());
+    ui->large_screen_proportion->setValue(Settings::values.large_screen_proportion.GetValue());
     ui->toggle_dump_textures->setChecked(Settings::values.dump_textures.GetValue());
     ui->toggle_custom_textures->setChecked(Settings::values.custom_textures.GetValue());
     ui->toggle_preload_textures->setChecked(Settings::values.preload_textures.GetValue());
@@ -133,6 +134,8 @@ void ConfigureEnhancements::ApplyConfiguration() {
         static_cast<Settings::MonoRenderOption>(ui->mono_rendering_eye->currentIndex());
     Settings::values.pp_shader_name =
         ui->shader_combobox->itemText(ui->shader_combobox->currentIndex()).toStdString();
+    Settings::values.large_screen_proportion = ui->large_screen_proportion->value();
+
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.linear_filter,
                                              ui->toggle_linear_filter, linear_filter);
     ConfigurationShared::ApplyPerGameSetting(
