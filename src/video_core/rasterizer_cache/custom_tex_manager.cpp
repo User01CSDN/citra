@@ -123,8 +123,23 @@ void CustomTexManager::FindCustomTextures() {
     textures_loaded = true;
 }
 
-void CustomTexManager::DumpTexture(const SurfaceParams& params, std::span<const u8> data) {
-    const u64 data_hash = ComputeHash64(data.data(), data.size());
+u64 CustomTexManager::ComputeHash(const SurfaceParams& params, std::span<u8> data) {
+    const u32 decoded_size = params.width * params.height * GetBytesPerPixel(params.pixel_format);
+    if (temp_buffer.size() < decoded_size) {
+        temp_buffer.resize(decoded_size);
+    }
+
+    // This is suboptimal as we could just hash the 3DS data instead.
+    // However in the interest of compatibility with old texture packs
+    // this must be done...
+    const auto decoded = std::span{temp_buffer.data(), decoded_size};
+    DecodeTexture(params, params.addr, params.end, data, decoded);
+
+    return ComputeHash64(decoded.data(), decoded_size);
+}
+
+void CustomTexManager::DumpTexture(const SurfaceParams& params, u32 level, std::span<u8> data) {
+    const u64 data_hash = ComputeHash(params, data);
     const u32 data_size = static_cast<u32>(data.size());
     const u32 width = params.width;
     const u32 height = params.height;
@@ -150,7 +165,7 @@ void CustomTexManager::DumpTexture(const SurfaceParams& params, std::span<const 
 
     // Proceed with the dump.
     const u64 program_id = system.Kernel().GetCurrentProcess()->codeset->program_id;
-    auto dump = [width, height, params, data_hash, format, data_size, program_id,
+    auto dump = [width, height, params, level, data_hash, format, data_size, program_id,
                  pixels = std::move(pixels)]() mutable {
         // Decode and convert to RGBA8
         const std::span encoded = pixels.Span().first(data_size);
@@ -165,7 +180,8 @@ void CustomTexManager::DumpTexture(const SurfaceParams& params, std::span<const 
             return;
         }
 
-        dump_path += fmt::format("tex1_{}x{}_{:016X}_{}.png", width, height, data_hash, format);
+        dump_path +=
+            fmt::format("tex1_{}x{}_{:016X}_{}_mip{}.png", width, height, data_hash, format, level);
         EncodePNG(dump_path, decoded, width, height);
     };
 
@@ -173,30 +189,14 @@ void CustomTexManager::DumpTexture(const SurfaceParams& params, std::span<const 
     dumped_textures.insert(data_hash);
 }
 
-const Texture& CustomTexManager::GetTexture(const SurfaceParams& params, std::span<u8> data) {
-    u64 data_hash;
-    if (compatibility_mode) {
-        const u32 decoded_size =
-            params.width * params.height * GetBytesPerPixel(params.pixel_format);
-        ScratchBuffer<u8> decoded(decoded_size);
-        DecodeTexture(params, params.addr, params.end, data, decoded.Span());
-        data_hash = ComputeHash64(decoded.Data(), decoded_size);
-    } else {
-        data_hash = ComputeHash64(data.data(), data.size());
-    }
-
+const Texture& CustomTexManager::GetTexture(u64 data_hash) {
     auto it = custom_textures.find(data_hash);
     if (it == custom_textures.end()) {
-        LOG_WARNING(
-            Render, "Unable to find replacement for {}x{} {} surface upload with hash {:016X}",
-            params.width, params.height, PixelFormatAsString(params.pixel_format), data_hash);
+        LOG_WARNING(Render, "Unable to find replacement for surface with hash {:016X}", data_hash);
         return dummy_texture;
     }
 
-    LOG_DEBUG(Render, "Assigning {} to {}x{} {} surface with address {:#x} and hash {:016X}",
-              it->second.path, params.width, params.height,
-              PixelFormatAsString(params.pixel_format), params.addr, data_hash);
-
+    LOG_DEBUG(Render, "Assigning {} to surface with hash {:016X}", it->second.path, data_hash);
     return it->second;
 }
 

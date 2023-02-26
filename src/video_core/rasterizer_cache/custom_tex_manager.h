@@ -49,11 +49,14 @@ public:
     /// Searches the load directory assigned to program_id for any custom textures and loads them
     void FindCustomTextures();
 
+    /// Returns a unique indentifier for a 3DS texture
+    u64 ComputeHash(const SurfaceParams& params, std::span<u8> data);
+
     /// Saves the provided pixel data described by params to disk as png
-    void DumpTexture(const SurfaceParams& params, std::span<const u8> data);
+    void DumpTexture(const SurfaceParams& params, u32 level, std::span<u8> data);
 
     /// Returns the custom texture handle assigned to the provided data hash
-    const Texture& GetTexture(const SurfaceParams& params, std::span<u8> data);
+    const Texture& GetTexture(u64 data_hash);
 
     /// Decodes the data in texture to a consumable format
     void DecodeToStaging(const Texture& texture, const StagingData& staging);
@@ -71,6 +74,7 @@ private:
     Common::ThreadWorker workers;
     std::unordered_set<u64> dumped_textures;
     std::unordered_map<u64, Texture> custom_textures;
+    std::vector<u8> temp_buffer;
     Texture dummy_texture{};
     bool textures_loaded{};
     bool compatibility_mode{true};
