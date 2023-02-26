@@ -24,6 +24,8 @@ using VSOutputAttributes = RasterizerRegs::VSOutputAttributes;
 
 namespace OpenGL {
 
+bool use_normal = false;
+
 const std::string UniformBlockDef = Pica::Shader::BuildShaderUniformDefinitions();
 
 static std::string GetVertexInterfaceDeclaration(bool is_output, bool separable_shader) {
@@ -75,6 +77,7 @@ PicaFSConfig PicaFSConfig::BuildFromRegs(const Pica::Regs& regs) {
     state.texture0_type = regs.texturing.texture0.type;
 
     state.texture2_use_coord1 = regs.texturing.main_config.texture2_use_coord1 != 0;
+    state.use_normal = use_normal;
 
     if (GLES) {
         // With GLES, we need this in the fragment shader to emulate logic operations
@@ -110,6 +113,9 @@ PicaFSConfig PicaFSConfig::BuildFromRegs(const Pica::Regs& regs) {
     // Fragment lighting
 
     state.lighting.enable = !regs.lighting.disable;
+    if (state.lighting.enable) {
+    LOG_INFO(Render_OpenGL, "Enabled lights");
+    }
     state.lighting.src_num = regs.lighting.max_light_index + 1;
 
     for (unsigned light_index = 0; light_index < state.lighting.src_num; ++light_index) {
@@ -297,6 +303,10 @@ static std::string SampleTexture(const PicaFSConfig& config, unsigned texture_un
             LOG_DEBUG(Render_OpenGL, "Using Texture3 without enabling it");
             return "vec4(0.0)";
         }
+    case 4:
+        return "texture(tex_normal, texcoord0)";
+    case 5:
+        return "texture(tex_height, texcoord0)";
     default:
         UNREACHABLE();
         return "";
@@ -641,7 +651,12 @@ static void WriteLighting(std::string& out, const PicaFSConfig& config) {
     const auto Perturbation = [&] {
         return fmt::format("2.0 * ({}).rgb - 1.0", SampleTexture(config, lighting.bump_selector));
     };
-    if (lighting.bump_mode == LightingRegs::LightingBumpMode::NormalMap) {
+    if (use_normal) {
+        const std::string normal_texel = fmt::format("2.0 * ({}).rgb - 1.0", SampleTexture(config, 4));
+        const std::string height_texel = fmt::format("2.0 * ({}).rgb - 1.0", SampleTexture(config, 5));
+        out += fmt::format("vec3 surface_normal = {};\n", normal_texel);
+        out += "vec3 surface_tangent = vec3(1.0, 0.0, 0.0);\n";
+    } else if (lighting.bump_mode == LightingRegs::LightingBumpMode::NormalMap) {
         // Bump mapping is enabled using a normal map
         out += fmt::format("vec3 surface_normal = {};\n", Perturbation());
 
@@ -1204,6 +1219,8 @@ layout (location = 0) out vec4 color;
 uniform sampler2D tex0;
 uniform sampler2D tex1;
 uniform sampler2D tex2;
+uniform sampler2D tex_normal; // HACK: Custom normal map
+uniform sampler2D tex_height; // HACK: Custom height map
 uniform samplerCube tex_cube;
 uniform samplerBuffer texture_buffer_lut_lf;
 uniform samplerBuffer texture_buffer_lut_rg;
@@ -1538,7 +1555,6 @@ do {
     }
 
     out += '}';
-    LOG_INFO(Render_OpenGL, "{}", out);
     return {std::move(out)};
 }
 

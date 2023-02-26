@@ -185,7 +185,7 @@ private:
     void ScaledDownload(const VideoCore::BufferTextureCopy& download,
                         const VideoCore::StagingData& staging);
 
-private:
+public:
     TextureRuntime& runtime;
     const Driver& driver;
     Allocation alloc;

@@ -26,6 +26,8 @@ constexpr TextureUnit TextureCube{6};
 constexpr TextureUnit TextureBufferLUT_LF{3};
 constexpr TextureUnit TextureBufferLUT_RG{4};
 constexpr TextureUnit TextureBufferLUT_RGBA{5};
+constexpr TextureUnit TextureNormalMap{7};
+constexpr TextureUnit TextureHeightMap{8};
 
 } // namespace TextureUnits
 

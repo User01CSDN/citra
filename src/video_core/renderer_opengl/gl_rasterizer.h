@@ -119,6 +119,7 @@ private:
     TextureRuntime runtime;
     RasterizerCache res_cache;
     ShaderProgramManager shader_program_manager;
+    VideoCore::CustomTexManager& custom_tex_manager;
 
     OGLVertexArray sw_vao; // VAO for software shader draw
     OGLVertexArray hw_vao; // VAO for hardware shader / accelerate draw

@@ -11,6 +11,8 @@
 
 namespace Vulkan {
 
+extern bool use_normal;
+
 class Instance;
 
 enum Attributes {
@@ -55,6 +57,7 @@ struct PicaFSConfigState {
         BitField<23, 4, Pica::FramebufferRegs::LogicOp> logic_op;
         BitField<27, 1, u32> shadow_rendering;
         BitField<28, 1, u32> shadow_texture_orthographic;
+        BitField<29, 1, u32> use_normal;
     };
 
     std::array<TevStageConfigRaw, 6> tev_stages;

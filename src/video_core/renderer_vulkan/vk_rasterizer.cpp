@@ -10,6 +10,7 @@
 #include "video_core/regs_framebuffer.h"
 #include "video_core/regs_pipeline.h"
 #include "video_core/regs_rasterizer.h"
+#include "video_core/rasterizer_cache/custom_tex_manager.h"
 #include "video_core/renderer_vulkan/renderer_vulkan.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_rasterizer.h"
@@ -28,7 +29,7 @@ MICROPROFILE_DEFINE(Vulkan_Blits, "Vulkan", "Blits", MP_RGB(100, 100, 255));
 using TriangleTopology = Pica::PipelineRegs::TriangleTopology;
 using VideoCore::SurfaceType;
 
-constexpr u64 STREAM_BUFFER_SIZE = 128 * 1024 * 1024;
+constexpr u64 STREAM_BUFFER_SIZE = 64 * 1024 * 1024;
 constexpr u64 TEXTURE_BUFFER_SIZE = 2 * 1024 * 1024;
 
 constexpr vk::BufferUsageFlags BUFFER_USAGE = vk::BufferUsageFlagBits::eVertexBuffer |
@@ -69,13 +70,13 @@ struct DrawParams {
 } // Anonymous namespace
 
 RasterizerVulkan::RasterizerVulkan(Memory::MemorySystem& memory,
-                                   VideoCore::CustomTexManager& custom_tex_manager,
+                                   VideoCore::CustomTexManager& custom_tex_manager_,
                                    Frontend::EmuWindow& emu_window, const Instance& instance,
                                    Scheduler& scheduler, DescriptorManager& desc_manager,
                                    TextureRuntime& runtime, RenderpassCache& renderpass_cache)
     : RasterizerAccelerated{memory}, instance{instance}, scheduler{scheduler}, runtime{runtime},
-      renderpass_cache{renderpass_cache}, desc_manager{desc_manager}, res_cache{memory,
-                                                                                custom_tex_manager,
+      renderpass_cache{renderpass_cache}, desc_manager{desc_manager}, custom_tex_manager{custom_tex_manager_}, res_cache{memory,
+                                                                                custom_tex_manager_,
                                                                                 runtime},
       pipeline_cache{instance, scheduler, renderpass_cache, desc_manager},
       null_surface{NULL_PARAMS, vk::Format::eR8G8B8A8Unorm, NULL_USAGE,
@@ -128,7 +129,7 @@ RasterizerVulkan::RasterizerVulkan(Memory::MemorySystem& memory,
     pipeline_cache.BindTexelBuffer(4, texture_rgba_view);
 
     const Sampler& null_sampler = res_cache.GetSampler(VideoCore::NULL_SAMPLER_ID);
-    for (u32 i = 0; i < 4; i++) {
+    for (u32 i = 0; i < 5; i++) {
         pipeline_cache.BindTexture(i, null_surface.ImageView(), null_sampler.Handle());
     }
 
@@ -141,6 +142,8 @@ RasterizerVulkan::RasterizerVulkan(Memory::MemorySystem& memory,
     RasterizerVulkan::SyncEntireState();
 }
 
+Surface* normal_surf;
+
 RasterizerVulkan::~RasterizerVulkan() {
     scheduler.Finish();
     const vk::Device device = instance.GetDevice();
@@ -148,6 +151,10 @@ RasterizerVulkan::~RasterizerVulkan() {
     device.destroyBufferView(texture_lf_view);
     device.destroyBufferView(texture_rg_view);
     device.destroyBufferView(texture_rgba_view);
+
+    if (normal_surf) {
+        delete normal_surf;
+    }
 }
 
 void RasterizerVulkan::LoadDiskResources(const std::atomic_bool& stop_loading,
@@ -507,6 +514,10 @@ bool RasterizerVulkan::Draw(bool accelerate, bool is_indexed) {
     if (shader_dirty) {
         pipeline_cache.UseFragmentShader(regs);
         shader_dirty = false;
+        if (use_normal) {
+            use_normal = false;
+            shader_dirty = true;
+        }
     }
 
     // Sync the LUTs within the texture buffer
@@ -648,6 +659,49 @@ void RasterizerVulkan::SyncTextureUnits(const Framebuffer& framebuffer) {
                     runtime.CopyTextures(static_cast<Surface&>(*framebuffer.Color()), temp, copy);
                     pipeline_cache.BindTexture(texture_index, temp.ImageView(), sampler.Handle());
                 } else {
+                    if (surface->use_normal) {
+                        if (!normal_surf) {
+                            normal_surf = new Surface{*surface, runtime};
+                            normal_surf->Swap(surface->alloc.width, surface->alloc.height, surface->custom_format);
+                            const u64 hash = 0x08009DF893CB9B83ull;
+                            auto it = custom_tex_manager.custom_textures.find(hash);
+                            ASSERT(it != custom_tex_manager.custom_textures.end());
+                            auto& texture = it->second;
+                            auto staging = runtime.FindStaging(texture.staging_size, true);
+                            custom_tex_manager.DecodeToStaging(texture, staging);
+                            const VideoCore::BufferTextureCopy upload = {
+                                .buffer_offset = 0,
+                                .buffer_size = (u32)texture.staging_size,
+                                .texture_rect = {0, texture.height, texture.width, 0},
+                                .texture_level = 0,
+                            };
+                            normal_surf->Upload(upload, staging);
+                            pipeline_cache.BindTexture(4, normal_surf->ImageView(), sampler.Handle());
+                        }
+                        /*if (!height_surf) {
+                            height_surf = new Surface{*surface, runtime};
+                            height_surf->Swap(surface->alloc.width, surface->alloc.height, surface->custom_format);
+                            const u64 hash = 0xCB045783D99CBF57;
+                            auto it = custom_tex_manager.custom_textures.find(hash);
+                            ASSERT(it != custom_tex_manager.custom_textures.end());
+                            auto& texture = it->second;
+                            auto staging = runtime.FindStaging(texture.staging_size, true);
+                            custom_tex_manager.DecodeToStaging(texture, staging);
+                            const VideoCore::BufferTextureCopy upload = {
+                                .buffer_offset = 0,
+                                .buffer_size = (u32)texture.staging_size,
+                                .texture_rect = {0, texture.height, texture.width, 0},
+                                .texture_level = 0,
+                            };
+                            height_surf->Upload(upload, staging);
+                            glObjectLabel(GL_TEXTURE, height_surf->Handle(), -1, "Height texture");
+                            glActiveTexture(GL_TEXTURE8);
+                            glBindTexture(GL_TEXTURE_2D, height_surf->Handle());
+                        }*/
+                        use_normal = true;
+                        shader_dirty = true;
+                    }
+
                     pipeline_cache.BindTexture(texture_index, surface->ImageView(),
                                                sampler.Handle());
                 }

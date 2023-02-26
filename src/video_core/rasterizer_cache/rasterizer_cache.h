@@ -916,6 +916,10 @@ bool RasterizerCache<T>::UploadCustomSurface(const Surface& surface, const Surfa
     const bool is_base_level = level == 0;
     const Texture& texture = custom_tex_manager.GetTexture(load_info, upload_data);
 
+    if (texture && texture.hash == 0x08009DF893CB9B82) {
+        surface->use_normal = true;
+    }
+
     // The old texture pack system did not support mipmaps so older packs might do
     // wonky things. For example Henriko's pack has mipmaps larger than the base
     // level. To avoid crashes just don't upload mipmaps for custom surfaces

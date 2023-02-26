@@ -60,6 +60,7 @@ public:
     bool registered = false;
     bool picked = false;
     bool is_custom = false;
+    bool use_normal = false;
     CustomPixelFormat custom_format{};
     SurfaceRegions invalid_regions;
     std::array<u8, 4> fill_data;

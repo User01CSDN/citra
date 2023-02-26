@@ -10,6 +10,7 @@
 #include "video_core/pica_state.h"
 #include "video_core/regs_framebuffer.h"
 #include "video_core/regs_rasterizer.h"
+#include "video_core/rasterizer_cache/custom_tex_manager.h"
 #include "video_core/renderer_opengl/gl_driver.h"
 #include "video_core/renderer_opengl/gl_rasterizer.h"
 #include "video_core/renderer_opengl/gl_shader_gen.h"
@@ -37,12 +38,13 @@ constexpr std::size_t TEXTURE_BUFFER_SIZE = 1 * 1024 * 1024;
 } // Anonymous namespace
 
 RasterizerOpenGL::RasterizerOpenGL(Memory::MemorySystem& memory,
-                                   VideoCore::CustomTexManager& custom_tex_manager,
+                                   VideoCore::CustomTexManager& custom_tex_manager_,
                                    Frontend::EmuWindow& emu_window, Driver& driver_)
     : RasterizerAccelerated{memory}, driver{driver_}, runtime{driver}, res_cache{memory,
-                                                                                 custom_tex_manager,
+                                                                                 custom_tex_manager_,
                                                                                  runtime},
       shader_program_manager{emu_window, driver, !driver.IsOpenGLES()},
+      custom_tex_manager{custom_tex_manager_},
       vertex_buffer{GL_ARRAY_BUFFER, VERTEX_BUFFER_SIZE}, uniform_buffer{GL_UNIFORM_BUFFER,
                                                                          UNIFORM_BUFFER_SIZE},
       index_buffer{GL_ELEMENT_ARRAY_BUFFER, INDEX_BUFFER_SIZE}, texture_buffer{GL_TEXTURE_BUFFER,
@@ -134,7 +136,17 @@ RasterizerOpenGL::RasterizerOpenGL(Memory::MemorySystem& memory,
     RasterizerOpenGL::SyncEntireState();
 }
 
-RasterizerOpenGL::~RasterizerOpenGL() = default;
+Surface* normal_surf;
+Surface* height_surf;
+
+RasterizerOpenGL::~RasterizerOpenGL() {
+    if (normal_surf) {
+        delete normal_surf;
+    }
+    if (height_surf) {
+        delete height_surf;
+    }
+}
 
 void RasterizerOpenGL::LoadDiskResources(const std::atomic_bool& stop_loading,
                                          const VideoCore::DiskResourceLoadCallback& callback) {
@@ -483,6 +495,52 @@ bool RasterizerOpenGL::Draw(bool accelerate, bool is_indexed) {
 
             auto surface = res_cache.GetTextureSurface(texture);
             if (surface != nullptr) {
+                if (surface->use_normal) {
+                    if (!normal_surf) {
+                        normal_surf = new Surface{*surface, runtime};
+                        normal_surf->Swap(surface->alloc.width, surface->alloc.height, surface->custom_format);
+                        const u64 hash = 0x08009DF893CB9B83ull;
+                        auto it = custom_tex_manager.custom_textures.find(hash);
+                        ASSERT(it != custom_tex_manager.custom_textures.end());
+                        auto& texture = it->second;
+                        auto staging = runtime.FindStaging(texture.staging_size, true);
+                        custom_tex_manager.DecodeToStaging(texture, staging);
+                        const VideoCore::BufferTextureCopy upload = {
+                            .buffer_offset = 0,
+                            .buffer_size = (u32)texture.staging_size,
+                            .texture_rect = {0, texture.height, texture.width, 0},
+                            .texture_level = 0,
+                        };
+                        normal_surf->Upload(upload, staging);
+                        glObjectLabel(GL_TEXTURE, normal_surf->Handle(), -1, "Normal texture");
+                        glActiveTexture(GL_TEXTURE7);
+                        glBindTexture(GL_TEXTURE_2D, normal_surf->Handle());
+                    }
+                    /*if (!height_surf) {
+                        height_surf = new Surface{*surface, runtime};
+                        height_surf->Swap(surface->alloc.width, surface->alloc.height, surface->custom_format);
+                        const u64 hash = 0xCB045783D99CBF57;
+                        auto it = custom_tex_manager.custom_textures.find(hash);
+                        ASSERT(it != custom_tex_manager.custom_textures.end());
+                        auto& texture = it->second;
+                        auto staging = runtime.FindStaging(texture.staging_size, true);
+                        custom_tex_manager.DecodeToStaging(texture, staging);
+                        const VideoCore::BufferTextureCopy upload = {
+                            .buffer_offset = 0,
+                            .buffer_size = (u32)texture.staging_size,
+                            .texture_rect = {0, texture.height, texture.width, 0},
+                            .texture_level = 0,
+                        };
+                        height_surf->Upload(upload, staging);
+                        glObjectLabel(GL_TEXTURE, height_surf->Handle(), -1, "Height texture");
+                        glActiveTexture(GL_TEXTURE8);
+                        glBindTexture(GL_TEXTURE_2D, height_surf->Handle());
+                    }*/
+                    glActiveTexture(GL_TEXTURE0);
+                    use_normal = true;
+                    shader_dirty = true;
+                }
+
                 state.texture_units[texture_index].texture_2d = surface->Handle();
             } else {
                 // Can occur when texture addr is null or its memory is unmapped/invalid
@@ -503,6 +561,10 @@ bool RasterizerOpenGL::Draw(bool accelerate, bool is_indexed) {
     if (shader_dirty) {
         SetShader();
         shader_dirty = false;
+        if (use_normal) {
+            use_normal = false;
+            shader_dirty = true;
+        }
     }
 
     // Sync the LUTs within the texture buffer

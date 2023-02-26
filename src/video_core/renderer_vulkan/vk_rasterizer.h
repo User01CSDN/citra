@@ -133,6 +133,7 @@ private:
     TextureRuntime& runtime;
     RenderpassCache& renderpass_cache;
     DescriptorManager& desc_manager;
+    VideoCore::CustomTexManager& custom_tex_manager;
     RasterizerCache res_cache;
     PipelineCache pipeline_cache;
 

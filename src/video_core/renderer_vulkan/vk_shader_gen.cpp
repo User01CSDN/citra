@@ -24,6 +24,8 @@ using VSOutputAttributes = RasterizerRegs::VSOutputAttributes;
 
 namespace Vulkan {
 
+bool use_normal = false;
+
 const std::string UniformBlockDef = Pica::Shader::BuildShaderUniformDefinitions("binding = 1,");
 
 static std::string GetVertexInterfaceDeclaration(bool is_output, bool use_clip_planes = false) {
@@ -78,6 +80,8 @@ PicaFSConfig::PicaFSConfig(const Pica::Regs& regs, const Instance& instance) {
     } else {
         state.logic_op.Assign(Pica::FramebufferRegs::LogicOp::NoOp);
     }
+
+    state.use_normal.Assign(use_normal);
 
     // Copy relevant tev stages fields.
     // We don't sync const_color here because of the high variance, it is a
@@ -324,6 +328,8 @@ static std::string SampleTexture(const PicaFSConfig& config, unsigned texture_un
             LOG_DEBUG(Render_OpenGL, "Using Texture3 without enabling it");
             return "vec4(0.0)";
         }
+    case 4:
+        return "texture(tex_normal, texcoord0)";
     default:
         UNREACHABLE();
         return "";
@@ -664,7 +670,11 @@ static void WriteLighting(std::string& out, const PicaFSConfig& config) {
     const auto Perturbation = [&] {
         return fmt::format("2.0 * ({}).rgb - 1.0", SampleTexture(config, lighting.bump_selector));
     };
-    if (lighting.bump_mode == LightingRegs::LightingBumpMode::NormalMap) {
+    if (use_normal) {
+        const std::string normal_texel = fmt::format("2.0 * ({}).rgb - 1.0", SampleTexture(config, 4));
+        out += fmt::format("vec3 surface_normal = {};\n", normal_texel);
+        out += "vec3 surface_tangent = vec3(1.0, 0.0, 0.0);\n";
+    } else if (lighting.bump_mode == LightingRegs::LightingBumpMode::NormalMap) {
         // Bump mapping is enabled using a normal map
         out += fmt::format("vec3 surface_normal = {};\n", Perturbation());
 
@@ -1221,6 +1231,7 @@ layout(set = 1, binding = 0) uniform sampler2D tex0;
 layout(set = 1, binding = 1) uniform sampler2D tex1;
 layout(set = 1, binding = 2) uniform sampler2D tex2;
 layout(set = 1, binding = 3) uniform samplerCube tex_cube;
+layout(set = 1, binding = 4) uniform sampler2D tex_normal;
 
 layout(set = 2, binding = 0, r32ui) uniform readonly uimage2D shadow_texture_px;
 layout(set = 2, binding = 1, r32ui) uniform readonly uimage2D shadow_texture_nx;

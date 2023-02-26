@@ -43,6 +43,10 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugUtilsCallback(
         level = Log::Level::Info;
     }
 
+    if (level == Log::Level::Error) {
+        printf("fff");
+    }
+
     LOG_GENERIC(Log::Class::Render_Vulkan, level, "{}: {}",
                 callback_data->pMessageIdName ? callback_data->pMessageIdName : "<null>",
                 callback_data->pMessage ? callback_data->pMessage : "<null>");

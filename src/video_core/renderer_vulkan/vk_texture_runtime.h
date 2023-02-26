@@ -224,7 +224,7 @@ private:
     void DepthStencilDownload(const VideoCore::BufferTextureCopy& download,
                               const VideoCore::StagingData& staging);
 
-private:
+public:
     TextureRuntime& runtime;
     const Instance& instance;
     Scheduler& scheduler;

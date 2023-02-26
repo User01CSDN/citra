@@ -11,6 +11,8 @@
 
 namespace OpenGL {
 
+extern bool use_normal;
+
 namespace ShaderDecompiler {
 struct ProgramResult;
 }
@@ -57,6 +59,7 @@ struct PicaFSConfigState {
     Pica::TexturingRegs::FogMode fog_mode;
     bool fog_flip;
     bool alphablend_enable;
+    bool use_normal;
     Pica::FramebufferRegs::LogicOp logic_op;
 
     struct {

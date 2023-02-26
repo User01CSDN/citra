@@ -30,6 +30,7 @@ enum class CustomFileFormat : u32 {
 struct Texture {
     u32 width;
     u32 height;
+    unsigned long long hash;
     CustomPixelFormat format;
     CustomFileFormat file_format;
     std::string path;
@@ -66,7 +67,7 @@ private:
     /// Fills the texture structure with information from the file in path
     void LoadTexture(Texture& texture);
 
-private:
+public:
     Core::System& system;
     Common::ThreadWorker workers;
     std::unordered_set<u64> dumped_textures;

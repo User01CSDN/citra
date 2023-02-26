@@ -35,8 +35,9 @@ constexpr static std::array RASTERIZER_SETS = {
                 vk::DescriptorType::eCombinedImageSampler,
                 vk::DescriptorType::eCombinedImageSampler,
                 vk::DescriptorType::eCombinedImageSampler,
+                vk::DescriptorType::eCombinedImageSampler, // HACK: Normal map
             },
-        .binding_count = 4,
+        .binding_count = 5,
     },
     Bindings{
         // Shadow set

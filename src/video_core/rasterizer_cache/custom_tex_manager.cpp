@@ -112,6 +112,7 @@ void CustomTexManager::FindCustomTextures() {
         }
 
         auto& texture = it->second;
+        texture.hash = hash;
         texture.file_format = MakeFileFormat(ext);
         texture.path = path;
 
