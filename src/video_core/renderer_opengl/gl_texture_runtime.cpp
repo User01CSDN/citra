@@ -334,10 +334,19 @@ void TextureRuntime::BindFramebuffer(GLenum target, GLint level, GLenum textarge
 
 Surface::Surface(TextureRuntime& runtime_, const VideoCore::SurfaceParams& params)
     : VideoCore::SurfaceBase{params}, runtime{&runtime_}, driver{&runtime_.GetDriver()} {
-    if (pixel_format != VideoCore::PixelFormat::Invalid) {
-        const auto& tuple = runtime->GetFormatTuple(pixel_format);
-        alloc = runtime->Allocate(GetScaledWidth(), GetScaledHeight(), levels, tuple, texture_type);
+    if (pixel_format == VideoCore::PixelFormat::Invalid) {
+        return;
     }
+
+    const u32 scaled_width = GetScaledWidth();
+    const u32 scaled_height = GetScaledHeight();
+    const auto& tuple = runtime->GetFormatTuple(pixel_format);
+    alloc = runtime->Allocate(scaled_width, scaled_height, levels, tuple, texture_type);
+
+    const std::string name =
+        fmt::format("Surface: {}x{} {} {} levels from {:#x} to {:#x}", scaled_width, scaled_height,
+                    VideoCore::PixelFormatAsString(pixel_format), levels, addr, end);
+    glObjectLabel(GL_TEXTURE, alloc.texture.handle, -1, name.c_str());
 }
 
 Surface::~Surface() {

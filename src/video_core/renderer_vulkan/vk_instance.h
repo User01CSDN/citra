@@ -193,6 +193,11 @@ public:
         return shader_stencil_export;
     }
 
+    /// Returns true if VK_EXT_debug_utils is supported
+    bool IsExtDebugUtilsSupported() const {
+        return debug_messenger_supported;
+    }
+
     /// Returns the vendor ID of the physical device
     u32 GetVendorID() const {
         return properties.vendorID;
@@ -333,6 +338,8 @@ private:
     bool shader_stencil_export{};
     bool enable_validation{};
     bool dump_command_buffers{};
+    bool debug_messenger_supported{};
+    bool debug_report_supported{};
 };
 
 } // namespace Vulkan

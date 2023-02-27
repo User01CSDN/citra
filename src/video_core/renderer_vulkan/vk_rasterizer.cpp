@@ -22,8 +22,6 @@ namespace {
 MICROPROFILE_DEFINE(Vulkan_VS, "Vulkan", "Vertex Shader Setup", MP_RGB(192, 128, 128));
 MICROPROFILE_DEFINE(Vulkan_GS, "Vulkan", "Geometry Shader Setup", MP_RGB(128, 192, 128));
 MICROPROFILE_DEFINE(Vulkan_Drawing, "Vulkan", "Drawing", MP_RGB(128, 128, 192));
-MICROPROFILE_DEFINE(Vulkan_CacheManagement, "Vulkan", "Cache Mgmt", MP_RGB(100, 255, 100));
-MICROPROFILE_DEFINE(Vulkan_Blits, "Vulkan", "Blits", MP_RGB(100, 100, 255));
 
 using TriangleTopology = Pica::PipelineRegs::TriangleTopology;
 using VideoCore::SurfaceType;
@@ -720,22 +718,18 @@ void RasterizerVulkan::NotifyFixedFunctionPicaRegisterChanged(u32 id) {
 }
 
 void RasterizerVulkan::FlushAll() {
-    MICROPROFILE_SCOPE(Vulkan_CacheManagement);
     res_cache.FlushAll();
 }
 
 void RasterizerVulkan::FlushRegion(PAddr addr, u32 size) {
-    MICROPROFILE_SCOPE(Vulkan_CacheManagement);
     res_cache.FlushRegion(addr, size);
 }
 
 void RasterizerVulkan::InvalidateRegion(PAddr addr, u32 size) {
-    MICROPROFILE_SCOPE(Vulkan_CacheManagement);
     res_cache.InvalidateRegion(addr, size);
 }
 
 void RasterizerVulkan::FlushAndInvalidateRegion(PAddr addr, u32 size) {
-    MICROPROFILE_SCOPE(Vulkan_CacheManagement);
     res_cache.FlushRegion(addr, size);
     res_cache.InvalidateRegion(addr, size);
 }
@@ -745,7 +739,6 @@ void RasterizerVulkan::ClearAll(bool flush) {
 }
 
 bool RasterizerVulkan::AccelerateDisplayTransfer(const GPU::Regs::DisplayTransferConfig& config) {
-    MICROPROFILE_SCOPE(Vulkan_Blits);
     return res_cache.AccelerateDisplayTransfer(config);
 }
 
@@ -760,10 +753,9 @@ bool RasterizerVulkan::AccelerateFill(const GPU::Regs::MemoryFillConfig& config)
 bool RasterizerVulkan::AccelerateDisplay(const GPU::Regs::FramebufferConfig& config,
                                          PAddr framebuffer_addr, u32 pixel_stride,
                                          ScreenInfo& screen_info) {
-    if (framebuffer_addr == 0) {
+    if (framebuffer_addr == 0) [[unlikely]] {
         return false;
     }
-    MICROPROFILE_SCOPE(Vulkan_CacheManagement);
 
     VideoCore::SurfaceParams src_params;
     src_params.addr = framebuffer_addr;

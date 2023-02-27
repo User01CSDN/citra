@@ -326,14 +326,10 @@ Instance::Instance(Frontend::EmuWindow& window, u32 physical_device_index)
         return it != extensions.end();
     };
 
-    bool debug_messenger_supported{};
-    bool debug_report_supported{};
-    if (enable_validation) {
-        debug_messenger_supported = IsSupported(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-        debug_report_supported = IsSupported(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
-        if (!debug_messenger_supported) {
-            instance_chain.unlink<vk::DebugUtilsMessengerCreateInfoEXT>();
-        }
+    debug_messenger_supported = IsSupported(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+    debug_report_supported = IsSupported(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
+    if (!debug_messenger_supported || !enable_validation) {
+        instance_chain.unlink<vk::DebugUtilsMessengerCreateInfoEXT>();
     }
 
     try {

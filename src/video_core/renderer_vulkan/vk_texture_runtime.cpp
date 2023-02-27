@@ -491,7 +491,7 @@ bool TextureRuntime::CopyTextures(Surface& source, Surface& dest,
             .srcSubresource{
                 .aspectMask = params.aspect,
                 .mipLevel = copy.src_level,
-                .baseArrayLayer = 0,
+                .baseArrayLayer = copy.src_layer,
                 .layerCount = 1,
             },
             .srcOffset = {static_cast<s32>(copy.src_offset.x), static_cast<s32>(copy.src_offset.y),
@@ -499,7 +499,7 @@ bool TextureRuntime::CopyTextures(Surface& source, Surface& dest,
             .dstSubresource{
                 .aspectMask = params.aspect,
                 .mipLevel = copy.dst_level,
-                .baseArrayLayer = 0,
+                .baseArrayLayer = copy.dst_layer,
                 .layerCount = 1,
             },
             .dstOffset = {static_cast<s32>(copy.dst_offset.x), static_cast<s32>(copy.dst_offset.y),
@@ -774,9 +774,25 @@ Surface::Surface(TextureRuntime& runtime_, const VideoCore::SurfaceParams& param
     : VideoCore::SurfaceBase{params}, runtime{&runtime_}, instance{&runtime_.GetInstance()},
       scheduler{&runtime_.GetScheduler()} {
 
-    if (pixel_format != VideoCore::PixelFormat::Invalid) {
-        alloc = runtime->Allocate(GetScaledWidth(), GetScaledHeight(), levels, params.pixel_format,
-                                  texture_type);
+    if (pixel_format == VideoCore::PixelFormat::Invalid) {
+        return;
+    }
+
+    const u32 scaled_width = GetScaledWidth();
+    const u32 scaled_height = GetScaledHeight();
+    alloc =
+        runtime->Allocate(scaled_width, scaled_height, levels, params.pixel_format, texture_type);
+
+    if (instance->IsExtDebugUtilsSupported()) {
+        const std::string name = fmt::format(
+            "Surface: {}x{} {} {} levels from {:#x} to {:#x}", scaled_width, scaled_height,
+            VideoCore::PixelFormatAsString(pixel_format), levels, addr, end);
+        const vk::DebugUtilsObjectNameInfoEXT name_info = {
+            .objectType = vk::ObjectType::eImage,
+            .objectHandle = (u64) static_cast<VkImage>(alloc.image),
+            .pObjectName = name.c_str(),
+        };
+        instance->GetDevice().setDebugUtilsObjectNameEXT(name_info);
     }
 }
 

@@ -17,10 +17,11 @@
 
 namespace VideoCore {
 
-MICROPROFILE_DECLARE(RasterizerCache_BlitSurface);
-MICROPROFILE_DECLARE(RasterizerCache_CopySurface);
+MICROPROFILE_DECLARE(RasterizerCache_SurfaceCopy);
 MICROPROFILE_DECLARE(RasterizerCache_SurfaceLoad);
 MICROPROFILE_DECLARE(RasterizerCache_SurfaceFlush);
+MICROPROFILE_DECLARE(RasterizerCache_Invalidation);
+MICROPROFILE_DECLARE(RasterizerCache_Flush);
 
 inline auto RangeFromInterval(auto& map, const auto& interval) {
     return boost::make_iterator_range(map.equal_range(interval));
@@ -64,6 +65,8 @@ RasterizerCache<T>::~RasterizerCache() {
 
 template <class T>
 bool RasterizerCache<T>::AccelerateTextureCopy(const GPU::Regs::DisplayTransferConfig& config) {
+    MICROPROFILE_SCOPE(RasterizerCache_SurfaceCopy);
+
     u32 copy_size = Common::AlignDown(config.texture_copy.size, 16);
     if (copy_size == 0) {
         return false;
@@ -159,6 +162,8 @@ bool RasterizerCache<T>::AccelerateTextureCopy(const GPU::Regs::DisplayTransferC
 
 template <class T>
 bool RasterizerCache<T>::AccelerateDisplayTransfer(const GPU::Regs::DisplayTransferConfig& config) {
+    MICROPROFILE_SCOPE(RasterizerCache_SurfaceCopy);
+
     SurfaceParams src_params;
     src_params.addr = config.GetPhysicalInputAddress();
     src_params.width = config.output_width;
@@ -405,7 +410,7 @@ SurfaceId RasterizerCache<T>::FindMatch(const SurfaceParams& params, ScaleMatch 
 template <class T>
 void RasterizerCache<T>::CopySurface(Surface& src_surface, Surface& dst_surface,
                                      SurfaceInterval copy_interval) {
-    MICROPROFILE_SCOPE(RasterizerCache_CopySurface);
+    MICROPROFILE_SCOPE(RasterizerCache_SurfaceCopy);
 
     const auto subrect_params = dst_surface.FromInterval(copy_interval);
     const Rect2D dst_rect = dst_surface.GetScaledSubRect(subrect_params);
@@ -1173,6 +1178,8 @@ void RasterizerCache<T>::FlushRegion(PAddr addr, u32 size, SurfaceId flush_surfa
         return;
     }
 
+    MICROPROFILE_SCOPE(RasterizerCache_Flush);
+
     const SurfaceInterval flush_interval(addr, addr + size);
     SurfaceRegions flushed_intervals{};
 
@@ -1183,7 +1190,7 @@ void RasterizerCache<T>::FlushRegion(PAddr addr, u32 size, SurfaceId flush_surfa
         // access that region, anything higher than 8 you're guaranteed it comes from a service
         const SurfaceInterval interval =
             size <= 8 ? dirty_interval : dirty_interval & flush_interval;
-        if (surface_id && surface_id != flush_surface_id) {
+        if (flush_surface_id && surface_id != flush_surface_id) {
             continue;
         }
 
@@ -1214,6 +1221,8 @@ void RasterizerCache<T>::InvalidateRegion(PAddr addr, u32 size, SurfaceId region
     if (size == 0) [[unlikely]] {
         return;
     }
+
+    MICROPROFILE_SCOPE(RasterizerCache_Invalidation);
 
     const SurfaceInterval invalid_interval{addr, addr + size};
     if (region_owner_id) {
