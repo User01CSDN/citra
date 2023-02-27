@@ -59,19 +59,22 @@ void FragmentModule::Generate() {
 
     WriteAlphaTestCondition(config.state.alpha_test_func);
 
-    if (config.state.fog_mode == TexturingRegs::FogMode::Gas) {
-        Core::System::GetInstance().TelemetrySession().AddField(
-            Common::Telemetry::FieldType::Session, "VideoCore_Pica_UseGasMode", true);
-        LOG_CRITICAL(Render_Vulkan, "Unimplemented gas mode");
-        OpKill();
-        OpFunctionEnd();
-        return;
-    }
-
     // After perspective divide, OpenGL transform z_over_w from [-1, 1] to [near, far]. Here we use
     // default near = 0 and far = 1, and undo the transformation to get the original z_over_w, then
     // do our own transformation according to PICA specification.
     WriteDepth();
+
+    // Emulate the fog
+    switch (config.state.fog_mode) {
+    case TexturingRegs::FogMode::Fog:
+        WriteFog();
+        break;
+    case TexturingRegs::FogMode::Gas:
+        WriteGas();
+        break;
+    default:
+        break;
+    }
 
     Id color{Byteround(last_tex_env_out, 4)};
     if (config.state.emulate_logic_op) {
@@ -112,15 +115,13 @@ void FragmentModule::WriteDepth() {
     const Id z_over_w{OpFma(f32_id, ConstF32(2.f), gl_frag_coord_z, ConstF32(-1.f))};
     const Id depth_scale{GetShaderDataMember(f32_id, ConstS32(2))};
     const Id depth_offset{GetShaderDataMember(f32_id, ConstS32(3))};
-    const Id depth{OpFma(f32_id, z_over_w, depth_scale, depth_offset)};
+    depth = OpFma(f32_id, z_over_w, depth_scale, depth_offset);
     if (config.state.depthmap_enable == Pica::RasterizerRegs::DepthBuffering::WBuffering) {
         const Id gl_frag_coord_w{
             OpLoad(f32_id, OpAccessChain(input_pointer_id, gl_frag_coord_id, ConstU32(3u)))};
-        const Id depth_over_w{OpFDiv(f32_id, depth, gl_frag_coord_w)};
-        OpStore(gl_frag_depth_id, depth_over_w);
-    } else {
-        OpStore(gl_frag_depth_id, depth);
+        depth = OpFDiv(f32_id, depth, gl_frag_coord_w);
     }
+    OpStore(gl_frag_depth_id, depth);
 }
 
 void FragmentModule::WriteScissor() {
@@ -158,6 +159,50 @@ void FragmentModule::WriteScissor() {
     OpKill();
 
     AddLabel(merge_block);
+}
+
+void FragmentModule::WriteFog() {
+    // Get index into fog LUT
+    Id fog_index{};
+    if (config.state.fog_flip) {
+        fog_index = OpFMul(f32_id, OpFSub(f32_id, ConstF32(1.f), depth), ConstF32(128.f));
+    } else {
+        fog_index = OpFMul(f32_id, depth, ConstF32(128.f));
+    }
+
+    // Generate clamped fog factor from LUT for given fog index
+    const Id fog_i{OpFClamp(f32_id, OpFloor(f32_id, fog_index), ConstF32(0.f), ConstF32(127.f))};
+    const Id fog_f{OpFSub(f32_id, fog_index, fog_i)};
+    const Id fog_lut_offset{GetShaderDataMember(i32_id, ConstS32(10))};
+    const Id coord{OpIAdd(i32_id, OpConvertFToS(i32_id, fog_i), fog_lut_offset)};
+    if (!Sirit::ValidId(texture_buffer_lut_lf)) {
+        const Id sampled_image{TypeSampledImage(image_buffer_id)};
+        texture_buffer_lut_lf = OpLoad(sampled_image, texture_buffer_lut_lf_id);
+    }
+    const Id fog_lut_entry_rgba{
+        OpImageFetch(vec_ids.Get(4), OpImage(image_buffer_id, texture_buffer_lut_lf), coord)};
+    const Id fog_lut_r{OpCompositeExtract(f32_id, fog_lut_entry_rgba, 0)};
+    const Id fog_lut_g{OpCompositeExtract(f32_id, fog_lut_entry_rgba, 1)};
+    Id fog_factor{OpFma(f32_id, fog_f, fog_lut_g, fog_lut_r)};
+    fog_factor = OpFClamp(f32_id, fog_factor, ConstF32(0.f), ConstF32(1.f));
+
+    // Blend the fog
+    const Id tex_env_rgb{
+        OpVectorShuffle(vec_ids.Get(3), last_tex_env_out, last_tex_env_out, 0, 1, 2)};
+    const Id fog_color{GetShaderDataMember(vec_ids.Get(3), ConstS32(20))};
+    const Id fog_factor_rgb{
+        OpCompositeConstruct(vec_ids.Get(3), fog_factor, fog_factor, fog_factor)};
+    const Id fog_result{OpFMix(vec_ids.Get(3), fog_color, tex_env_rgb, fog_factor_rgb)};
+    last_tex_env_out = OpVectorShuffle(vec_ids.Get(4), fog_result, last_tex_env_out, 0, 1, 2, 6);
+}
+
+void FragmentModule::WriteGas() {
+    // TODO: Implement me
+    Core::System::GetInstance().TelemetrySession().AddField(Common::Telemetry::FieldType::Session,
+                                                            "VideoCore_Pica_UseGasMode", true);
+    LOG_CRITICAL(Render_Vulkan, "Unimplemented gas mode");
+    OpKill();
+    OpFunctionEnd();
 }
 
 void FragmentModule::WriteLighting() {

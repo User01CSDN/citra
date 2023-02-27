@@ -43,6 +43,12 @@ private:
     /// Writes the code to emulate fragment lighting
     void WriteLighting();
 
+    /// Writes the code to emulate fog
+    void WriteFog();
+
+    /// Writes the code to emulate gas rendering
+    void WriteGas();
+
     /// Writes the code to emulate the specified TEV stage
     void WriteTevStage(s32 index);
 
@@ -235,6 +241,7 @@ private:
 
     Id gl_frag_coord_id{};
     Id gl_frag_depth_id{};
+    Id depth{};
 
     Id tex0_id{};
     Id tex1_id{};
