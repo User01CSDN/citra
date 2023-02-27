@@ -151,7 +151,7 @@ class PipelineCache {
         GraphicsPipeline(const Instance& instance, RenderpassCache& renderpass_cache,
                          const PipelineInfo& info, vk::PipelineCache pipeline_cache,
                          vk::PipelineLayout layout, std::array<Shader*, 3> stages,
-                         Common::ThreadWorker* worker);
+                         Common::ThreadWorker* worker, bool& wait_built);
         ~GraphicsPipeline();
 
         bool Build(bool fail_on_compile_required = false);
@@ -159,6 +159,9 @@ class PipelineCache {
         [[nodiscard]] vk::Pipeline Handle() const noexcept {
             return pipeline;
         }
+
+    private:
+        bool ShouldTryCompile(bool& wait_built);
 
     private:
         const Instance& instance;

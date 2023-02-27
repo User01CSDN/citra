@@ -112,12 +112,12 @@ PipelineCache::Shader::~Shader() {
 PipelineCache::GraphicsPipeline::GraphicsPipeline(
     const Instance& instance_, RenderpassCache& renderpass_cache_, const PipelineInfo& info_,
     vk::PipelineCache pipeline_cache_, vk::PipelineLayout layout_, std::array<Shader*, 3> stages_,
-    Common::ThreadWorker* worker_)
+    Common::ThreadWorker* worker_, bool& wait_built)
     : instance{instance_}, renderpass_cache{renderpass_cache_}, worker{worker_},
       pipeline_layout{layout_}, pipeline_cache{pipeline_cache_}, info{info_}, stages{stages_} {
 
     // Ask the driver if it can give us the pipeline quickly
-    if (Build(true)) {
+    if (ShouldTryCompile(wait_built) && Build(true)) {
         return;
     }
 
@@ -135,27 +135,29 @@ PipelineCache::GraphicsPipeline::~GraphicsPipeline() {
     }
 }
 
-bool PipelineCache::GraphicsPipeline::Build(bool fail_on_compile_required) {
-    if (fail_on_compile_required) {
-        // Check if all shader modules are ready
-        for (auto& shader : stages) {
-            if (shader && !shader->IsDone()) {
-                return false;
-            }
-        }
-
-        if (!instance.IsPipelineCreationCacheControlSupported()) {
-#if ANDROID
-            // Many android devices do not support the above extension.
-            // To avoid having lots of flickering, if all shaders are
-            // ready compile the pipeline anyway.
-            return Build();
-#else
+bool PipelineCache::GraphicsPipeline::ShouldTryCompile(bool& wait_built) {
+    // Check if all shader modules are ready
+    for (auto& shader : stages) {
+        if (shader && !shader->IsDone()) {
             return false;
-#endif
         }
     }
 
+    if (!instance.IsPipelineCreationCacheControlSupported()) {
+#ifdef ANDROID
+        // Many android devices do not support the above extension.
+        // To avoid having lots of flickering, if all shaders are
+        // ready compile the pipeline anyway and have the record thread
+        // wait for it.
+        wait_built = true;
+#endif
+        return false;
+    }
+
+    return true;
+}
+
+bool PipelineCache::GraphicsPipeline::Build(bool fail_on_compile_required) {
     MICROPROFILE_SCOPE(Vulkan_Pipeline);
     const vk::Device device = instance.GetDevice();
 
@@ -485,7 +487,7 @@ bool PipelineCache::BindPipeline(const PipelineInfo& info, bool wait_built) {
     if (new_pipeline) {
         it->second = std::make_unique<GraphicsPipeline>(
             instance, renderpass_cache, info, pipeline_cache, desc_manager.GetPipelineLayout(),
-            current_shaders, &workers);
+            current_shaders, &workers, wait_built);
     }
 
     GraphicsPipeline* const pipeline{it->second.get()};
