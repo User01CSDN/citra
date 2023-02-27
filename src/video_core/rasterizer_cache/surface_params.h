@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "video_core/rasterizer_cache/pixel_format.h"
 #include "video_core/rasterizer_cache/utils.h"
 
 namespace VideoCore {

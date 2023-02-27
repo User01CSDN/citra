@@ -20,8 +20,7 @@ public:
     /// Returns true when this surface can be used to fill the fill_interval of dest_surface
     bool CanFill(const SurfaceParams& dest_surface, SurfaceInterval fill_interval) const;
 
-    /// Returns true when copy_interval of dest_surface can be validated by copying from this
-    /// surface
+    /// Returns true when surface can validate copy_interval of dest_surface
     bool CanCopy(const SurfaceParams& dest_surface, SurfaceInterval copy_interval) const;
 
     /// Returns the region of the biggest valid rectange within interval

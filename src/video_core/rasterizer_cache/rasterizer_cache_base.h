@@ -46,21 +46,21 @@ class RasterizerCache : NonCopyable {
     static constexpr u64 CITRA_PAGEBITS = 18;
 
     using Runtime = typename T::Runtime;
-    using Surface = std::shared_ptr<typename T::Surface>;
+    using Surface = typename T::Surface;
     using Sampler = typename T::Sampler;
     using Framebuffer = typename T::Framebuffer;
 
     /// Declare rasterizer interval types
-    using SurfaceMap = boost::icl::interval_map<PAddr, Surface, boost::icl::partial_absorber,
+    using SurfaceMap = boost::icl::interval_map<PAddr, SurfaceId, boost::icl::partial_absorber,
                                                 std::less, boost::icl::inplace_plus,
                                                 boost::icl::inter_section, SurfaceInterval>;
 
-    using SurfaceRect_Tuple = std::tuple<Surface, Common::Rectangle<u32>>;
+    using SurfaceRect_Tuple = std::pair<SurfaceId, Common::Rectangle<u32>>;
     using PageMap = boost::icl::interval_map<u32, int>;
 
     struct RenderTargets {
-        Surface color_surface;
-        Surface depth_surface;
+        SurfaceId color_surface_id;
+        SurfaceId depth_surface_id;
     };
 
 public:
@@ -77,17 +77,19 @@ public:
     /// Perform hardware accelerated memory fill according to the provided configuration
     bool AccelerateFill(const GPU::Regs::MemoryFillConfig& config);
 
+    /// Returns a reference to the surface object assigned to surface_id
+    Surface& GetSurface(SurfaceId surface_id);
+
     /// Returns a reference to the sampler object matching the provided configuration
     Sampler& GetSampler(const Pica::TexturingRegs::TextureConfig& config);
     Sampler& GetSampler(SamplerId sampler_id);
 
     /// Copy one surface's region to another
-    void CopySurface(const Surface& src_surface, const Surface& dst_surface,
-                     SurfaceInterval copy_interval);
+    void CopySurface(Surface& src_surface, Surface& dst_surface, SurfaceInterval copy_interval);
 
     /// Load a texture from 3DS memory to OpenGL and cache it (if not already cached)
-    Surface GetSurface(const SurfaceParams& params, ScaleMatch match_res_scale,
-                       bool load_if_create);
+    SurfaceId GetSurface(const SurfaceParams& params, ScaleMatch match_res_scale,
+                         bool load_if_create);
 
     /// Attempt to find a subrect (resolution scaled) of a surface, otherwise loads a texture from
     /// 3DS memory to OpenGL and caches it (if not already cached)
@@ -95,11 +97,11 @@ public:
                                         bool load_if_create);
 
     /// Get a surface based on the texture configuration
-    Surface GetTextureSurface(const Pica::TexturingRegs::FullTextureConfig& config);
-    Surface GetTextureSurface(const Pica::Texture::TextureInfo& info, u32 max_level = 0);
+    Surface& GetTextureSurface(const Pica::TexturingRegs::FullTextureConfig& config);
+    Surface& GetTextureSurface(const Pica::Texture::TextureInfo& info, u32 max_level = 0);
 
     /// Get a texture cube based on the texture configuration
-    const Surface& GetTextureCube(const TextureCubeConfig& config);
+    Surface& GetTextureCube(const TextureCubeConfig& config);
 
     /// Get the color and depth surfaces based on the framebuffer configuration
     Framebuffer GetFramebufferSurfaces(bool using_color_fb, bool using_depth_fb);
@@ -111,10 +113,10 @@ public:
     SurfaceRect_Tuple GetTexCopySurface(const SurfaceParams& params);
 
     /// Write any cached resources overlapping the region back to memory (if dirty)
-    void FlushRegion(PAddr addr, u32 size, Surface flush_surface = nullptr);
+    void FlushRegion(PAddr addr, u32 size, SurfaceId flush_surface_id = {});
 
     /// Mark region as being invalidated by region_owner (nullptr if 3DS memory)
-    void InvalidateRegion(PAddr addr, u32 size, const Surface& region_owner);
+    void InvalidateRegion(PAddr addr, u32 size, SurfaceId region_owner_id = {});
 
     /// Flush all cached resources tracked by this cache manager
     void FlushAll();
@@ -145,47 +147,47 @@ private:
 
     /// Get the best surface match (and its match type) for the given flags
     template <MatchFlags find_flags>
-    Surface FindMatch(const SurfaceParams& params, ScaleMatch match_scale_type,
-                      std::optional<SurfaceInterval> validate_interval = std::nullopt);
+    SurfaceId FindMatch(const SurfaceParams& params, ScaleMatch match_scale_type,
+                        std::optional<SurfaceInterval> validate_interval = std::nullopt);
 
     /// Duplicates src_surface contents to dest_surface
-    void DuplicateSurface(const Surface& src_surface, const Surface& dest_surface);
+    void DuplicateSurface(SurfaceId src_id, SurfaceId dst_id);
 
     /// Update surface's texture for given region when necessary
-    void ValidateSurface(const Surface& surface, PAddr addr, u32 size);
+    void ValidateSurface(SurfaceId surface_id, PAddr addr, u32 size);
 
     /// Copies pixel data in interval from the guest VRAM to the host GPU surface
-    void UploadSurface(const Surface& surface, SurfaceInterval interval);
+    void UploadSurface(Surface& surface, SurfaceInterval interval);
 
     /// Uploads a custom texture associated with upload_data to the target surface
-    bool UploadCustomSurface(const Surface& surface, const SurfaceParams& load_info,
+    bool UploadCustomSurface(Surface& surface, const SurfaceParams& load_info,
                              std::span<u8> upload_data);
 
     /// Copies pixel data in interval from the host GPU surface to the guest VRAM
-    void DownloadSurface(const Surface& surface, SurfaceInterval interval);
+    void DownloadSurface(Surface& surface, SurfaceInterval interval);
 
     /// Downloads a fill surface to guest VRAM
-    void DownloadFillSurface(const Surface& surface, SurfaceInterval interval);
+    void DownloadFillSurface(Surface& surface, SurfaceInterval interval);
 
     /// Returns false if there is a surface in the cache at the interval with the same bit-width,
-    bool NoUnimplementedReinterpretations(const Surface& surface, SurfaceParams params,
+    bool NoUnimplementedReinterpretations(Surface& surface, SurfaceParams params,
                                           SurfaceInterval interval);
 
     /// Return true if a surface with an invalid pixel format exists at the interval
-    bool IntervalHasInvalidPixelFormat(SurfaceParams params, SurfaceInterval interval);
+    bool IntervalHasInvalidPixelFormat(const SurfaceParams params, SurfaceInterval interval);
 
     /// Attempt to find a reinterpretable surface in the cache and use it to copy for validation
-    bool ValidateByReinterpretation(const Surface& surface, SurfaceParams params,
+    bool ValidateByReinterpretation(Surface& surface, SurfaceParams params,
                                     SurfaceInterval interval);
 
     /// Create a new surface
-    Surface CreateSurface(SurfaceParams& params);
+    SurfaceId CreateSurface(const SurfaceParams& params);
 
     /// Register surface into the cache
-    void RegisterSurface(const Surface& surface);
+    void RegisterSurface(SurfaceId surface_id);
 
     /// Remove surface from the cache
-    void UnregisterSurface(const Surface& surface);
+    void UnregisterSurface(SurfaceId surface_id);
 
     /// Unregisters all surfaces from the cache
     void UnregisterAll();
@@ -199,16 +201,17 @@ private:
     CustomTexManager& custom_tex_manager;
     PageMap cached_pages;
     SurfaceMap dirty_regions;
-    std::vector<Surface> remove_surfaces;
+    std::vector<SurfaceId> remove_surfaces;
     u16 resolution_scale_factor;
-    std::unordered_map<TextureCubeConfig, Surface> texture_cube_cache;
+    std::unordered_map<TextureCubeConfig, SurfaceId> texture_cube_cache;
 
     // The internal surface cache is based on buckets of 256KB.
     // This fits better for the purpose of this cache as textures are normaly
     // large in size.
-    std::unordered_map<u64, std::vector<Surface>, Common::IdentityHash<u64>> page_table;
+    std::unordered_map<u64, std::vector<SurfaceId>, Common::IdentityHash<u64>> page_table;
     std::unordered_map<SamplerParams, SamplerId> samplers;
 
+    SlotVector<Surface> slot_surfaces;
     SlotVector<Sampler> slot_samplers;
     RenderTargets render_targets;
 

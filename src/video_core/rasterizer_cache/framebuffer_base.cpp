@@ -10,10 +10,9 @@ namespace VideoCore {
 
 FramebufferBase::FramebufferBase() = default;
 
-FramebufferBase::FramebufferBase(const Pica::Regs& regs, SurfaceBase* const color_,
-                                 SurfaceBase* const depth_stencil_,
-                                 Common::Rectangle<u32> surfaces_rect)
-    : color{color_}, depth_stencil{depth_stencil_} {
+FramebufferBase::FramebufferBase(const Pica::Regs& regs, SurfaceBase* const color,
+                                 SurfaceBase* const depth_stencil,
+                                 Common::Rectangle<u32> surfaces_rect) {
     res_scale = color ? color->res_scale : (depth_stencil ? depth_stencil->res_scale : 1u);
 
     // Determine the draw rectangle (render area + scissor)
@@ -54,9 +53,11 @@ FramebufferBase::FramebufferBase(const Pica::Regs& regs, SurfaceBase* const colo
     // Query surface invalidation intervals
     const Common::Rectangle draw_rect_unscaled{draw_rect / res_scale};
     if (color) {
+        color_params = *color;
         intervals[0] = color->GetSubRectInterval(draw_rect_unscaled);
     }
     if (depth_stencil) {
+        depth_params = *depth_stencil;
         intervals[1] = depth_stencil->GetSubRectInterval(draw_rect_unscaled);
     }
 }

@@ -9,15 +9,18 @@
 #include "common/hash.h"
 #include "common/math_util.h"
 #include "common/vector_math.h"
-#include "video_core/rasterizer_cache/pixel_format.h"
 #include "video_core/rasterizer_cache/slot_vector.h"
+#include "video_core/regs_texturing.h"
 
 namespace VideoCore {
 
 using Rect2D = Common::Rectangle<u32>;
 
+using SurfaceId = SlotId;
 using SamplerId = SlotId;
 
+/// Fake surface ID for null surfaces
+constexpr SurfaceId NULL_SURFACE_ID{0};
 /// Fake sampler ID for null samplers
 constexpr SamplerId NULL_SAMPLER_ID{0};
 
@@ -102,8 +105,6 @@ struct TextureCubeConfig {
 };
 
 class SurfaceParams;
-
-[[nodiscard]] ClearValue MakeClearValue(SurfaceType type, PixelFormat format, const u8* fill_data);
 
 u32 MipLevels(u32 width, u32 height, u32 max_level);
 

@@ -332,16 +332,16 @@ void TextureRuntime::BindFramebuffer(GLenum target, GLint level, GLenum textarge
     }
 }
 
-Surface::Surface(VideoCore::SurfaceParams& params, TextureRuntime& runtime)
-    : VideoCore::SurfaceBase{params}, runtime{runtime}, driver{runtime.GetDriver()} {
+Surface::Surface(TextureRuntime& runtime_, const VideoCore::SurfaceParams& params)
+    : VideoCore::SurfaceBase{params}, runtime{&runtime_}, driver{&runtime_.GetDriver()} {
     if (pixel_format != VideoCore::PixelFormat::Invalid) {
-        const auto& tuple = runtime.GetFormatTuple(pixel_format);
-        alloc = runtime.Allocate(GetScaledWidth(), GetScaledHeight(), levels, tuple, texture_type);
+        const auto& tuple = runtime->GetFormatTuple(pixel_format);
+        alloc = runtime->Allocate(GetScaledWidth(), GetScaledHeight(), levels, tuple, texture_type);
     }
 }
 
 Surface::~Surface() {
-    if (pixel_format == VideoCore::PixelFormat::Invalid) {
+    if (pixel_format == VideoCore::PixelFormat::Invalid || !Handle()) {
         return;
     }
 
@@ -352,7 +352,7 @@ Surface::~Surface() {
         .height = alloc.height,
         .levels = alloc.levels,
     };
-    runtime.Recycle(tag, std::move(alloc));
+    runtime->Recycle(tag, std::move(alloc));
 }
 
 void Surface::Upload(const VideoCore::BufferTextureCopy& upload, const StagingData& staging) {
@@ -398,10 +398,10 @@ void Surface::Download(const VideoCore::BufferTextureCopy& download, const Stagi
         const VideoCore::Rect2D rect = download.texture_rect;
         glPixelStorei(GL_PACK_ROW_LENGTH, static_cast<GLint>(rect.GetWidth()));
 
-        runtime.BindFramebuffer(GL_READ_FRAMEBUFFER, download.texture_level, GL_TEXTURE_2D, type,
-                                Handle());
+        runtime->BindFramebuffer(GL_READ_FRAMEBUFFER, download.texture_level, GL_TEXTURE_2D, type,
+                                 Handle());
 
-        const auto& tuple = runtime.GetFormatTuple(pixel_format);
+        const auto& tuple = runtime->GetFormatTuple(pixel_format);
         glReadPixels(rect.left, rect.bottom, rect.GetWidth(), rect.GetHeight(), tuple.format,
                      tuple.type, staging.mapped.data());
 
@@ -413,11 +413,11 @@ void Surface::Download(const VideoCore::BufferTextureCopy& download, const Stagi
 }
 
 bool Surface::Swap(u32 width, u32 height, VideoCore::CustomPixelFormat format) {
-    if (!driver.IsCustomFormatSupported(format)) {
+    if (!driver->IsCustomFormatSupported(format)) {
         return false;
     }
 
-    const auto& tuple = runtime.GetFormatTuple(format);
+    const auto& tuple = runtime->GetFormatTuple(format);
     if (alloc.Matches(width, height, levels, tuple)) {
         return true;
     }
@@ -429,11 +429,11 @@ bool Surface::Swap(u32 width, u32 height, VideoCore::CustomPixelFormat format) {
         .height = alloc.height,
         .levels = alloc.levels,
     };
-    runtime.Recycle(tag, std::move(alloc));
+    runtime->Recycle(tag, std::move(alloc));
 
     is_custom = true;
     custom_format = format;
-    alloc = runtime.Allocate(width, height, levels, tuple, texture_type);
+    alloc = runtime->Allocate(width, height, levels, tuple, texture_type);
 
     LOG_DEBUG(Render_OpenGL, "Swapped {}x{} {} surface at address {:#x} to {}x{} {}",
               GetScaledWidth(), GetScaledHeight(), VideoCore::PixelFormatAsString(pixel_format),
@@ -453,7 +453,7 @@ void Surface::ScaledUpload(const VideoCore::BufferTextureCopy& upload, const Sta
     unscaled_params.stride = rect_width;
     unscaled_params.height = rect_height;
     unscaled_params.res_scale = 1;
-    Surface unscaled_surface{unscaled_params, runtime};
+    Surface unscaled_surface{*runtime, unscaled_params};
 
     const VideoCore::BufferTextureCopy unscaled_upload = {
         .buffer_offset = upload.buffer_offset,
@@ -462,7 +462,7 @@ void Surface::ScaledUpload(const VideoCore::BufferTextureCopy& upload, const Sta
     };
     unscaled_surface.Upload(unscaled_upload, staging);
 
-    const auto& filterer = runtime.GetFilterer();
+    const auto& filterer = runtime->GetFilterer();
     if (!filterer.Filter(unscaled_surface.alloc.texture, unscaled_rect, alloc.texture, scaled_rect,
                          type)) {
         const VideoCore::TextureBlit blit = {
@@ -471,7 +471,7 @@ void Surface::ScaledUpload(const VideoCore::BufferTextureCopy& upload, const Sta
             .src_rect = unscaled_rect,
             .dst_rect = scaled_rect,
         };
-        runtime.BlitTextures(unscaled_surface, *this, blit);
+        runtime->BlitTextures(unscaled_surface, *this, blit);
     }
 }
 
@@ -488,7 +488,7 @@ void Surface::ScaledDownload(const VideoCore::BufferTextureCopy& download,
     unscaled_params.stride = rect_width;
     unscaled_params.height = rect_height;
     unscaled_params.res_scale = 1;
-    Surface unscaled_surface{unscaled_params, runtime};
+    Surface unscaled_surface{*runtime, unscaled_params};
 
     // Blit the scaled rectangle to the unscaled texture
     const VideoCore::TextureBlit blit = {
@@ -499,15 +499,15 @@ void Surface::ScaledDownload(const VideoCore::BufferTextureCopy& download,
         .src_rect = scaled_rect,
         .dst_rect = unscaled_rect,
     };
-    runtime.BlitTextures(*this, unscaled_surface, blit);
+    runtime->BlitTextures(*this, unscaled_surface, blit);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, unscaled_surface.Handle());
 
-    const auto& tuple = runtime.GetFormatTuple(pixel_format);
-    if (driver.IsOpenGLES()) {
-        runtime.BindFramebuffer(GL_READ_FRAMEBUFFER, download.texture_level, GL_TEXTURE_2D, type,
-                                unscaled_surface.Handle());
+    const auto& tuple = runtime->GetFormatTuple(pixel_format);
+    if (driver->IsOpenGLES()) {
+        runtime->BindFramebuffer(GL_READ_FRAMEBUFFER, download.texture_level, GL_TEXTURE_2D, type,
+                                 unscaled_surface.Handle());
         glReadPixels(0, 0, rect_width, rect_height, tuple.format, tuple.type,
                      staging.mapped.data());
     } else {

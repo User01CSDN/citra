@@ -143,7 +143,7 @@ protected:
     Memory::MemorySystem& memory;
     Pica::Regs& regs;
 
-    VertexArrayInfo vertex_info;
+    VertexArrayInfo vertex_info{};
     std::vector<HardwareVertex> vertex_batch;
     bool shader_dirty = true;
 

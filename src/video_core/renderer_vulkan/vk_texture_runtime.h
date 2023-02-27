@@ -25,10 +25,10 @@ namespace Vulkan {
 
 struct Allocation {
     vk::Image image;
-    vk::ImageView image_view;
-    vk::ImageView depth_view;
-    vk::ImageView stencil_view;
-    vk::ImageView storage_view;
+    vk::UniqueImageView image_view;
+    vk::UniqueImageView depth_view;
+    vk::UniqueImageView stencil_view;
+    vk::UniqueImageView storage_view;
     VmaAllocation allocation;
     vk::ImageAspectFlags aspect;
     vk::Format format;
@@ -85,8 +85,8 @@ class TextureRuntime {
     friend class Sampler;
 
 public:
-    TextureRuntime(const Instance& instance, Scheduler& scheduler,
-                   RenderpassCache& renderpass_cache, DescriptorManager& desc_manager);
+    explicit TextureRuntime(const Instance& instance, Scheduler& scheduler,
+                            RenderpassCache& renderpass_cache, DescriptorManager& desc_manager);
     ~TextureRuntime();
 
     /// Causes a GPU command flush
@@ -98,7 +98,7 @@ public:
     /// Takes back ownership of the allocation for recycling
     void Recycle(const HostTextureTag tag, Allocation&& alloc);
 
-    /// Maps an internal staging buffer of the provided size of pixel uploads/downloads
+    /// Maps an internal staging buffer of the provided size for pixel uploads/downloads
     [[nodiscard]] VideoCore::StagingData FindStaging(u32 size, bool upload);
 
     /// Allocates a vulkan image possibly resusing an existing one
@@ -163,10 +163,16 @@ class Surface : public VideoCore::SurfaceBase {
     friend class TextureRuntime;
 
 public:
-    Surface(const VideoCore::SurfaceParams& params, TextureRuntime& runtime);
-    Surface(const VideoCore::SurfaceParams& params, vk::Format format, vk::ImageUsageFlags usage,
-            vk::ImageAspectFlags aspect, TextureRuntime& runtime);
+    Surface(TextureRuntime& runtime, const VideoCore::SurfaceParams& params);
+    Surface(TextureRuntime& runtime, const VideoCore::SurfaceParams& params, vk::Format format,
+            vk::ImageUsageFlags usage, vk::ImageAspectFlags aspect);
     ~Surface();
+
+    Surface(const Surface&) = delete;
+    Surface& operator=(const Surface&) = delete;
+
+    Surface(Surface&& o) noexcept = default;
+    Surface& operator=(Surface&& o) noexcept = default;
 
     /// Returns the surface aspect
     vk::ImageAspectFlags Aspect() const noexcept {
@@ -180,7 +186,7 @@ public:
 
     /// Returns an image view used to sample the surface from a shader
     vk::ImageView ImageView() const noexcept {
-        return alloc.image_view;
+        return alloc.image_view.get();
     }
 
     /// Uploads pixel data in staging to a rectangle region of the surface texture
@@ -218,17 +224,17 @@ private:
 
     /// Downloads scaled image by downscaling the requested rectangle
     void ScaledDownload(const VideoCore::BufferTextureCopy& download,
-                        const VideoCore::StagingData& stagings);
+                        const VideoCore::StagingData& staging);
 
     /// Downloads scaled depth stencil data
     void DepthStencilDownload(const VideoCore::BufferTextureCopy& download,
                               const VideoCore::StagingData& staging);
 
 private:
-    TextureRuntime& runtime;
-    const Instance& instance;
-    Scheduler& scheduler;
-    Allocation alloc;
+    TextureRuntime* runtime;
+    const Instance* instance;
+    Scheduler* scheduler;
+    Allocation alloc{};
     bool is_framebuffer{};
     bool is_storage{};
 };
@@ -282,34 +288,23 @@ private:
     u32 height{};
 };
 
-/**
- * @brief A sampler is used to configure the sampling parameters of a texture unit
- */
 class Sampler {
 public:
-    Sampler(TextureRuntime& runtime, VideoCore::SamplerParams params);
+    Sampler(TextureRuntime& runtime, const VideoCore::SamplerParams& params);
     ~Sampler();
 
     Sampler(const Sampler&) = delete;
     Sampler& operator=(const Sampler&) = delete;
 
-    Sampler(Sampler&& o) noexcept {
-        std::memcpy(this, &o, sizeof(Sampler));
-        o.sampler = VK_NULL_HANDLE;
-    }
-    Sampler& operator=(Sampler&& o) noexcept {
-        std::memcpy(this, &o, sizeof(Sampler));
-        o.sampler = VK_NULL_HANDLE;
-        return *this;
-    }
+    Sampler(Sampler&& o) noexcept = default;
+    Sampler& operator=(Sampler&& o) noexcept = default;
 
     [[nodiscard]] vk::Sampler Handle() const noexcept {
-        return sampler;
+        return *sampler;
     }
 
 private:
-    vk::Device device;
-    vk::Sampler sampler;
+    vk::UniqueSampler sampler;
 };
 
 struct Traits {

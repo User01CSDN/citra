@@ -5,7 +5,7 @@
 #pragma once
 
 #include "common/math_util.h"
-#include "video_core/rasterizer_cache/utils.h"
+#include "video_core/rasterizer_cache/surface_params.h"
 
 namespace Pica {
 struct Regs;
@@ -32,12 +32,12 @@ public:
     FramebufferBase(const Pica::Regs& regs, SurfaceBase* const color,
                     SurfaceBase* const depth_stencil, Common::Rectangle<u32> surfaces_rect);
 
-    SurfaceBase* Color() const noexcept {
-        return color;
+    SurfaceParams ColorParams() const noexcept {
+        return color_params;
     }
 
-    SurfaceBase* DepthStencil() const noexcept {
-        return depth_stencil;
+    SurfaceParams DepthParams() const noexcept {
+        return depth_params;
     }
 
     SurfaceInterval Interval(SurfaceType type) const noexcept {
@@ -74,8 +74,8 @@ protected:
     }
 
 protected:
-    SurfaceBase* color{};
-    SurfaceBase* depth_stencil{};
+    SurfaceParams color_params{};
+    SurfaceParams depth_params{};
     std::array<SurfaceInterval, 2> intervals{};
     Common::Rectangle<s32> scissor_rect{};
     Common::Rectangle<u32> draw_rect{};

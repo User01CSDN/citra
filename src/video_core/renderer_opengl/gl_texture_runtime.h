@@ -153,8 +153,14 @@ private:
 
 class Surface : public VideoCore::SurfaceBase {
 public:
-    explicit Surface(VideoCore::SurfaceParams& params, TextureRuntime& runtime);
+    explicit Surface(TextureRuntime& runtime, const VideoCore::SurfaceParams& params);
     ~Surface();
+
+    Surface(const Surface&) = delete;
+    Surface& operator=(const Surface&) = delete;
+
+    Surface(Surface&& o) noexcept = default;
+    Surface& operator=(Surface&& o) noexcept = default;
 
     /// Returns the surface image handle
     GLuint Handle() const noexcept {
@@ -186,9 +192,9 @@ private:
                         const VideoCore::StagingData& staging);
 
 private:
-    TextureRuntime& runtime;
-    const Driver& driver;
-    Allocation alloc;
+    TextureRuntime* runtime;
+    const Driver* driver;
+    Allocation alloc{};
 };
 
 class Framebuffer : public VideoCore::FramebufferBase {
