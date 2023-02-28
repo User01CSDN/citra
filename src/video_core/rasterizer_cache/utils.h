@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <span>
 #include <boost/icl/right_open_interval.hpp>
 #include "common/hash.h"
@@ -84,6 +85,14 @@ struct StagingData {
     u32 size = 0;
     std::span<u8> mapped{};
     u64 buffer_offset = 0;
+    const std::atomic_flag* flag{};
+
+    void Wait() const noexcept {
+        if (!flag) {
+            return;
+        }
+        flag->wait(false);
+    }
 };
 
 struct TextureCubeConfig {

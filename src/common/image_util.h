@@ -13,8 +13,10 @@ bool ParsePNG(std::span<const u8> png_data, size_t& decoded_size, u32& width, u3
 
 bool DecodePNG(std::span<const u8> png_data, std::span<u8> out_data);
 
-bool ParseDDSKTX(std::span<const u8> in_data, std::vector<u8>& out_data, u32& width, u32& height,
+bool ParseDDSKTX(std::span<const u8> dds_data, size_t& decoded_size, u32& width, u32& height,
                  ddsktx_format& format);
+
+bool LoadDDSKTX(std::span<const u8> dds_data, std::span<u8> out_data);
 
 bool EncodePNG(const std::string& out_path, std::span<u8> in_data, u32 width, u32 height,
                s32 level = 6);

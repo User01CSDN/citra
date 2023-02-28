@@ -378,6 +378,10 @@ void Surface::Upload(const VideoCore::BufferTextureCopy& upload, const StagingDa
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, Handle());
 
+        // Wait for the buffer if a decode is pending, this isn't very optimal
+        // but this kind of threading is very hard in gl
+        staging.Wait();
+
         const auto& tuple = alloc.tuple;
         if (is_custom && custom_format != VideoCore::CustomPixelFormat::RGBA8) {
             glCompressedTexSubImage2D(GL_TEXTURE_2D, upload.texture_level, rect.left, rect.bottom,

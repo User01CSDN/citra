@@ -55,9 +55,7 @@ CustomPixelFormat ToCustomPixelFormat(ddsktx_format format) {
 
 } // Anonymous namespace
 
-CustomTexManager::CustomTexManager(Core::System& system_)
-    : system{system_}, workers{std::max(std::thread::hardware_concurrency(), 2U) - 1,
-                               "Hires processing"} {}
+CustomTexManager::CustomTexManager(Core::System& system_) : system{system_} {}
 
 CustomTexManager::~CustomTexManager() = default;
 
@@ -66,58 +64,91 @@ void CustomTexManager::FindCustomTextures() {
         return;
     }
 
+    // If custom textures isn't enabled we don't want to create the thread pool
+    // so don't do it in the constructor, do it here instead.
+    workers = std::make_unique<Common::ThreadWorker>(
+        std::max(std::thread::hardware_concurrency(), 2U) - 1, "Custom textures");
+
     // Custom textures are currently stored as
     // [TitleID]/tex1_[width]x[height]_[64-bit hash]_[format].png
-    using namespace FileUtil;
-
     const u64 program_id = system.Kernel().GetCurrentProcess()->codeset->program_id;
     const std::string load_path =
-        fmt::format("{}textures/{:016X}/", GetUserPath(UserPath::LoadDir), program_id);
+        fmt::format("{}textures/{:016X}/", GetUserPath(FileUtil::UserPath::LoadDir), program_id);
 
     // Create the directory if it did not exist
-    if (!Exists(load_path)) {
-        CreateFullPath(load_path);
+    if (!FileUtil::Exists(load_path)) {
+        FileUtil::CreateFullPath(load_path);
     }
 
-    FSTEntry texture_dir;
-    std::vector<FSTEntry> textures;
+    FileUtil::FSTEntry texture_dir;
+    std::vector<FileUtil::FSTEntry> textures;
     // 64 nested folders should be plenty for most cases
-    ScanDirectoryTree(load_path, texture_dir, 64);
-    GetAllFilesFromNestedEntries(texture_dir, textures);
+    FileUtil::ScanDirectoryTree(load_path, texture_dir, 64);
+    FileUtil::GetAllFilesFromNestedEntries(texture_dir, textures);
 
-    u32 width{};
-    u32 height{};
-    u32 format{};
-    unsigned long long hash{};
-    std::string ext(3, ' ');
+    // Reserve space for all the textures in the folder
+    const size_t num_textures = textures.size();
+    custom_textures.resize(num_textures);
 
-    for (const FSTEntry& file : textures) {
-        const std::string& path = file.physicalName;
-        if (file.isDirectory || !file.virtualName.starts_with("tex1_")) {
+    const auto load = [&](u32 begin, u32 end) {
+        u32 width{};
+        u32 height{};
+        u32 format{};
+        unsigned long long hash{};
+        std::string ext(3, ' ');
+
+        for (u32 i = begin; i < end; i++) {
+            const auto& file = textures[i];
+            const std::string& path = file.physicalName;
+            if (file.isDirectory || !file.virtualName.starts_with("tex1_")) {
+                continue;
+            }
+
+            // Parse the texture filename. We only really care about the hash,
+            // the rest should be queried from the file itself.
+            if (std::sscanf(file.virtualName.c_str(), "tex1_%ux%u_%llX_%u.%s", &width, &height,
+                            &hash, &format, ext.data()) != 5) {
+                continue;
+            }
+
+            custom_textures[i] = std::make_unique<CustomTexture>();
+            CustomTexture& texture = *custom_textures[i];
+
+            // Fill in relevant information
+            texture.file_format = MakeFileFormat(ext);
+            texture.hash = hash;
+            texture.path = path;
+
+            // Query the file for the rest
+            QueryTexture(texture);
+        }
+    };
+
+    const std::size_t num_workers{workers->NumWorkers()};
+    const std::size_t bucket_size{num_textures / num_workers};
+
+    for (std::size_t i = 0; i < num_workers; ++i) {
+        const bool is_last_worker = i + 1 == num_workers;
+        const std::size_t start{bucket_size * i};
+        const std::size_t end{is_last_worker ? num_textures : start + bucket_size};
+        workers->QueueWork([start, end, &load]() { load(start, end); });
+    }
+
+    workers->WaitForRequests();
+
+    // Assign each texture to the hash map
+    for (const auto& texture : custom_textures) {
+        if (!texture) {
             continue;
         }
-
-        // Parse the texture filename. We only really care about the hash,
-        // the rest should be queried from the file itself.
-        if (std::sscanf(file.virtualName.c_str(), "tex1_%ux%u_%llX_%u.%s", &width, &height, &hash,
-                        &format, ext.data()) != 5) {
-            continue;
-        }
-
-        auto [it, new_texture] = custom_textures.try_emplace(hash);
+        const unsigned long long hash = texture->hash;
+        auto [it, new_texture] = custom_texture_map.try_emplace(hash);
         if (!new_texture) {
-            LOG_ERROR(Render, "Textures {} and {} conflict, ignoring!", custom_textures[hash].path,
-                      path);
+            LOG_ERROR(Render, "Textures {} and {} conflict, ignoring!",
+                      custom_texture_map[hash]->path, texture->path);
             continue;
         }
-
-        auto& texture = it->second;
-        texture.file_format = MakeFileFormat(ext);
-        texture.path = path;
-
-        // Query the required information from the file and load it.
-        // Since this doesn't involve any decoding it shouldn't consume too much RAM.
-        LoadTexture(texture);
+        it->second = texture.get();
     }
 
     textures_loaded = true;
@@ -134,7 +165,6 @@ u64 CustomTexManager::ComputeHash(const SurfaceParams& params, std::span<u8> dat
     // this must be done...
     const auto decoded = std::span{temp_buffer.data(), decoded_size};
     DecodeTexture(params, params.addr, params.end, data, decoded);
-
     return ComputeHash64(decoded.data(), decoded_size);
 }
 
@@ -185,65 +215,98 @@ void CustomTexManager::DumpTexture(const SurfaceParams& params, u32 level, std::
         EncodePNG(dump_path, decoded, width, height);
     };
 
-    workers.QueueWork(std::move(dump));
+    workers->QueueWork(std::move(dump));
     dumped_textures.insert(data_hash);
 }
 
-const Texture& CustomTexManager::GetTexture(u64 data_hash) {
-    auto it = custom_textures.find(data_hash);
-    if (it == custom_textures.end()) {
+CustomTexture& CustomTexManager::GetTexture(u64 data_hash) {
+    auto it = custom_texture_map.find(data_hash);
+    if (it == custom_texture_map.end()) {
         LOG_WARNING(Render, "Unable to find replacement for surface with hash {:016X}", data_hash);
         return dummy_texture;
     }
 
-    LOG_DEBUG(Render, "Assigning {} to surface with hash {:016X}", it->second.path, data_hash);
-    return it->second;
+    CustomTexture& texture = *it->second;
+    LOG_DEBUG(Render, "Assigning {} to surface with hash {:016X}", texture.path, data_hash);
+
+    return texture;
 }
 
-void CustomTexManager::DecodeToStaging(const Texture& texture, const StagingData& staging) {
-    switch (texture.file_format) {
-    case CustomFileFormat::PNG:
-        if (!DecodePNG(texture.data, staging.mapped)) {
-            LOG_ERROR(Render, "Failed to decode png {}", texture.path);
-        }
-        if (compatibility_mode) {
-            const u32 stride = texture.width * 4;
-            FlipTexture(staging.mapped, texture.width, texture.height, stride);
-        }
-        break;
-    case CustomFileFormat::DDS:
-    case CustomFileFormat::KTX:
-        // Compressed formats don't need CPU decoding
+void CustomTexManager::DecodeToStaging(CustomTexture& texture, StagingData& staging) {
+    if (texture.decoded) {
+        // Nothing to do here, just copy over the data
+        ASSERT_MSG(staging.size == texture.staging_size,
+                   "Incorrect staging size for custom texture with hash {:016X}", texture.hash);
         std::memcpy(staging.mapped.data(), texture.data.data(), texture.data.size());
-        break;
+        return;
     }
+
+    // Set an atomic flag in staging data so the backend can wait until the data is finished
+    staging.flag = &texture.flag;
+
+    const auto decode = [this, &texture, mapped = staging.mapped]() {
+        // Read the file this is potentially the most expensive step
+        FileUtil::IOFile file{texture.path, "rb"};
+        ScratchBuffer<u8> file_data{file.GetSize()};
+        file.ReadBytes(file_data.Data(), file.GetSize());
+
+        // Resize the decoded data buffer
+        std::vector<u8>& decoded_data = texture.data;
+        decoded_data.resize(texture.staging_size);
+
+        // Decode
+        switch (texture.file_format) {
+        case CustomFileFormat::PNG:
+            if (!DecodePNG(file_data.Span(), decoded_data)) {
+                LOG_ERROR(Render, "Failed to decode png {}", texture.path);
+            }
+            if (compatibility_mode) {
+                const u32 stride = texture.width * 4;
+                FlipTexture(decoded_data, texture.width, texture.height, stride);
+            }
+            break;
+        case CustomFileFormat::DDS:
+        case CustomFileFormat::KTX:
+            // Compressed formats don't need CPU decoding and must be pre-flippede
+            LoadDDSKTX(file_data.Span(), decoded_data);
+            break;
+        }
+
+        // Copy it over to the staging memory
+        texture.decoded = true;
+        std::memcpy(mapped.data(), decoded_data.data(), decoded_data.size());
+
+        // Notify the backend that decode is done
+        texture.flag.test_and_set();
+        texture.flag.notify_all();
+    };
+
+    workers->QueueWork(std::move(decode));
 }
 
-void CustomTexManager::LoadTexture(Texture& texture) {
-    std::vector<u8>& data = texture.data;
-
+void CustomTexManager::QueryTexture(CustomTexture& texture) {
     // Read the file
-    auto file = FileUtil::IOFile(texture.path, "rb");
-    data.resize(file.GetSize());
-    file.ReadBytes(data.data(), file.GetSize());
+    FileUtil::IOFile file{texture.path, "rb"};
+    ScratchBuffer<u8> data{file.GetSize()};
+    file.ReadBytes(data.Data(), file.GetSize());
 
     // Parse it based on the file extension
     switch (texture.file_format) {
     case CustomFileFormat::PNG:
-        texture.format = CustomPixelFormat::RGBA8; // Check for other formats too?
-        if (!ParsePNG(data, texture.staging_size, texture.width, texture.height)) {
+        if (!ParsePNG(data.Span(), texture.staging_size, texture.width, texture.height)) {
             LOG_ERROR(Render, "Failed to parse png file {}", texture.path);
             return;
         }
+        texture.format = CustomPixelFormat::RGBA8; // Check for other formats too?
         break;
     case CustomFileFormat::DDS:
     case CustomFileFormat::KTX:
         ddsktx_format format{};
-        if (!ParseDDSKTX(data, texture.data, texture.width, texture.height, format)) {
+        if (!ParseDDSKTX(data.Span(), texture.staging_size, texture.width, texture.height,
+                         format)) {
             LOG_ERROR(Render, "Failed to parse dds/ktx file {}", texture.path);
             return;
         }
-        texture.staging_size = texture.data.size();
         texture.format = ToCustomPixelFormat(format);
         break;
     }

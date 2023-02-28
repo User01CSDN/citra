@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <span>
 #include <string>
 #include <unordered_map>
@@ -27,17 +28,20 @@ enum class CustomFileFormat : u32 {
     KTX = 2,
 };
 
-struct Texture {
+struct CustomTexture {
     u32 width;
     u32 height;
+    unsigned long long hash{};
     CustomPixelFormat format;
     CustomFileFormat file_format;
     std::string path;
     std::size_t staging_size;
     std::vector<u8> data;
+    std::atomic_flag flag;
+    bool decoded = false;
 
     operator bool() const noexcept {
-        return !data.empty();
+        return hash != 0;
     }
 };
 
@@ -56,10 +60,10 @@ public:
     void DumpTexture(const SurfaceParams& params, u32 level, std::span<u8> data);
 
     /// Returns the custom texture handle assigned to the provided data hash
-    const Texture& GetTexture(u64 data_hash);
+    CustomTexture& GetTexture(u64 data_hash);
 
     /// Decodes the data in texture to a consumable format
-    void DecodeToStaging(const Texture& texture, const StagingData& staging);
+    void DecodeToStaging(CustomTexture& texture, StagingData& staging);
 
     bool CompatibilityMode() const noexcept {
         return compatibility_mode;
@@ -67,15 +71,16 @@ public:
 
 private:
     /// Fills the texture structure with information from the file in path
-    void LoadTexture(Texture& texture);
+    void QueryTexture(CustomTexture& texture);
 
 private:
     Core::System& system;
-    Common::ThreadWorker workers;
+    std::unique_ptr<Common::ThreadWorker> workers;
     std::unordered_set<u64> dumped_textures;
-    std::unordered_map<u64, Texture> custom_textures;
+    std::unordered_map<u64, CustomTexture*> custom_texture_map;
+    std::vector<std::unique_ptr<CustomTexture>> custom_textures;
     std::vector<u8> temp_buffer;
-    Texture dummy_texture{};
+    CustomTexture dummy_texture{};
     bool textures_loaded{};
     bool compatibility_mode{true};
 };

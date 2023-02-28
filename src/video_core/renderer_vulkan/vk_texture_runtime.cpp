@@ -907,6 +907,11 @@ void Surface::Upload(const VideoCore::BufferTextureCopy& upload, const StagingDa
 
             cmdbuf.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, params.pipeline_flags,
                                    vk::DependencyFlagBits::eByRegion, {}, {}, write_barrier);
+
+            // Wait for a decode to finish if one is pending. Normally this isn't
+            // needed until we actually submit the command buffer but it's safer to do it now
+            // to prevent the stream buffer from reclaiming our space before we are done with it.
+            staging.Wait();
         });
 
         runtime->upload_buffer.Commit(staging.size);

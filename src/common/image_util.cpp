@@ -72,11 +72,11 @@ bool DecodePNG(std::span<const u8> png_data, std::span<u8> out_data) {
     return true;
 }
 
-bool ParseDDSKTX(std::span<const u8> in_data, std::vector<u8>& out_data, u32& width, u32& height,
+bool ParseDDSKTX(std::span<const u8> dds_data, size_t& decoded_size, u32& width, u32& height,
                  ddsktx_format& format) {
     ddsktx_texture_info tc{};
-    const int size = static_cast<int>(in_data.size());
-    if (!ddsktx_parse(&tc, in_data.data(), size, nullptr)) {
+    const int size = static_cast<int>(dds_data.size());
+    if (!ddsktx_parse(&tc, dds_data.data(), size, nullptr)) {
         return false;
     }
 
@@ -85,9 +85,23 @@ bool ParseDDSKTX(std::span<const u8> in_data, std::vector<u8>& out_data, u32& wi
     format = tc.format;
 
     ddsktx_sub_data sub_data{};
-    ddsktx_get_sub(&tc, &sub_data, in_data.data(), size, 0, 0, 0);
+    ddsktx_get_sub(&tc, &sub_data, dds_data.data(), size, 0, 0, 0);
+    decoded_size = sub_data.size_bytes;
 
-    out_data.resize(sub_data.size_bytes);
+    return true;
+}
+
+bool LoadDDSKTX(std::span<const u8> dds_data, std::span<u8> out_data) {
+    ddsktx_texture_info tc{};
+    const int size = static_cast<int>(dds_data.size());
+    if (!ddsktx_parse(&tc, dds_data.data(), size, nullptr)) {
+        return false;
+    }
+
+    ddsktx_sub_data sub_data{};
+    ddsktx_get_sub(&tc, &sub_data, dds_data.data(), size, 0, 0, 0);
+
+    ASSERT(out_data.size() == sub_data.size_bytes);
     std::memcpy(out_data.data(), sub_data.buff, sub_data.size_bytes);
 
     return true;

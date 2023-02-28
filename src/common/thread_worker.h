@@ -99,6 +99,10 @@ public:
         });
     }
 
+    const std::size_t NumWorkers() const noexcept {
+        return threads.size();
+    }
+
 private:
     std::queue<Task> requests;
     std::mutex queue_mutex;

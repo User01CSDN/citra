@@ -966,7 +966,7 @@ bool RasterizerCache<T>::UploadCustomSurface(Surface& surface, const SurfacePara
     const u32 level = surface.LevelOf(load_info.addr);
     const bool is_base_level = level == 0;
     const u64 hash = custom_tex_manager.ComputeHash(load_info, upload_data);
-    const Texture& texture = custom_tex_manager.GetTexture(hash);
+    CustomTexture& texture = custom_tex_manager.GetTexture(hash);
 
     // The old texture pack system did not support mipmaps so older packs might do
     // wonky things. For example many packs have mipmaps larger than the base
@@ -995,7 +995,7 @@ bool RasterizerCache<T>::UploadCustomSurface(Surface& surface, const SurfacePara
 
     // Copy and decode the custom texture to the staging buffer
     const u32 custom_size = static_cast<u32>(texture.staging_size);
-    const StagingData staging = runtime.FindStaging(custom_size, true);
+    StagingData staging = runtime.FindStaging(custom_size, true);
     custom_tex_manager.DecodeToStaging(texture, staging);
 
     // Upload surface
