@@ -3,12 +3,18 @@
 // Refer to the license.txt file included.
 
 #include "common/assert.h"
+#include "video_core/rasterizer_cache/custom_tex_manager.h"
 #include "video_core/rasterizer_cache/surface_params.h"
 #include "video_core/rasterizer_cache/texture_codec.h"
 #include "video_core/rasterizer_cache/utils.h"
-#include "video_core/texture/texture_decode.h"
 
 namespace VideoCore {
+
+void StagingData::Wait() const noexcept {
+    if (flag) {
+        flag->wait(DecodeState::Pending);
+    }
+}
 
 void EncodeTexture(const SurfaceParams& surface_info, PAddr start_addr, PAddr end_addr,
                    std::span<u8> source, std::span<u8> dest, bool convert) {

@@ -28,6 +28,12 @@ enum class CustomFileFormat : u32 {
     KTX = 2,
 };
 
+enum class DecodeState : u32 {
+    None = 0,
+    Pending = 1,
+    Decoded = 2,
+};
+
 struct CustomTexture {
     u32 width;
     u32 height;
@@ -37,11 +43,15 @@ struct CustomTexture {
     std::string path;
     std::size_t staging_size;
     std::vector<u8> data;
-    std::atomic_flag flag;
-    bool decoded = false;
+    std::atomic<DecodeState> state{};
 
     operator bool() const noexcept {
         return hash != 0;
+    }
+
+    void MarkDecoded() noexcept {
+        state = DecodeState::Decoded;
+        state.notify_all();
     }
 };
 

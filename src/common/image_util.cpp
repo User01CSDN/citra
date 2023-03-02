@@ -100,8 +100,6 @@ bool LoadDDSKTX(std::span<const u8> dds_data, std::span<u8> out_data) {
 
     ddsktx_sub_data sub_data{};
     ddsktx_get_sub(&tc, &sub_data, dds_data.data(), size, 0, 0, 0);
-
-    ASSERT(out_data.size() == sub_data.size_bytes);
     std::memcpy(out_data.data(), sub_data.buff, sub_data.size_bytes);
 
     return true;

@@ -87,17 +87,17 @@ void CustomTexManager::FindCustomTextures() {
     FileUtil::GetAllFilesFromNestedEntries(texture_dir, textures);
 
     // Reserve space for all the textures in the folder
-    const size_t num_textures = textures.size();
+    const std::size_t num_textures = textures.size();
     custom_textures.resize(num_textures);
 
-    const auto load = [&](u32 begin, u32 end) {
+    const auto load = [&](std::size_t begin, std::size_t end) {
         u32 width{};
         u32 height{};
         u32 format{};
         unsigned long long hash{};
         std::string ext(3, ' ');
 
-        for (u32 i = begin; i < end; i++) {
+        for (std::size_t i = begin; i < end; i++) {
             const auto& file = textures[i];
             const std::string& path = file.physicalName;
             if (file.isDirectory || !file.virtualName.starts_with("tex1_")) {
@@ -233,16 +233,25 @@ CustomTexture& CustomTexManager::GetTexture(u64 data_hash) {
 }
 
 void CustomTexManager::DecodeToStaging(CustomTexture& texture, StagingData& staging) {
-    if (texture.decoded) {
+    if (texture.state == DecodeState::Decoded) {
         // Nothing to do here, just copy over the data
         ASSERT_MSG(staging.size == texture.staging_size,
                    "Incorrect staging size for custom texture with hash {:016X}", texture.hash);
         std::memcpy(staging.mapped.data(), texture.data.data(), texture.data.size());
         return;
     }
+    if (texture.state == DecodeState::Pending) {
+        // Can occur if a texture is re-uploaded shortly after a decode started.
+        // Since this is quite rare just wait for the data.
+        LOG_WARNING(Render, "Texture requested while pending decode!");
+        texture.state.wait(DecodeState::Pending);
+        std::memcpy(staging.mapped.data(), texture.data.data(), texture.data.size());
+        return;
+    }
 
     // Set an atomic flag in staging data so the backend can wait until the data is finished
-    staging.flag = &texture.flag;
+    staging.flag = &texture.state;
+    texture.state = DecodeState::Pending;
 
     const auto decode = [this, &texture, mapped = staging.mapped]() {
         // Read the file this is potentially the most expensive step
@@ -267,18 +276,14 @@ void CustomTexManager::DecodeToStaging(CustomTexture& texture, StagingData& stag
             break;
         case CustomFileFormat::DDS:
         case CustomFileFormat::KTX:
-            // Compressed formats don't need CPU decoding and must be pre-flippede
+            // Compressed formats don't need CPU decoding and must be pre-flipped.
             LoadDDSKTX(file_data.Span(), decoded_data);
             break;
         }
 
-        // Copy it over to the staging memory
-        texture.decoded = true;
+        // Copy it over to the staging memory and notify the backend that decode is done,
         std::memcpy(mapped.data(), decoded_data.data(), decoded_data.size());
-
-        // Notify the backend that decode is done
-        texture.flag.test_and_set();
-        texture.flag.notify_all();
+        texture.MarkDecoded();
     };
 
     workers->QueueWork(std::move(decode));

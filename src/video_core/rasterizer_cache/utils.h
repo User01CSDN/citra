@@ -81,18 +81,15 @@ struct BufferTextureCopy {
     u32 texture_level;
 };
 
+enum class DecodeState : u32;
+
 struct StagingData {
     u32 size = 0;
     std::span<u8> mapped{};
     u64 buffer_offset = 0;
-    const std::atomic_flag* flag{};
+    const std::atomic<DecodeState>* flag{};
 
-    void Wait() const noexcept {
-        if (!flag) {
-            return;
-        }
-        flag->wait(false);
-    }
+    void Wait() const noexcept;
 };
 
 struct TextureCubeConfig {
