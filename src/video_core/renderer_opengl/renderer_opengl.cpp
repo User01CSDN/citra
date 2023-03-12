@@ -354,6 +354,7 @@ static std::array<GLfloat, 3 * 2> MakeOrthographicMatrix(const float width, cons
 
 RendererOpenGL::RendererOpenGL(Frontend::EmuWindow& window, Frontend::EmuWindow* secondary_window)
     : RendererBase{window, secondary_window},
+      driver{Core::System::GetInstance().TelemetrySession()},
       frame_dumper(Core::System::GetInstance().VideoDumper(), window) {
     window.mailbox = std::make_unique<OGLTextureMailbox>();
     if (secondary_window) {
@@ -407,7 +408,6 @@ void RendererOpenGL::SwapBuffers() {
     Core::System::GetInstance().perf_stats->BeginSystemFrame();
 
     prev_state.Apply();
-    RefreshRasterizerSetting();
 
     if (Pica::g_debug_context && Pica::g_debug_context->recorder) {
         Pica::g_debug_context->recorder->FrameFinished();
@@ -1237,109 +1237,26 @@ void RendererOpenGL::CleanupVideoDumping() {
     mailbox->free_cv.notify_one();
 }
 
-static const char* GetSource(GLenum source) {
-#define RET(s)                                                                                     \
-    case GL_DEBUG_SOURCE_##s:                                                                      \
-        return #s
-    switch (source) {
-        RET(API);
-        RET(WINDOW_SYSTEM);
-        RET(SHADER_COMPILER);
-        RET(THIRD_PARTY);
-        RET(APPLICATION);
-        RET(OTHER);
-    default:
-        UNREACHABLE();
-    }
-#undef RET
-
-    return "";
-}
-
-static const char* GetType(GLenum type) {
-#define RET(t)                                                                                     \
-    case GL_DEBUG_TYPE_##t:                                                                        \
-        return #t
-    switch (type) {
-        RET(ERROR);
-        RET(DEPRECATED_BEHAVIOR);
-        RET(UNDEFINED_BEHAVIOR);
-        RET(PORTABILITY);
-        RET(PERFORMANCE);
-        RET(OTHER);
-        RET(MARKER);
-    default:
-        UNREACHABLE();
-    }
-#undef RET
-
-    return "";
-}
-
-static void APIENTRY DebugHandler(GLenum source, GLenum type, GLuint id, GLenum severity,
-                                  GLsizei length, const GLchar* message, const void* user_param) {
-    Log::Level level;
-    switch (severity) {
-    case GL_DEBUG_SEVERITY_HIGH:
-        level = Log::Level::Critical;
-        break;
-    case GL_DEBUG_SEVERITY_MEDIUM:
-        level = Log::Level::Warning;
-        break;
-    case GL_DEBUG_SEVERITY_NOTIFICATION:
-    case GL_DEBUG_SEVERITY_LOW:
-        level = Log::Level::Debug;
-        break;
-    }
-    LOG_GENERIC(Log::Class::Render_OpenGL, level, "{} {} {}: {}", GetSource(source), GetType(type),
-                id, message);
-}
-
 /// Initialize the renderer
 VideoCore::ResultStatus RendererOpenGL::Init() {
-#ifndef ANDROID
-    if (!gladLoadGL()) {
-        return VideoCore::ResultStatus::ErrorBelowGL43;
-    }
-
-    // Qualcomm has some spammy info messages that are marked as errors but not important
-    // https://developer.qualcomm.com/comment/11845
-    if (GLAD_GL_KHR_debug) {
-        glEnable(GL_DEBUG_OUTPUT);
-        glDebugMessageCallback(DebugHandler, nullptr);
-    }
-#endif
-
-    const std::string_view gl_version{reinterpret_cast<char const*>(glGetString(GL_VERSION))};
-    const std::string_view gpu_vendor{reinterpret_cast<char const*>(glGetString(GL_VENDOR))};
-    const std::string_view gpu_model{reinterpret_cast<char const*>(glGetString(GL_RENDERER))};
-
-    LOG_INFO(Render_OpenGL, "GL_VERSION: {}", gl_version);
-    LOG_INFO(Render_OpenGL, "GL_VENDOR: {}", gpu_vendor);
-    LOG_INFO(Render_OpenGL, "GL_RENDERER: {}", gpu_model);
-
-    auto& telemetry_session = Core::System::GetInstance().TelemetrySession();
-    constexpr auto user_system = Common::Telemetry::FieldType::UserSystem;
-    telemetry_session.AddField(user_system, "GPU_Vendor", std::string(gpu_vendor));
-    telemetry_session.AddField(user_system, "GPU_Model", std::string(gpu_model));
-    telemetry_session.AddField(user_system, "GPU_OpenGL_Version", std::string(gl_version));
-
-    if (gpu_vendor == "GDI Generic") {
+    if (driver.GetVendor() == Vendor::Generic) {
         return VideoCore::ResultStatus::ErrorGenericDrivers;
     }
-
-    if (!(GLAD_GL_VERSION_4_3 || GLAD_GL_ES_VERSION_3_1)) {
+    if (!driver.IsSuitable()) {
         return VideoCore::ResultStatus::ErrorBelowGL43;
     }
 
     InitOpenGLObjects();
-
-    RefreshRasterizerSetting();
+    rasterizer = std::make_unique<RasterizerOpenGL>(render_window, driver);
 
     return VideoCore::ResultStatus::Success;
 }
 
 /// Shutdown the renderer
 void RendererOpenGL::ShutDown() {}
+
+void RendererOpenGL::Sync() {
+    rasterizer->SyncEntireState();
+}
 
 } // namespace OpenGL

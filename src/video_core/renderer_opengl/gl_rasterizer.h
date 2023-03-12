@@ -20,11 +20,13 @@ class EmuWindow;
 }
 
 namespace OpenGL {
+
+class Driver;
 class ShaderProgramManager;
 
 class RasterizerOpenGL : public VideoCore::RasterizerInterface {
 public:
-    explicit RasterizerOpenGL(Frontend::EmuWindow& emu_window);
+    explicit RasterizerOpenGL(Frontend::EmuWindow& emu_window, Driver& driver);
     ~RasterizerOpenGL() override;
 
     void LoadDiskResources(const std::atomic_bool& stop_loading,
@@ -247,8 +249,7 @@ private:
     /// Setup geometry shader for AccelerateDrawBatch
     bool SetupGeometryShader();
 
-    bool is_amd;
-
+private:
     OpenGLState state;
     GLuint default_texture;
 
