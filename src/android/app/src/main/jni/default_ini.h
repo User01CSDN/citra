@@ -99,16 +99,12 @@ cpu_clock_percentage =
 
 [Renderer]
 # Whether to render using OpenGL
-# 0: OpenGL (default)
+# 0: OpenGL (default), 1: Software
 graphics_api =
 
 # Whether to render using GLES or OpenGL
 # 0: OpenGL, 1 (default): GLES
 use_gles =
-
-# Whether to use software or hardware rendering.
-# 0: Software, 1 (default): Hardware
-use_hw_renderer =
 
 # Whether to use hardware shaders to emulate 3DS shaders
 # 0: Software, 1 (default): Hardware

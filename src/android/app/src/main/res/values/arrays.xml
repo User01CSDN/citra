@@ -171,4 +171,12 @@
         <item>4</item>
         <item>5</item>
     </integer-array>
+
+    <string-array name="graphicsApiNames">
+        <item>OpenGL</item>
+    </string-array>
+
+    <integer-array name="graphicsApiValues">
+        <item>0</item>
+    </integer-array>
 </resources>
