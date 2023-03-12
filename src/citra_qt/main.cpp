@@ -1094,7 +1094,7 @@ bool GMainWindow::LoadROM(const QString& filename) {
         case Core::System::ResultStatus::ErrorVideoCore:
             QMessageBox::critical(
                 this, tr("Video Core Error"),
-                tr("An error has occurred. Please <a "
+                tr("An error has occurred during intialization of the video backend. Please <a "
                    "href='https://community.citra-emu.org/t/how-to-upload-the-log-file/296'>see "
                    "the "
                    "log</a> for more details. "

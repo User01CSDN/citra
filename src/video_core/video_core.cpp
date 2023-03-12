@@ -44,9 +44,16 @@ ResultStatus Init(Frontend::EmuWindow& emu_window, Frontend::EmuWindow* secondar
     g_memory = &memory;
     Pica::Init();
 
-    OpenGL::GLES = Settings::values.use_gles.GetValue();
+    const Settings::GraphicsAPI graphics_api = Settings::values.graphics_api.GetValue();
+    switch (graphics_api) {
+    case Settings::GraphicsAPI::OpenGL:
+        OpenGL::GLES = Settings::values.use_gles.GetValue();
+        g_renderer = std::make_unique<OpenGL::RendererOpenGL>(emu_window, secondary_window);
+        break;
+    default:
+        UNREACHABLE_MSG("Unknown graphics API {}", graphics_api);
+    }
 
-    g_renderer = std::make_unique<OpenGL::RendererOpenGL>(emu_window, secondary_window);
     ResultStatus result = g_renderer->Init();
 
     if (result != ResultStatus::Success) {
