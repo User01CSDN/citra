@@ -9,7 +9,7 @@
 
 namespace VideoCore {
 
-class RendererSoftware : public RendererBase {
+class RendererSoftware : public VideoCore::RendererBase {
 public:
     explicit RendererSoftware(Frontend::EmuWindow& window);
     ~RendererSoftware() override;

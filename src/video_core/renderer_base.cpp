@@ -5,6 +5,8 @@
 #include "core/frontend/emu_window.h"
 #include "video_core/renderer_base.h"
 
+namespace VideoCore {
+
 RendererBase::RendererBase(Frontend::EmuWindow& window, Frontend::EmuWindow* secondary_window_)
     : render_window{window}, secondary_window{secondary_window_} {}
 
@@ -20,3 +22,5 @@ void RendererBase::UpdateCurrentFramebufferLayout(bool is_portrait_mode) {
         update_layout(*secondary_window);
     }
 }
+
+} // namespace VideoCore

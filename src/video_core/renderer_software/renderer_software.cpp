@@ -11,7 +11,8 @@
 namespace VideoCore {
 
 RendererSoftware::RendererSoftware(Frontend::EmuWindow& window)
-    : RendererBase{window, nullptr}, rasterizer{std::make_unique<RasterizerSoftware>()} {}
+    : VideoCore::RendererBase{window, nullptr}, rasterizer{std::make_unique<RasterizerSoftware>()} {
+}
 
 RendererSoftware::~RendererSoftware() = default;
 
