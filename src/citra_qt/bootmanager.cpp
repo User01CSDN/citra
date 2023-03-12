@@ -669,11 +669,13 @@ void GRenderWindow::ReleaseRenderTarget() {
 }
 
 void GRenderWindow::CaptureScreenshot(u32 res_scale, const QString& screenshot_path) {
-    if (res_scale == 0)
+    if (res_scale == 0) {
         res_scale = VideoCore::GetResolutionScaleFactor();
+    }
+
     const auto layout{Layout::FrameLayoutFromResolutionScale(res_scale, is_secondary)};
     screenshot_image = QImage(QSize(layout.width, layout.height), QImage::Format_RGB32);
-    VideoCore::RequestScreenshot(
+    VideoCore::g_renderer->RequestScreenshot(
         screenshot_image.bits(),
         [this, screenshot_path] {
             const std::string std_screenshot_path = screenshot_path.toStdString();

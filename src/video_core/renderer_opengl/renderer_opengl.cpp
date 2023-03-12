@@ -417,7 +417,7 @@ void RendererOpenGL::SwapBuffers() {
 }
 
 void RendererOpenGL::RenderScreenshot() {
-    if (VideoCore::g_renderer_screenshot_requested) {
+    if (renderer_settings.screenshot_requested.exchange(false)) {
         // Draw this frame to the screenshot framebuffer
         screenshot_framebuffer.Create();
         GLuint old_read_fb = state.draw.read_framebuffer;
@@ -425,7 +425,7 @@ void RendererOpenGL::RenderScreenshot() {
         state.draw.read_framebuffer = state.draw.draw_framebuffer = screenshot_framebuffer.handle;
         state.Apply();
 
-        Layout::FramebufferLayout layout{VideoCore::g_screenshot_framebuffer_layout};
+        const auto layout{renderer_settings.screenshot_framebuffer_layout};
 
         GLuint renderbuffer;
         glGenRenderbuffers(1, &renderbuffer);
@@ -437,7 +437,7 @@ void RendererOpenGL::RenderScreenshot() {
         DrawScreens(layout, false);
 
         glReadPixels(0, 0, layout.width, layout.height, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV,
-                     VideoCore::g_screenshot_bits);
+                     renderer_settings.screenshot_bits);
 
         screenshot_framebuffer.Release();
         state.draw.read_framebuffer = old_read_fb;
@@ -445,8 +445,7 @@ void RendererOpenGL::RenderScreenshot() {
         state.Apply();
         glDeleteRenderbuffers(1, &renderbuffer);
 
-        VideoCore::g_screenshot_complete_callback();
-        VideoCore::g_renderer_screenshot_requested = false;
+        renderer_settings.screenshot_complete_callback();
     }
 }
 
