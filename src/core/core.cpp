@@ -431,7 +431,7 @@ System::ResultStatus System::Init(Frontend::EmuWindow& emu_window,
     video_dumper = std::make_unique<VideoDumper::NullBackend>();
 #endif
 
-    VideoCore::Init(emu_window, secondary_window, *memory);
+    VideoCore::Init(emu_window, secondary_window, *this);
 
     LOG_DEBUG(Core, "Initialized OK");
 

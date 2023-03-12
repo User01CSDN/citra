@@ -2,13 +2,17 @@
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
+#include "core/core.h"
 #include "core/frontend/emu_window.h"
+#include "core/tracer/recorder.h"
+#include "video_core/debug_utils/debug_utils.h"
 #include "video_core/renderer_base.h"
 
 namespace VideoCore {
 
-RendererBase::RendererBase(Frontend::EmuWindow& window, Frontend::EmuWindow* secondary_window_)
-    : render_window{window}, secondary_window{secondary_window_} {}
+RendererBase::RendererBase(Core::System& system_, Frontend::EmuWindow& window,
+                           Frontend::EmuWindow* secondary_window_)
+    : system{system_}, render_window{window}, secondary_window{secondary_window_} {}
 
 RendererBase::~RendererBase() = default;
 
@@ -20,6 +24,21 @@ void RendererBase::UpdateCurrentFramebufferLayout(bool is_portrait_mode) {
     update_layout(render_window);
     if (secondary_window) {
         update_layout(*secondary_window);
+    }
+}
+
+void RendererBase::EndFrame() {
+    m_current_frame++;
+
+    system.perf_stats->EndSystemFrame();
+
+    render_window.PollEvents();
+
+    system.frame_limiter.DoFrameLimiting(system.CoreTiming().GetGlobalTimeUs());
+    system.perf_stats->BeginSystemFrame();
+
+    if (Pica::g_debug_context && Pica::g_debug_context->recorder) {
+        Pica::g_debug_context->recorder->FrameFinished();
     }
 }
 

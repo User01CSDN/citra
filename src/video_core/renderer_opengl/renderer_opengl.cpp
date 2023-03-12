@@ -13,8 +13,6 @@
 #include "core/hw/hw.h"
 #include "core/hw/lcd.h"
 #include "core/memory.h"
-#include "core/tracer/recorder.h"
-#include "video_core/debug_utils/debug_utils.h"
 #include "video_core/rasterizer_interface.h"
 #include "video_core/renderer_opengl/gl_shader_util.h"
 #include "video_core/renderer_opengl/gl_state.h"
@@ -352,10 +350,10 @@ static std::array<GLfloat, 3 * 2> MakeOrthographicMatrix(const float width, cons
     return matrix;
 }
 
-RendererOpenGL::RendererOpenGL(Frontend::EmuWindow& window, Frontend::EmuWindow* secondary_window)
-    : VideoCore::RendererBase{window, secondary_window},
-      driver{Core::System::GetInstance().TelemetrySession()},
-      frame_dumper(Core::System::GetInstance().VideoDumper(), window) {
+RendererOpenGL::RendererOpenGL(Core::System& system, Frontend::EmuWindow& window,
+                               Frontend::EmuWindow* secondary_window)
+    : VideoCore::RendererBase{system, window, secondary_window}, driver{system.TelemetrySession()},
+      frame_dumper{system.VideoDumper(), window} {
     window.mailbox = std::make_unique<OGLTextureMailbox>();
     if (secondary_window) {
         secondary_window->mailbox = std::make_unique<OGLTextureMailbox>();
@@ -377,7 +375,6 @@ void RendererOpenGL::SwapBuffers() {
     state.Apply();
 
     PrepareRendertarget();
-
     RenderScreenshot();
 
     const auto& main_layout = render_window.GetFramebufferLayout();
@@ -399,21 +396,8 @@ void RendererOpenGL::SwapBuffers() {
         }
     }
 
-    m_current_frame++;
-
-    Core::System::GetInstance().perf_stats->EndSystemFrame();
-
-    render_window.PollEvents();
-
-    Core::System::GetInstance().frame_limiter.DoFrameLimiting(
-        Core::System::GetInstance().CoreTiming().GetGlobalTimeUs());
-    Core::System::GetInstance().perf_stats->BeginSystemFrame();
-
+    EndFrame();
     prev_state.Apply();
-
-    if (Pica::g_debug_context && Pica::g_debug_context->recorder) {
-        Pica::g_debug_context->recorder->FrameFinished();
-    }
 }
 
 void RendererOpenGL::RenderScreenshot() {

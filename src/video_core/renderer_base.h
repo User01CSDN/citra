@@ -12,6 +12,10 @@ namespace Frontend {
 class EmuWindow;
 }
 
+namespace Core {
+class System;
+}
+
 namespace VideoCore {
 
 struct RendererSettings {
@@ -24,7 +28,8 @@ struct RendererSettings {
 
 class RendererBase : NonCopyable {
 public:
-    explicit RendererBase(Frontend::EmuWindow& window, Frontend::EmuWindow* secondary_window);
+    explicit RendererBase(Core::System& system, Frontend::EmuWindow& window,
+                          Frontend::EmuWindow* secondary_window);
     virtual ~RendererBase();
 
     /// Returns the rasterizer owned by the renderer
@@ -51,6 +56,9 @@ public:
 
     /// Updates the framebuffer layout of the contained render window handle.
     void UpdateCurrentFramebufferLayout(bool is_portrait_mode = {});
+
+    /// Ends the current frame
+    void EndFrame();
 
     // Getter/setter functions:
     // ------------------------
@@ -79,9 +87,6 @@ public:
         return renderer_settings;
     }
 
-    /// Refreshes the settings common to all renderers
-    void RefreshBaseSettings();
-
     /// Returns true if a screenshot is being processed
     bool IsScreenshotPending() const;
 
@@ -90,6 +95,7 @@ public:
                            const Layout::FramebufferLayout& layout);
 
 protected:
+    Core::System& system;
     RendererSettings renderer_settings;
     Frontend::EmuWindow& render_window;    ///< Reference to the render window handle.
     Frontend::EmuWindow* secondary_window; ///< Reference to the secondary render window handle.
