@@ -39,8 +39,8 @@ Layout::FramebufferLayout g_screenshot_framebuffer_layout;
 Memory::MemorySystem* g_memory;
 
 /// Initialize the video core
-ResultStatus Init(Frontend::EmuWindow& emu_window, Frontend::EmuWindow* secondary_window,
-                  Memory::MemorySystem& memory) {
+void Init(Frontend::EmuWindow& emu_window, Frontend::EmuWindow* secondary_window,
+          Memory::MemorySystem& memory) {
     g_memory = &memory;
     Pica::Init();
 
@@ -53,23 +53,11 @@ ResultStatus Init(Frontend::EmuWindow& emu_window, Frontend::EmuWindow* secondar
     default:
         UNREACHABLE_MSG("Unknown graphics API {}", graphics_api);
     }
-
-    ResultStatus result = g_renderer->Init();
-
-    if (result != ResultStatus::Success) {
-        LOG_ERROR(Render, "initialization failed !");
-    } else {
-        LOG_DEBUG(Render, "initialized OK");
-    }
-
-    return result;
 }
 
 /// Shutdown the video core
 void Shutdown() {
     Pica::Shutdown();
-
-    g_renderer->ShutDown();
     g_renderer.reset();
 
     LOG_DEBUG(Render, "shutdown OK");

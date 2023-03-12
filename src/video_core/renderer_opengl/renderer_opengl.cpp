@@ -361,6 +361,8 @@ RendererOpenGL::RendererOpenGL(Frontend::EmuWindow& window, Frontend::EmuWindow*
         secondary_window->mailbox = std::make_unique<OGLTextureMailbox>();
     }
     frame_dumper.mailbox = std::make_unique<OGLVideoDumpingMailbox>();
+    InitOpenGLObjects();
+    rasterizer = std::make_unique<RasterizerOpenGL>(render_window, driver);
 }
 
 RendererOpenGL::~RendererOpenGL() = default;
@@ -1236,24 +1238,6 @@ void RendererOpenGL::CleanupVideoDumping() {
     }
     mailbox->free_cv.notify_one();
 }
-
-/// Initialize the renderer
-VideoCore::ResultStatus RendererOpenGL::Init() {
-    if (driver.GetVendor() == Vendor::Generic) {
-        return VideoCore::ResultStatus::ErrorGenericDrivers;
-    }
-    if (!driver.IsSuitable()) {
-        return VideoCore::ResultStatus::ErrorBelowGL43;
-    }
-
-    InitOpenGLObjects();
-    rasterizer = std::make_unique<RasterizerOpenGL>(render_window, driver);
-
-    return VideoCore::ResultStatus::Success;
-}
-
-/// Shutdown the renderer
-void RendererOpenGL::ShutDown() {}
 
 void RendererOpenGL::Sync() {
     rasterizer->SyncEntireState();

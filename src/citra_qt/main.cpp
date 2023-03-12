@@ -1029,28 +1029,6 @@ bool GMainWindow::LoadROM(const QString& filename) {
                                   tr("GBA Virtual Console ROMs are not supported by Citra."));
             break;
 
-        case Core::System::ResultStatus::ErrorVideoCore:
-            QMessageBox::critical(
-                this, tr("Video Core Error"),
-                tr("An error has occurred during intialization of the video backend. Please <a "
-                   "href='https://community.citra-emu.org/t/how-to-upload-the-log-file/296'>see "
-                   "the "
-                   "log</a> for more details. "
-                   "Ensure that you have the latest graphics drivers for your GPU."));
-            break;
-
-        case Core::System::ResultStatus::ErrorVideoCore_ErrorGenericDrivers:
-            QMessageBox::critical(
-                this, tr("Video Core Error"),
-                tr("You are running default Windows drivers "
-                   "for your GPU. You need to install the "
-                   "proper drivers for your graphics card from the manufacturer's website."));
-            break;
-
-        case Core::System::ResultStatus::ErrorVideoCore_ErrorBelowGL43:
-            QMessageBox::critical(this, below_gl43_title, below_gl43_message);
-            break;
-
         default:
             QMessageBox::critical(
                 this, tr("Error while loading ROM!"),

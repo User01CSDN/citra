@@ -65,8 +65,6 @@ public:
         return rasterizer.get();
     }
 
-    VideoCore::ResultStatus Init() override;
-    void ShutDown() override;
     void SwapBuffers() override;
     void TryPresent(int timeout_ms, bool is_secondary) override;
     void PrepareVideoDumping() override;

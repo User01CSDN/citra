@@ -21,12 +21,6 @@ public:
     /// Returns the rasterizer owned by the renderer
     virtual VideoCore::RasterizerInterface* Rasterizer() const = 0;
 
-    /// Initialize the renderer
-    virtual VideoCore::ResultStatus Init() = 0;
-
-    /// Shutdown the renderer
-    virtual void ShutDown() = 0;
-
     /// Finalize rendering the guest frame and draw into the presentation texture
     virtual void SwapBuffers() = 0;
 

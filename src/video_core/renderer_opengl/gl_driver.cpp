@@ -72,12 +72,6 @@ static void APIENTRY DebugHandler(GLenum source, GLenum type, GLuint id, GLenum 
 }
 
 Driver::Driver(Core::TelemetrySession& telemetry_session_) : telemetry_session{telemetry_session_} {
-#ifndef ANDROID
-    if (!gladLoadGL()) {
-        return;
-    }
-#endif
-
     /*
      * Qualcomm has some spammy info messages that are marked as errors but not important
      * https://developer.qualcomm.com/comment/11845

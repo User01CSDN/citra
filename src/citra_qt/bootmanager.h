@@ -187,6 +187,7 @@ private:
     void OnMinimalClientAreaChangeRequest(std::pair<u32, u32> minimal_size) override;
 
     bool InitializeOpenGL();
+    bool LoadOpenGL();
 
     /// In order to embed the window into GRenderWindow, you need to use createWindowContainer to
     /// put the child_window into a widget then add it to the layout. This child_widget can be
