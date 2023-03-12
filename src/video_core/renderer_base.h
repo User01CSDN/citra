@@ -5,6 +5,7 @@
 #pragma once
 
 #include "common/common_types.h"
+#include "core/frontend/framebuffer_layout.h"
 #include "video_core/rasterizer_interface.h"
 
 namespace Frontend {
@@ -12,6 +13,14 @@ class EmuWindow;
 }
 
 namespace VideoCore {
+
+struct RendererSettings {
+    // Screenshot
+    std::atomic_bool screenshot_requested{false};
+    void* screenshot_bits{};
+    std::function<void()> screenshot_complete_callback;
+    Layout::FramebufferLayout screenshot_framebuffer_layout;
+};
 
 class RendererBase : NonCopyable {
 public:
@@ -62,7 +71,26 @@ public:
         return render_window;
     }
 
+    [[nodiscard]] RendererSettings& Settings() {
+        return renderer_settings;
+    }
+
+    [[nodiscard]] const RendererSettings& Settings() const {
+        return renderer_settings;
+    }
+
+    /// Refreshes the settings common to all renderers
+    void RefreshBaseSettings();
+
+    /// Returns true if a screenshot is being processed
+    bool IsScreenshotPending() const;
+
+    /// Request a screenshot of the next frame
+    void RequestScreenshot(void* data, std::function<void()> callback,
+                           const Layout::FramebufferLayout& layout);
+
 protected:
+    RendererSettings renderer_settings;
     Frontend::EmuWindow& render_window;    ///< Reference to the render window handle.
     Frontend::EmuWindow* secondary_window; ///< Reference to the secondary render window handle.
     f32 m_current_fps = 0.0f;              ///< Current framerate, should be set by the renderer
