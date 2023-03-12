@@ -81,6 +81,25 @@ public:
 
     /// Releases (dunno if this is the "right" word) the context from the caller thread
     virtual void DoneCurrent(){};
+
+    class Scoped {
+    public:
+        explicit Scoped(GraphicsContext& context_) : context(context_) {
+            context.MakeCurrent();
+        }
+        ~Scoped() {
+            context.DoneCurrent();
+        }
+
+    private:
+        GraphicsContext& context;
+    };
+
+    /// Calls MakeCurrent on the context and calls DoneCurrent when the scope for the returned value
+    /// ends
+    [[nodiscard]] Scoped Acquire() {
+        return Scoped{*this};
+    }
 };
 
 /**

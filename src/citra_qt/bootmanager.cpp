@@ -17,7 +17,6 @@
 #include "common/settings.h"
 #include "core/3ds.h"
 #include "core/core.h"
-#include "core/frontend/scope_acquire_context.h"
 #include "core/perf_stats.h"
 #include "input_common/keyboard.h"
 #include "input_common/main.h"
@@ -52,7 +51,7 @@ static GMainWindow* GetMainWindow() {
 
 void EmuThread::run() {
     MicroProfileOnThreadCreate("EmuThread");
-    Frontend::ScopeAcquireContext scope(core_context);
+    const auto scope = core_context.Acquire();
 
     emit LoadProgress(VideoCore::LoadCallbackStage::Prepare, 0, 0);
 

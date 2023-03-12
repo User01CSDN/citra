@@ -83,7 +83,6 @@
 #include "core/file_sys/archive_extsavedata.h"
 #include "core/file_sys/archive_source_sd_savedata.h"
 #include "core/frontend/applets/default_applets.h"
-#include "core/frontend/scope_acquire_context.h"
 #include "core/gdbstub/gdbstub.h"
 #include "core/hle/service/cfg/cfg.h"
 #include "core/hle/service/fs/archive.h"
@@ -965,7 +964,7 @@ bool GMainWindow::LoadROM(const QString& filename) {
     render_window->InitRenderTarget();
     secondary_window->InitRenderTarget();
 
-    Frontend::ScopeAcquireContext scope(*render_window);
+    const auto scope = render_window->Acquire();
 
     const QString below_gl43_title = tr("OpenGL 4.3 Unsupported");
     const QString below_gl43_message = tr("Your GPU may not support OpenGL 4.3, or you do not "
