@@ -50,13 +50,7 @@ struct ScreenInfo {
     TextureInfo texture;
 };
 
-struct PresentationTexture {
-    u32 width = 0;
-    u32 height = 0;
-    OGLTexture texture;
-};
-
-class RendererOpenGL : public RendererBase {
+class RendererOpenGL : public VideoCore::RendererBase {
 public:
     explicit RendererOpenGL(Frontend::EmuWindow& window, Frontend::EmuWindow* secondary_window);
     ~RendererOpenGL() override;

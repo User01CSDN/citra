@@ -4,13 +4,14 @@
 
 #pragma once
 
-#include <memory>
 #include "common/common_types.h"
 #include "video_core/rasterizer_interface.h"
 
 namespace Frontend {
 class EmuWindow;
 }
+
+namespace VideoCore {
 
 class RendererBase : NonCopyable {
 public:
@@ -67,3 +68,5 @@ protected:
     f32 m_current_fps = 0.0f;              ///< Current framerate, should be set by the renderer
     int m_current_frame = 0;               ///< Current frame, should be set by the renderer
 };
+
+} // namespace VideoCore

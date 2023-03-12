@@ -14,8 +14,6 @@ namespace Frontend {
 class EmuWindow;
 }
 
-class RendererBase;
-
 namespace Memory {
 class MemorySystem;
 }
@@ -24,6 +22,8 @@ class MemorySystem;
 // Video Core namespace
 
 namespace VideoCore {
+
+class RendererBase;
 
 extern std::unique_ptr<RendererBase> g_renderer; ///< Renderer plugin
 

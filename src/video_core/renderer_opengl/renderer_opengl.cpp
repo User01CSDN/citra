@@ -353,7 +353,7 @@ static std::array<GLfloat, 3 * 2> MakeOrthographicMatrix(const float width, cons
 }
 
 RendererOpenGL::RendererOpenGL(Frontend::EmuWindow& window, Frontend::EmuWindow* secondary_window)
-    : RendererBase{window, secondary_window},
+    : VideoCore::RendererBase{window, secondary_window},
       driver{Core::System::GetInstance().TelemetrySession()},
       frame_dumper(Core::System::GetInstance().VideoDumper(), window) {
     window.mailbox = std::make_unique<OGLTextureMailbox>();

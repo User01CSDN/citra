@@ -440,7 +440,7 @@ System::ResultStatus System::Init(Frontend::EmuWindow& emu_window,
     return ResultStatus::Success;
 }
 
-RendererBase& System::Renderer() {
+VideoCore::RendererBase& System::Renderer() {
     return *VideoCore::g_renderer;
 }
 
