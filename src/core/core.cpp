@@ -431,17 +431,7 @@ System::ResultStatus System::Init(Frontend::EmuWindow& emu_window,
     video_dumper = std::make_unique<VideoDumper::NullBackend>();
 #endif
 
-    VideoCore::ResultStatus result = VideoCore::Init(emu_window, secondary_window, *memory);
-    if (result != VideoCore::ResultStatus::Success) {
-        switch (result) {
-        case VideoCore::ResultStatus::ErrorGenericDrivers:
-            return ResultStatus::ErrorVideoCore_ErrorGenericDrivers;
-        case VideoCore::ResultStatus::ErrorBelowGL43:
-            return ResultStatus::ErrorVideoCore_ErrorBelowGL43;
-        default:
-            return ResultStatus::ErrorVideoCore;
-        }
-    }
+    VideoCore::Init(emu_window, secondary_window, *memory);
 
     LOG_DEBUG(Core, "Initialized OK");
 

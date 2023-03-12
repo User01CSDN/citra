@@ -87,14 +87,9 @@ public:
         ErrorLoader_ErrorGbaTitle, ///< Error loading the specified application as it is GBA Virtual
                                    ///< Console
         ErrorSystemFiles,          ///< Error in finding system files
-        ErrorVideoCore,            ///< Error in the video core
-        ErrorVideoCore_ErrorGenericDrivers, ///< Error in the video core due to the user having
-                                            /// generic drivers installed
-        ErrorVideoCore_ErrorBelowGL43,      ///< Error in the video core due to the user not having
-                                            /// OpenGL 4.3 or higher
-        ErrorSavestate,                     ///< Error saving or loading
-        ShutdownRequested,                  ///< Emulated program requested a system shutdown
-        ErrorUnknown                        ///< Any other error
+        ErrorSavestate,            ///< Error saving or loading
+        ShutdownRequested,         ///< Emulated program requested a system shutdown
+        ErrorUnknown               ///< Any other error
     };
 
     ~System();

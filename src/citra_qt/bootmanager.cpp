@@ -2,13 +2,15 @@
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
+#include <glad/glad.h>
+
 #include <QApplication>
 #include <QDragEnterEvent>
 #include <QHBoxLayout>
 #include <QKeyEvent>
+#include <QMessageBox>
 #include <QOffscreenSurface>
 #include <QOpenGLContext>
-#include <QOpenGLExtraFunctions>
 #include <fmt/format.h>
 #include "citra_qt/bootmanager.h"
 #include "citra_qt/main.h"
@@ -21,7 +23,6 @@
 #include "input_common/keyboard.h"
 #include "input_common/main.h"
 #include "input_common/motion_emu.h"
-#include "network/network.h"
 #include "video_core/renderer_base.h"
 #include "video_core/video_core.h"
 
@@ -297,11 +298,10 @@ public:
             return;
         }
         context->MakeCurrent();
-        const auto f = context->GetShareContext()->extraFunctions();
-        f->glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
         VideoCore::g_renderer->TryPresent(100, is_secondary);
         context->SwapBuffers();
-        f->glFinish();
+        glFinish();
     }
 
 private:
@@ -563,7 +563,7 @@ bool GRenderWindow::InitRenderTarget() {
     const auto graphics_api = Settings::values.graphics_api.GetValue();
     switch (graphics_api) {
     case Settings::GraphicsAPI::OpenGL:
-        if (!InitializeOpenGL()) {
+        if (!InitializeOpenGL() || !LoadOpenGL()) {
             return false;
         }
         break;
@@ -630,6 +630,31 @@ bool GRenderWindow::InitializeOpenGL() {
 
     auto child_context = CreateSharedContext();
     child->SetContext(std::move(child_context));
+
+    return true;
+}
+
+bool GRenderWindow::LoadOpenGL() {
+    auto context = CreateSharedContext();
+    auto scope = context->Acquire();
+    if (!gladLoadGL()) {
+        QMessageBox::warning(
+            this, tr("Error while initializing OpenGL!"),
+            tr("Your GPU may not support OpenGL, or you do not have the latest graphics driver."));
+        return false;
+    }
+
+    const QString renderer =
+        QString::fromUtf8(reinterpret_cast<const char*>(glGetString(GL_RENDERER)));
+
+    if (!GLAD_GL_VERSION_4_3) {
+        LOG_ERROR(Frontend, "GPU does not support OpenGL 4.3: {}", renderer.toStdString());
+        QMessageBox::warning(this, tr("Error while initializing OpenGL 4.3!"),
+                             tr("Your GPU may not support OpenGL 4.3, or you do not have the "
+                                "latest graphics driver.<br><br>GL Renderer:<br>%1")
+                                 .arg(renderer));
+        return false;
+    }
 
     return true;
 }
