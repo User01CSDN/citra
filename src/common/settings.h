@@ -421,6 +421,7 @@ struct Values {
     // Renderer
     SwitchableSetting<GraphicsAPI> graphics_api{GraphicsAPI::OpenGL, "graphics_api"};
     Setting<bool> use_gles{false, "use_gles"};
+    Setting<bool> renderer_debug{false, "renderer_debug"};
     SwitchableSetting<bool> use_hw_renderer{true, "use_hw_renderer"};
     SwitchableSetting<bool> use_hw_shader{true, "use_hw_shader"};
     SwitchableSetting<bool> separable_shader{false, "use_separable_shader"};

@@ -482,6 +482,7 @@ void Config::ReadDebuggingValues() {
         qt_config->value(QStringLiteral("record_frame_times"), false).toBool();
     ReadBasicSetting(Settings::values.use_gdbstub);
     ReadBasicSetting(Settings::values.gdbstub_port);
+    ReadBasicSetting(Settings::values.renderer_debug);
 
     qt_config->beginGroup(QStringLiteral("LLE"));
     for (const auto& service_module : Service::service_module_map) {
@@ -993,6 +994,7 @@ void Config::SaveDebuggingValues() {
     qt_config->setValue(QStringLiteral("record_frame_times"), Settings::values.record_frame_times);
     WriteBasicSetting(Settings::values.use_gdbstub);
     WriteBasicSetting(Settings::values.gdbstub_port);
+    WriteBasicSetting(Settings::values.renderer_debug);
 
     qt_config->beginGroup(QStringLiteral("LLE"));
     for (const auto& service_module : Settings::values.lle_modules) {

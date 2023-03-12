@@ -329,9 +329,15 @@ log_filter = *:Info
 [Debugging]
 # Record frame time data, can be found in the log directory. Boolean value
 record_frame_times =
+
+# Whether to enable additional debugging information during emulation
+# 1: On, 0 (default): Off
+renderer_debug =
+
 # Port for listening to GDB connections.
 use_gdbstub=false
 gdbstub_port=24689
+
 # To LLE a service module add "LLE\<module name>=true"
 
 [WebService]
