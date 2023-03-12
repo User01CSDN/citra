@@ -11,6 +11,7 @@
 #include "video_core/renderer_base.h"
 #include "video_core/renderer_opengl/gl_vars.h"
 #include "video_core/renderer_opengl/renderer_opengl.h"
+#include "video_core/renderer_software/renderer_software.h"
 #include "video_core/video_core.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -20,7 +21,6 @@ namespace VideoCore {
 
 std::unique_ptr<RendererBase> g_renderer; ///< Renderer plugin
 
-std::atomic<bool> g_hw_renderer_enabled;
 std::atomic<bool> g_shader_jit_enabled;
 std::atomic<bool> g_hw_shader_enabled;
 std::atomic<bool> g_separable_shader_enabled;
@@ -46,6 +46,9 @@ void Init(Frontend::EmuWindow& emu_window, Frontend::EmuWindow* secondary_window
 
     const Settings::GraphicsAPI graphics_api = Settings::values.graphics_api.GetValue();
     switch (graphics_api) {
+    case Settings::GraphicsAPI::Software:
+        g_renderer = std::make_unique<VideoCore::RendererSoftware>(emu_window);
+        break;
     case Settings::GraphicsAPI::OpenGL:
         OpenGL::GLES = Settings::values.use_gles.GetValue();
         g_renderer = std::make_unique<OpenGL::RendererOpenGL>(emu_window, secondary_window);
@@ -76,7 +79,8 @@ void RequestScreenshot(void* data, std::function<void()> callback,
 }
 
 u16 GetResolutionScaleFactor() {
-    if (g_hw_renderer_enabled) {
+    const auto graphics_api = Settings::values.graphics_api.GetValue();
+    if (graphics_api != Settings::GraphicsAPI::Software) {
         return Settings::values.resolution_factor.GetValue()
                    ? Settings::values.resolution_factor.GetValue()
                    : g_renderer->GetRenderWindow().GetFramebufferLayout().GetScalingRatio();

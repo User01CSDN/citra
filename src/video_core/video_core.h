@@ -29,7 +29,6 @@ extern std::unique_ptr<RendererBase> g_renderer; ///< Renderer plugin
 
 // TODO: Wrap these in a user settings struct along with any other graphics settings (often set from
 // qt ui)
-extern std::atomic<bool> g_hw_renderer_enabled;
 extern std::atomic<bool> g_shader_jit_enabled;
 extern std::atomic<bool> g_hw_shader_enabled;
 extern std::atomic<bool> g_separable_shader_enabled;

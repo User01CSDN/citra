@@ -7,7 +7,6 @@
 #include <memory>
 #include "common/common_types.h"
 #include "video_core/rasterizer_interface.h"
-#include "video_core/video_core.h"
 
 namespace Frontend {
 class EmuWindow;
@@ -32,13 +31,13 @@ public:
     }
 
     /// Prepares for video dumping (e.g. create necessary buffers, etc)
-    virtual void PrepareVideoDumping() = 0;
+    virtual void PrepareVideoDumping() {}
 
     /// Cleans up after video dumping is ended
-    virtual void CleanupVideoDumping() = 0;
+    virtual void CleanupVideoDumping() {}
 
     /// Synchronizes fixed function renderer state
-    virtual void Sync() = 0;
+    virtual void Sync() {}
 
     /// Updates the framebuffer layout of the contained render window handle.
     void UpdateCurrentFramebufferLayout(bool is_portrait_mode = {});

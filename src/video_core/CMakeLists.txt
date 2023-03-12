@@ -84,6 +84,22 @@ add_library(video_core STATIC
     #temporary, move these back in alphabetical order before merging
     renderer_opengl/gl_format_reinterpreter.cpp
     renderer_opengl/gl_format_reinterpreter.h
+    renderer_software/rasterizer.cpp
+    renderer_software/rasterizer.h
+    renderer_software/renderer_software.cpp
+    renderer_software/renderer_software.h
+    renderer_software/sw_clipper.cpp
+    renderer_software/sw_clipper.h
+    renderer_software/sw_framebuffer.cpp
+    renderer_software/sw_framebuffer.h
+    renderer_software/sw_lighting.cpp
+    renderer_software/sw_lighting.h
+    renderer_software/sw_proctex.cpp
+    renderer_software/sw_proctex.h
+    renderer_software/sw_rasterizer.cpp
+    renderer_software/sw_rasterizer.h
+    renderer_software/sw_texturing.cpp
+    renderer_software/sw_texturing.h
     shader/debug_data.h
     shader/shader.cpp
     shader/shader.h
@@ -93,20 +109,6 @@ add_library(video_core STATIC
     shader/shader_jit_x64_compiler.cpp
     shader/shader_jit_x64.h
     shader/shader_jit_x64_compiler.h
-    swrasterizer/clipper.cpp
-    swrasterizer/clipper.h
-    swrasterizer/framebuffer.cpp
-    swrasterizer/framebuffer.h
-    swrasterizer/lighting.cpp
-    swrasterizer/lighting.h
-    swrasterizer/proctex.cpp
-    swrasterizer/proctex.h
-    swrasterizer/rasterizer.cpp
-    swrasterizer/rasterizer.h
-    swrasterizer/swrasterizer.cpp
-    swrasterizer/swrasterizer.h
-    swrasterizer/texturing.cpp
-    swrasterizer/texturing.h
     texture/etc1.cpp
     texture/etc1.h
     texture/texture_decode.cpp
