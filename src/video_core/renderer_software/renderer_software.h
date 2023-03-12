@@ -7,11 +7,15 @@
 #include "video_core/renderer_base.h"
 #include "video_core/renderer_software/sw_rasterizer.h"
 
+namespace Core {
+class System;
+}
+
 namespace VideoCore {
 
 class RendererSoftware : public VideoCore::RendererBase {
 public:
-    explicit RendererSoftware(Frontend::EmuWindow& window);
+    explicit RendererSoftware(Core::System& system, Frontend::EmuWindow& window);
     ~RendererSoftware() override;
 
     [[nodiscard]] VideoCore::RasterizerInterface* Rasterizer() const override {

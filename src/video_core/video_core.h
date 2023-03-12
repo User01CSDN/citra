@@ -14,6 +14,10 @@ namespace Frontend {
 class EmuWindow;
 }
 
+namespace Core {
+class System;
+}
+
 namespace Memory {
 class MemorySystem;
 }
@@ -43,7 +47,7 @@ extern Memory::MemorySystem* g_memory;
 
 /// Initialize the video core
 void Init(Frontend::EmuWindow& emu_window, Frontend::EmuWindow* secondary_window,
-          Memory::MemorySystem& memory);
+          Core::System& system);
 
 /// Shutdown the video core
 void Shutdown();

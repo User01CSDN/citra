@@ -6,6 +6,7 @@
 #include "common/archives.h"
 #include "common/logging/log.h"
 #include "common/settings.h"
+#include "core/core.h"
 #include "video_core/pica.h"
 #include "video_core/pica_state.h"
 #include "video_core/renderer_base.h"
@@ -35,18 +36,18 @@ Memory::MemorySystem* g_memory;
 
 /// Initialize the video core
 void Init(Frontend::EmuWindow& emu_window, Frontend::EmuWindow* secondary_window,
-          Memory::MemorySystem& memory) {
-    g_memory = &memory;
+          Core::System& system) {
+    g_memory = &system.Memory();
     Pica::Init();
 
     const Settings::GraphicsAPI graphics_api = Settings::values.graphics_api.GetValue();
     switch (graphics_api) {
     case Settings::GraphicsAPI::Software:
-        g_renderer = std::make_unique<VideoCore::RendererSoftware>(emu_window);
+        g_renderer = std::make_unique<VideoCore::RendererSoftware>(system, emu_window);
         break;
     case Settings::GraphicsAPI::OpenGL:
         OpenGL::GLES = Settings::values.use_gles.GetValue();
-        g_renderer = std::make_unique<OpenGL::RendererOpenGL>(emu_window, secondary_window);
+        g_renderer = std::make_unique<OpenGL::RendererOpenGL>(system, emu_window, secondary_window);
         break;
     default:
         UNREACHABLE_MSG("Unknown graphics API {}", graphics_api);

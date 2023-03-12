@@ -17,6 +17,10 @@ namespace Layout {
 struct FramebufferLayout;
 }
 
+namespace Core {
+class System;
+}
+
 namespace Frontend {
 
 struct Frame {
@@ -52,7 +56,8 @@ struct ScreenInfo {
 
 class RendererOpenGL : public VideoCore::RendererBase {
 public:
-    explicit RendererOpenGL(Frontend::EmuWindow& window, Frontend::EmuWindow* secondary_window);
+    explicit RendererOpenGL(Core::System& system, Frontend::EmuWindow& window,
+                            Frontend::EmuWindow* secondary_window);
     ~RendererOpenGL() override;
 
     [[nodiscard]] VideoCore::RasterizerInterface* Rasterizer() const override {
