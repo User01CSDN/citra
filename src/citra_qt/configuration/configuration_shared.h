@@ -78,6 +78,21 @@ void SetPerGameSetting(QComboBox* combobox,
                                                            ConfigurationShared::USE_GLOBAL_OFFSET);
 }
 
+/// Given an index of a combobox setting extracts the setting taking into
+/// account per-game status
+template <typename Type, bool ranged>
+Type GetComboboxSetting(int index, const Settings::SwitchableSetting<Type, ranged>* setting) {
+    if (Settings::IsConfiguringGlobal() && setting->UsingGlobal()) {
+        return static_cast<Type>(index);
+    } else if (!Settings::IsConfiguringGlobal()) {
+        if (index == 0) {
+            return setting->GetValue();
+        } else {
+            return static_cast<Type>(index - ConfigurationShared::USE_GLOBAL_OFFSET);
+        }
+    }
+}
+
 /// Given a Qt widget sets the background color to indicate whether the setting
 /// is per-game overriden (highlighted) or global (non-highlighted)
 void SetHighlight(QWidget* widget, bool highlighted);

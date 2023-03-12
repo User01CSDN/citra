@@ -609,7 +609,6 @@ void Config::ReadRendererValues() {
     qt_config->beginGroup(QStringLiteral("Renderer"));
 
     ReadGlobalSetting(Settings::values.graphics_api);
-    ReadGlobalSetting(Settings::values.use_hw_renderer);
     ReadGlobalSetting(Settings::values.use_hw_shader);
 #ifdef __APPLE__
     // Hardware shader is broken on macos with Intel GPUs thanks to poor drivers.
@@ -1092,7 +1091,6 @@ void Config::SaveRendererValues() {
     qt_config->beginGroup(QStringLiteral("Renderer"));
 
     WriteGlobalSetting(Settings::values.graphics_api);
-    WriteGlobalSetting(Settings::values.use_hw_renderer);
     WriteGlobalSetting(Settings::values.use_hw_shader);
 #ifdef __APPLE__
     // Hardware shader is broken on macos thanks to poor drivers.

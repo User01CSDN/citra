@@ -11,19 +11,23 @@
 #include <QMessageBox>
 #include <QOffscreenSurface>
 #include <QOpenGLContext>
+#include <QPainter>
 #include <fmt/format.h>
 #include "citra_qt/bootmanager.h"
 #include "citra_qt/main.h"
+#include "common/color.h"
 #include "common/microprofile.h"
 #include "common/scm_rev.h"
 #include "common/settings.h"
 #include "core/3ds.h"
 #include "core/core.h"
+#include "core/frontend/framebuffer_layout.h"
 #include "core/perf_stats.h"
 #include "input_common/keyboard.h"
 #include "input_common/main.h"
 #include "input_common/motion_emu.h"
 #include "video_core/renderer_base.h"
+#include "video_core/swrasterizer/framebuffer.h"
 #include "video_core/video_core.h"
 
 #if defined(__APPLE__)
@@ -63,6 +67,7 @@ void EmuThread::run() {
         });
 
     emit LoadProgress(VideoCore::LoadCallbackStage::Complete, 0, 0);
+    emit HideLoadingScreen();
 
     core_context.MakeCurrent();
 
@@ -209,10 +214,7 @@ class DummyContext : public Frontend::GraphicsContext {};
 
 class RenderWidget : public QWidget {
 public:
-    RenderWidget(GRenderWindow* parent) : QWidget(parent), render_window(parent) {
-        setAttribute(Qt::WA_NativeWindow);
-        setAttribute(Qt::WA_PaintOnScreen);
-    }
+    RenderWidget(GRenderWindow* parent) : QWidget(parent), render_window(parent) {}
 
     virtual ~RenderWidget() = default;
 
@@ -273,10 +275,6 @@ public:
         return std::make_pair(width(), height());
     }
 
-    QPaintEngine* paintEngine() const override {
-        return nullptr;
-    }
-
 private:
     GRenderWindow* render_window;
 };
@@ -285,6 +283,8 @@ class OpenGLRenderWidget : public RenderWidget {
 public:
     explicit OpenGLRenderWidget(GRenderWindow* parent, bool is_secondary)
         : RenderWidget(parent), is_secondary(is_secondary) {
+        setAttribute(Qt::WA_NativeWindow);
+        setAttribute(Qt::WA_PaintOnScreen);
         windowHandle()->setSurfaceType(QWindow::OpenGLSurface);
     }
 
@@ -306,9 +306,80 @@ public:
         glFinish();
     }
 
+    QPaintEngine* paintEngine() const override {
+        return nullptr;
+    }
+
 private:
     std::unique_ptr<OpenGLSharedContext> context{};
     bool is_secondary;
+};
+
+struct SoftwareRenderWidget : public RenderWidget {
+    explicit SoftwareRenderWidget(GRenderWindow* parent) : RenderWidget(parent) {}
+
+    void Present() override {
+        if (!isVisible()) {
+            return;
+        }
+        if (!Core::System::GetInstance().IsPoweredOn()) {
+            return;
+        }
+
+        const auto layout{Layout::DefaultFrameLayout(width(), height(), false, false)};
+        QPainter painter(this);
+
+        const auto DrawScreen = [&](int fb_id) {
+            const auto rect = fb_id == 0 ? layout.top_screen : layout.bottom_screen;
+            const QImage screen = LoadFramebuffer(fb_id);
+            painter.drawImage(rect.left, rect.top, screen);
+        };
+
+        painter.fillRect(rect(), qRgb(Settings::values.bg_red.GetValue() * 255,
+                                      Settings::values.bg_green.GetValue() * 255,
+                                      Settings::values.bg_blue.GetValue() * 255));
+        DrawScreen(0);
+        DrawScreen(1);
+
+        painter.end();
+    }
+
+    QImage LoadFramebuffer(int fb_id) {
+        const auto& framebuffer = GPU::g_regs.framebuffer_config[fb_id];
+        const PAddr framebuffer_addr =
+            framebuffer.active_fb == 0 ? framebuffer.address_left1 : framebuffer.address_left2;
+
+        Memory::RasterizerFlushRegion(framebuffer_addr, framebuffer.stride * framebuffer.height);
+        const u8* framebuffer_data = VideoCore::g_memory->GetPhysicalPointer(framebuffer_addr);
+
+        const int width = framebuffer.height;
+        const int height = framebuffer.width;
+        const int bpp = GPU::Regs::BytesPerPixel(framebuffer.color_format);
+
+        QImage image{width, height, QImage::Format_RGBA8888};
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                const u8* pixel = framebuffer_data + (x * height + height - y) * bpp;
+                const Common::Vec4 color = [&] {
+                    switch (framebuffer.color_format) {
+                    case GPU::Regs::PixelFormat::RGBA8:
+                        return Common::Color::DecodeRGBA8(pixel);
+                    case GPU::Regs::PixelFormat::RGB8:
+                        return Common::Color::DecodeRGB8(pixel);
+                    case GPU::Regs::PixelFormat::RGB565:
+                        return Common::Color::DecodeRGB565(pixel);
+                    case GPU::Regs::PixelFormat::RGB5A1:
+                        return Common::Color::DecodeRGB5A1(pixel);
+                    case GPU::Regs::PixelFormat::RGBA4:
+                        return Common::Color::DecodeRGBA4(pixel);
+                    }
+                }();
+
+                image.setPixel(x, y, qRgba(color.r(), color.g(), color.b(), color.a()));
+            }
+        }
+        return image;
+    }
 };
 
 static Frontend::WindowSystemType GetWindowSystemType() {
@@ -564,6 +635,9 @@ bool GRenderWindow::InitRenderTarget() {
 
     const auto graphics_api = Settings::values.graphics_api.GetValue();
     switch (graphics_api) {
+    case Settings::GraphicsAPI::Software:
+        InitializeSoftware();
+        break;
     case Settings::GraphicsAPI::OpenGL:
         if (!InitializeOpenGL() || !LoadOpenGL()) {
             return false;
@@ -631,6 +705,11 @@ bool GRenderWindow::InitializeOpenGL() {
         std::make_unique<OpenGLSharedContext>(context->GetShareContext(), child->windowHandle()));
 
     return true;
+}
+
+void GRenderWindow::InitializeSoftware() {
+    child_widget = new SoftwareRenderWidget(this);
+    main_context = std::make_unique<DummyContext>();
 }
 
 bool GRenderWindow::LoadOpenGL() {
