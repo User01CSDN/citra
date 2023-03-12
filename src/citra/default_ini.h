@@ -98,9 +98,9 @@ use_cpu_jit =
 cpu_clock_percentage =
 
 [Renderer]
-# Whether to render using GLES or OpenGL
-# 0 (default): OpenGL, 1: GLES
-use_gles =
+# Whether to render using OpenGL
+# 0: OpenGL (default)
+graphics_api =
 
 # Whether to use software or hardware rendering.
 # 0: Software, 1 (default): Hardware

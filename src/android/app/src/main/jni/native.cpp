@@ -147,7 +147,14 @@ static Core::System::ResultStatus RunCitra(const std::string& filepath) {
         return Core::System::ResultStatus::ErrorLoader;
     }
 
-    window = std::make_unique<EmuWindow_Android>(s_surf);
+    const Settings::GraphicsAPI graphics_api = Settings::values.graphics_api.GetValue();
+    switch (graphics_api) {
+    case Settings::GraphicsAPI::OpenGLES:
+        window = std::make_unique<EmuWindow_Android>(s_surf);
+        break;
+    default:
+        UNREACHABLE_MSG("Unknown graphics API {}", graphics_api);
+    }
 
     Core::System& system{Core::System::GetInstance()};
 

@@ -20,6 +20,13 @@
 
 namespace Settings {
 
+[[nodiscard]] std::string_view GraphicsAPIName(GraphicsAPI api) {
+    switch (api) {
+    case GraphicsAPI::OpenGL:
+        return "OpenGL";
+    }
+}
+
 Values values = {};
 static bool configuring_global = true;
 
@@ -101,6 +108,7 @@ void LogSettings() {
     log_setting("Core_UseCpuJit", values.use_cpu_jit.GetValue());
     log_setting("Core_CPUClockPercentage", values.cpu_clock_percentage.GetValue());
     log_setting("Renderer_UseGLES", values.use_gles.GetValue());
+    log_setting("Renderer_GraphicsAPI", GraphicsAPIName(values.graphics_api.GetValue()));
     log_setting("Renderer_UseHwRenderer", values.use_hw_renderer.GetValue());
     log_setting("Renderer_UseHwShader", values.use_hw_shader.GetValue());
     log_setting("Renderer_SeparableShader", values.separable_shader.GetValue());
