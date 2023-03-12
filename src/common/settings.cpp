@@ -20,12 +20,25 @@
 
 namespace Settings {
 
-[[nodiscard]] std::string_view GraphicsAPIName(GraphicsAPI api) {
+std::string_view GraphicsAPIName(GraphicsAPI api) {
     switch (api) {
+    case GraphicsAPI::Software:
+        return "Software";
     case GraphicsAPI::OpenGL:
         return "OpenGL";
     }
 }
+
+std::string_view AudioEmulatioName(AudioEmulation emulation) {
+    switch (emulation) {
+    case AudioEmulation::HLE:
+        return "HLE";
+    case AudioEmulation::LLE:
+        return "LLE";
+    case AudioEmulation::LLEMultithreaded:
+        return "LLE Multithreaded";
+    }
+};
 
 Values values = {};
 static bool configuring_global = true;
@@ -34,7 +47,6 @@ void Apply() {
     GDBStub::SetServerPort(values.gdbstub_port.GetValue());
     GDBStub::ToggleServer(values.use_gdbstub.GetValue());
 
-    VideoCore::g_hw_renderer_enabled = values.use_hw_renderer.GetValue();
     VideoCore::g_shader_jit_enabled = values.use_shader_jit.GetValue();
     VideoCore::g_hw_shader_enabled = values.use_hw_shader.GetValue();
     VideoCore::g_separable_shader_enabled = values.separable_shader.GetValue();
@@ -93,23 +105,11 @@ void LogSettings() {
         LOG_INFO(Config, "{}: {}", name, value);
     };
 
-    const auto to_string = [](AudioEmulation emulation) -> std::string_view {
-        switch (emulation) {
-        case AudioEmulation::HLE:
-            return "HLE";
-        case AudioEmulation::LLE:
-            return "LLE";
-        case AudioEmulation::LLEMultithreaded:
-            return "LLE Multithreaded";
-        }
-    };
-
     LOG_INFO(Config, "Citra Configuration:");
     log_setting("Core_UseCpuJit", values.use_cpu_jit.GetValue());
     log_setting("Core_CPUClockPercentage", values.cpu_clock_percentage.GetValue());
     log_setting("Renderer_UseGLES", values.use_gles.GetValue());
     log_setting("Renderer_GraphicsAPI", GraphicsAPIName(values.graphics_api.GetValue()));
-    log_setting("Renderer_UseHwRenderer", values.use_hw_renderer.GetValue());
     log_setting("Renderer_UseHwShader", values.use_hw_shader.GetValue());
     log_setting("Renderer_SeparableShader", values.separable_shader.GetValue());
     log_setting("Renderer_ShadersAccurateMul", values.shaders_accurate_mul.GetValue());
@@ -130,7 +130,7 @@ void LogSettings() {
     log_setting("Utility_DumpTextures", values.dump_textures.GetValue());
     log_setting("Utility_CustomTextures", values.custom_textures.GetValue());
     log_setting("Utility_UseDiskShaderCache", values.use_disk_shader_cache.GetValue());
-    log_setting("Audio_Emulation", to_string(values.audio_emulation.GetValue()));
+    log_setting("Audio_Emulation", AudioEmulatioName(values.audio_emulation.GetValue()));
     log_setting("Audio_OutputEngine", values.sink_id.GetValue());
     log_setting("Audio_EnableAudioStretching", values.enable_audio_stretching.GetValue());
     log_setting("Audio_OutputDevice", values.audio_device_id.GetValue());
@@ -191,7 +191,7 @@ void RestoreGlobalState(bool is_powered_on) {
     values.is_new_3ds.SetGlobal(true);
 
     // Renderer
-    values.use_hw_renderer.SetGlobal(true);
+    values.graphics_api.SetGlobal(true);
     values.use_hw_shader.SetGlobal(true);
     values.separable_shader.SetGlobal(true);
     values.use_disk_shader_cache.SetGlobal(true);
