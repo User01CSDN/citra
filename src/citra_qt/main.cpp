@@ -12,7 +12,6 @@
 #include <QFutureWatcher>
 #include <QLabel>
 #include <QMessageBox>
-#include <QOpenGLFunctions_4_3_Core>
 #include <QSysInfo>
 #include <QtConcurrent/QtConcurrentRun>
 #include <QtGui>
@@ -1027,15 +1026,6 @@ bool GMainWindow::LoadROM(const QString& filename) {
     secondary_window->InitRenderTarget();
 
     Frontend::ScopeAcquireContext scope(*render_window);
-
-    const QString below_gl43_title = tr("OpenGL 4.3 Unsupported");
-    const QString below_gl43_message = tr("Your GPU may not support OpenGL 4.3, or you do not "
-                                          "have the latest graphics driver.");
-
-    if (!QOpenGLContext::globalShareContext()->versionFunctions<QOpenGLFunctions_4_3_Core>()) {
-        QMessageBox::critical(this, below_gl43_title, below_gl43_message);
-        return false;
-    }
 
     Core::System& system{Core::System::GetInstance()};
 
@@ -2785,14 +2775,6 @@ int main(int argc, char* argv[]) {
     // Init settings params
     QCoreApplication::setOrganizationName(QStringLiteral("Citra team"));
     QCoreApplication::setApplicationName(QStringLiteral("Citra"));
-
-    QSurfaceFormat format;
-    format.setVersion(4, 3);
-    format.setProfile(QSurfaceFormat::CoreProfile);
-    format.setSwapInterval(0);
-    // TODO: expose a setting for buffer value (ie default/single/double/triple)
-    format.setSwapBehavior(QSurfaceFormat::DefaultSwapBehavior);
-    QSurfaceFormat::setDefaultFormat(format);
 
     SetHighDPIAttributes();
 
