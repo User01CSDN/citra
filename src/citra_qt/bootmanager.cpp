@@ -9,8 +9,6 @@
 #include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QMessageBox>
-#include <QOffscreenSurface>
-#include <QOpenGLContext>
 #include <QPainter>
 #include <fmt/format.h>
 #include "citra_qt/bootmanager.h"
@@ -28,6 +26,11 @@
 #include "input_common/motion_emu.h"
 #include "video_core/renderer_base.h"
 #include "video_core/video_core.h"
+
+#ifdef HAS_OPENGL
+#include <QOffscreenSurface>
+#include <QOpenGLContext>
+#endif
 
 #if defined(__APPLE__)
 #include <objc/message.h>
@@ -125,6 +128,7 @@ void EmuThread::run() {
 #endif
 }
 
+#ifdef HAS_OPENGL
 class OpenGLSharedContext : public Frontend::GraphicsContext {
 public:
     /// Create the original context that should be shared from
@@ -208,6 +212,7 @@ private:
     std::unique_ptr<QOffscreenSurface> offscreen_surface{};
     QSurface* surface;
 };
+#endif
 
 class DummyContext : public Frontend::GraphicsContext {};
 
@@ -278,6 +283,7 @@ private:
     GRenderWindow* render_window;
 };
 
+#ifdef HAS_OPENGL
 class OpenGLRenderWidget : public RenderWidget {
 public:
     explicit OpenGLRenderWidget(GRenderWindow* parent, bool is_secondary)
@@ -313,6 +319,7 @@ private:
     std::unique_ptr<OpenGLSharedContext> context{};
     bool is_secondary;
 };
+#endif
 
 struct SoftwareRenderWidget : public RenderWidget {
     explicit SoftwareRenderWidget(GRenderWindow* parent) : RenderWidget(parent) {}
@@ -695,6 +702,7 @@ void GRenderWindow::OnMinimalClientAreaChangeRequest(std::pair<u32, u32> minimal
 }
 
 bool GRenderWindow::InitializeOpenGL() {
+#ifdef HAS_OPENGL
     // TODO: One of these flags might be interesting: WA_OpaquePaintEvent, WA_NoBackground,
     // WA_DontShowOnScreen, WA_DeleteOnClose
     auto child = new OpenGLRenderWidget(this, is_secondary);
@@ -706,6 +714,11 @@ bool GRenderWindow::InitializeOpenGL() {
         std::make_unique<OpenGLSharedContext>(context->GetShareContext(), child->windowHandle()));
 
     return true;
+#else
+    QMessageBox::warning(this, tr("OpenGL not available!"),
+                         tr("Citra has not been compiled with OpenGL support."));
+    return false;
+#endif
 }
 
 void GRenderWindow::InitializeSoftware() {
@@ -751,6 +764,7 @@ void GRenderWindow::showEvent(QShowEvent* event) {
 }
 
 std::unique_ptr<Frontend::GraphicsContext> GRenderWindow::CreateSharedContext() const {
+#ifdef HAS_OPENGL
     const auto graphics_api = Settings::values.graphics_api.GetValue();
     if (graphics_api == Settings::GraphicsAPI::OpenGL) {
         auto c = static_cast<OpenGLSharedContext*>(main_context.get());
@@ -759,6 +773,6 @@ std::unique_ptr<Frontend::GraphicsContext> GRenderWindow::CreateSharedContext() 
         return std::make_unique<OpenGLSharedContext>(c->GetShareContext(),
                                                      child_widget->windowHandle());
     }
-
+#endif
     return std::make_unique<DummyContext>();
 }
