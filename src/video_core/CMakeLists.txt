@@ -109,6 +109,8 @@ add_library(video_core STATIC
     shader/shader_jit_x64_compiler.cpp
     shader/shader_jit_x64.h
     shader/shader_jit_x64_compiler.h
+    shader/shader_uniforms.cpp
+    shader/shader_uniforms.h
     texture/etc1.cpp
     texture/etc1.h
     texture/texture_decode.cpp
