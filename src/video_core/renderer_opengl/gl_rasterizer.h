@@ -14,6 +14,7 @@
 #include "video_core/renderer_opengl/gl_state.h"
 #include "video_core/renderer_opengl/gl_stream_buffer.h"
 #include "video_core/shader/shader.h"
+#include "video_core/shader/shader_uniforms.h"
 
 namespace Frontend {
 class EmuWindow;
@@ -260,7 +261,7 @@ private:
     bool shader_dirty = true;
 
     struct {
-        UniformData data;
+        Pica::Shader::UniformData data;
         std::array<bool, Pica::LightingRegs::NumLightingSampler> lighting_lut_dirty;
         bool lighting_lut_dirty_any;
         bool fog_lut_dirty;

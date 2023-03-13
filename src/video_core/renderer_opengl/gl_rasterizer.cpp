@@ -74,9 +74,9 @@ RasterizerOpenGL::RasterizerOpenGL(Frontend::EmuWindow& emu_window, Driver& driv
 
     glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &uniform_buffer_alignment);
     uniform_size_aligned_vs =
-        Common::AlignUp<std::size_t>(sizeof(VSUniformData), uniform_buffer_alignment);
+        Common::AlignUp<std::size_t>(sizeof(Pica::Shader::VSUniformData), uniform_buffer_alignment);
     uniform_size_aligned_fs =
-        Common::AlignUp<std::size_t>(sizeof(UniformData), uniform_buffer_alignment);
+        Common::AlignUp<std::size_t>(sizeof(Pica::Shader::UniformData), uniform_buffer_alignment);
 
     // Set vertex attributes for software shader path
     state.draw.vertex_array = sw_vao.handle;
@@ -2152,18 +2152,21 @@ void RasterizerOpenGL::UploadUniforms(bool accelerate_draw) {
         uniform_buffer.Map(uniform_size, uniform_buffer_alignment);
 
     if (sync_vs) {
-        VSUniformData vs_uniforms;
+        Pica::Shader::VSUniformData vs_uniforms;
         vs_uniforms.uniforms.SetFromRegs(Pica::g_state.regs.vs, Pica::g_state.vs);
         std::memcpy(uniforms + used_bytes, &vs_uniforms, sizeof(vs_uniforms));
-        glBindBufferRange(GL_UNIFORM_BUFFER, static_cast<GLuint>(UniformBindings::VS),
-                          uniform_buffer.GetHandle(), offset + used_bytes, sizeof(VSUniformData));
+        glBindBufferRange(GL_UNIFORM_BUFFER, static_cast<GLuint>(Pica::Shader::UniformBindings::VS),
+                          uniform_buffer.GetHandle(), offset + used_bytes,
+                          sizeof(Pica::Shader::VSUniformData));
         used_bytes += uniform_size_aligned_vs;
     }
 
     if (sync_fs || invalidate) {
-        std::memcpy(uniforms + used_bytes, &uniform_block_data.data, sizeof(UniformData));
-        glBindBufferRange(GL_UNIFORM_BUFFER, static_cast<GLuint>(UniformBindings::Common),
-                          uniform_buffer.GetHandle(), offset + used_bytes, sizeof(UniformData));
+        std::memcpy(uniforms + used_bytes, &uniform_block_data.data,
+                    sizeof(Pica::Shader::UniformData));
+        glBindBufferRange(
+            GL_UNIFORM_BUFFER, static_cast<GLuint>(Pica::Shader::UniformBindings::Common),
+            uniform_buffer.GetHandle(), offset + used_bytes, sizeof(Pica::Shader::UniformData));
         uniform_block_data.dirty = false;
         used_bytes += uniform_size_aligned_fs;
     }
