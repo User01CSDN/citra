@@ -360,7 +360,7 @@ RendererOpenGL::RendererOpenGL(Core::System& system, Frontend::EmuWindow& window
     }
     frame_dumper.mailbox = std::make_unique<OGLVideoDumpingMailbox>();
     InitOpenGLObjects();
-    rasterizer = std::make_unique<RasterizerOpenGL>(render_window, driver);
+    rasterizer = std::make_unique<RasterizerOpenGL>(system.Memory(), render_window, driver);
 }
 
 RendererOpenGL::~RendererOpenGL() = default;

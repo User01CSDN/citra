@@ -13,6 +13,8 @@ add_library(video_core STATIC
     precompiled_headers.h
     primitive_assembly.cpp
     primitive_assembly.h
+    rasterizer_accelerated.cpp
+    rasterizer_accelerated.h
     rasterizer_interface.h
     regs.cpp
     regs.h
