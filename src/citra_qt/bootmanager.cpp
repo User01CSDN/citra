@@ -216,7 +216,9 @@ class DummyContext : public Frontend::GraphicsContext {};
 
 class RenderWidget : public QWidget {
 public:
-    RenderWidget(GRenderWindow* parent) : QWidget(parent), render_window(parent) {}
+    RenderWidget(GRenderWindow* parent) : QWidget(parent) {
+        setMouseTracking(true);
+    }
 
     virtual ~RenderWidget() = default;
 
@@ -227,58 +229,9 @@ public:
         update();
     }
 
-    void resizeEvent(QResizeEvent* ev) override {
-        render_window->resize(ev->size());
-        render_window->OnFramebufferSizeChanged();
-    }
-
-    void keyPressEvent(QKeyEvent* event) override {
-        InputCommon::GetKeyboard()->PressKey(event->key());
-    }
-
-    void keyReleaseEvent(QKeyEvent* event) override {
-        InputCommon::GetKeyboard()->ReleaseKey(event->key());
-    }
-
-    void mousePressEvent(QMouseEvent* event) override {
-        if (event->source() == Qt::MouseEventSynthesizedBySystem)
-            return; // touch input is handled in TouchBeginEvent
-
-        const auto pos{event->pos()};
-        if (event->button() == Qt::LeftButton) {
-            const auto [x, y] = render_window->ScaleTouch(pos);
-            render_window->TouchPressed(x, y);
-        } else if (event->button() == Qt::RightButton) {
-            InputCommon::GetMotionEmu()->BeginTilt(pos.x(), pos.y());
-        }
-    }
-
-    void mouseMoveEvent(QMouseEvent* event) override {
-        if (event->source() == Qt::MouseEventSynthesizedBySystem)
-            return; // touch input is handled in TouchUpdateEvent
-
-        const auto pos{event->pos()};
-        const auto [x, y] = render_window->ScaleTouch(pos);
-        render_window->TouchMoved(x, y);
-        InputCommon::GetMotionEmu()->Tilt(pos.x(), pos.y());
-    }
-
-    void mouseReleaseEvent(QMouseEvent* event) override {
-        if (event->source() == Qt::MouseEventSynthesizedBySystem)
-            return; // touch input is handled in TouchEndEvent
-
-        if (event->button() == Qt::LeftButton)
-            render_window->TouchReleased();
-        else if (event->button() == Qt::RightButton)
-            InputCommon::GetMotionEmu()->EndTilt();
-    }
-
     std::pair<unsigned, unsigned> GetSize() const {
         return std::make_pair(width(), height());
     }
-
-private:
-    GRenderWindow* render_window;
 };
 
 #ifdef HAS_OPENGL
