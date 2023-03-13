@@ -6,7 +6,7 @@
 #include <set>
 #include <thread>
 #include <unordered_map>
-#include <boost/variant.hpp>
+#include <variant>
 #include "video_core/renderer_opengl/gl_driver.h"
 #include "video_core/renderer_opengl/gl_resource_manager.h"
 #include "video_core/renderer_opengl/gl_shader_disk_cache.h"
@@ -165,12 +165,12 @@ public:
     }
 
     void Create(const char* source, GLenum type) {
-        if (shader_or_program.which() == 0) {
-            boost::get<OGLShader>(shader_or_program).Create(source, type);
+        if (shader_or_program.index() == 0) {
+            std::get<OGLShader>(shader_or_program).Create(source, type);
         } else {
             OGLShader shader;
             shader.Create(source, type);
-            OGLProgram& program = boost::get<OGLProgram>(shader_or_program);
+            OGLProgram& program = std::get<OGLProgram>(shader_or_program);
             program.Create(true, {shader.handle});
             SetShaderUniformBlockBindings(program.handle);
 
@@ -181,10 +181,10 @@ public:
     }
 
     GLuint GetHandle() const {
-        if (shader_or_program.which() == 0) {
-            return boost::get<OGLShader>(shader_or_program).handle;
+        if (shader_or_program.index() == 0) {
+            return std::get<OGLShader>(shader_or_program).handle;
         } else {
-            return boost::get<OGLProgram>(shader_or_program).handle;
+            return std::get<OGLProgram>(shader_or_program).handle;
         }
     }
 
@@ -195,7 +195,7 @@ public:
     }
 
 private:
-    boost::variant<OGLShader, OGLProgram> shader_or_program;
+    std::variant<OGLShader, OGLProgram> shader_or_program;
 };
 
 class TrivialVertexShader {
