@@ -12,7 +12,6 @@
 #include <QFutureWatcher>
 #include <QLabel>
 #include <QMessageBox>
-#include <QOpenGLFunctions_4_3_Core>
 #include <QSysInfo>
 #include <QtConcurrent/QtConcurrentRun>
 #include <QtGui>
@@ -965,15 +964,6 @@ bool GMainWindow::LoadROM(const QString& filename) {
     secondary_window->InitRenderTarget();
 
     const auto scope = render_window->Acquire();
-
-    const QString below_gl43_title = tr("OpenGL 4.3 Unsupported");
-    const QString below_gl43_message = tr("Your GPU may not support OpenGL 4.3, or you do not "
-                                          "have the latest graphics driver.");
-
-    if (!QOpenGLContext::globalShareContext()->versionFunctions<QOpenGLFunctions_4_3_Core>()) {
-        QMessageBox::critical(this, below_gl43_title, below_gl43_message);
-        return false;
-    }
 
     Core::System& system{Core::System::GetInstance()};
 
