@@ -65,15 +65,6 @@ enum class AudioEmulation : u32 {
     LLEMultithreaded = 2,
 };
 
-enum class TextureFilter : u32 {
-    Linear = 0,
-    Anime4K = 1,
-    Bicubic = 2,
-    NearestNeighbor = 3,
-    ScaleForce = 4,
-    xBRZ = 5,
-};
-
 namespace NativeButton {
 
 enum Values {
