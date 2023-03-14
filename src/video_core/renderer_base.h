@@ -64,11 +64,11 @@ public:
     // ------------------------
 
     f32 GetCurrentFPS() const {
-        return m_current_fps;
+        return current_fps;
     }
 
     int GetCurrentFrame() const {
-        return m_current_frame;
+        return current_frame;
     }
 
     Frontend::EmuWindow& GetRenderWindow() {
@@ -88,7 +88,7 @@ public:
     }
 
     /// Returns true if a screenshot is being processed
-    bool IsScreenshotPending() const;
+    [[nodiscard]] bool IsScreenshotPending() const;
 
     /// Request a screenshot of the next frame
     void RequestScreenshot(void* data, std::function<void()> callback,
@@ -99,8 +99,8 @@ protected:
     RendererSettings renderer_settings;
     Frontend::EmuWindow& render_window;    ///< Reference to the render window handle.
     Frontend::EmuWindow* secondary_window; ///< Reference to the secondary render window handle.
-    f32 m_current_fps = 0.0f;              ///< Current framerate, should be set by the renderer
-    int m_current_frame = 0;               ///< Current frame, should be set by the renderer
+    f32 current_fps = 0.0f;                ///< Current framerate, should be set by the renderer
+    int current_frame = 0;                 ///< Current frame, should be set by the renderer
 };
 
 } // namespace VideoCore

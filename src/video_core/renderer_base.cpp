@@ -28,7 +28,7 @@ void RendererBase::UpdateCurrentFramebufferLayout(bool is_portrait_mode) {
 }
 
 void RendererBase::EndFrame() {
-    m_current_frame++;
+    current_frame++;
 
     system.perf_stats->EndSystemFrame();
 
