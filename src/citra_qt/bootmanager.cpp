@@ -343,7 +343,7 @@ struct SoftwareRenderWidget : public RenderWidget {
 
 static Frontend::WindowSystemType GetWindowSystemType() {
     // Determine WSI type based on Qt platform.
-    QString platform_name = QGuiApplication::platformName();
+    const QString platform_name = QGuiApplication::platformName();
     if (platform_name == QStringLiteral("windows"))
         return Frontend::WindowSystemType::Windows;
     else if (platform_name == QStringLiteral("xcb"))
@@ -485,8 +485,9 @@ void GRenderWindow::keyReleaseEvent(QKeyEvent* event) {
 }
 
 void GRenderWindow::mousePressEvent(QMouseEvent* event) {
-    if (event->source() == Qt::MouseEventSynthesizedBySystem)
+    if (event->source() == Qt::MouseEventSynthesizedBySystem) {
         return; // touch input is handled in TouchBeginEvent
+    }
 
     auto pos = event->pos();
     if (event->button() == Qt::LeftButton) {
@@ -499,8 +500,9 @@ void GRenderWindow::mousePressEvent(QMouseEvent* event) {
 }
 
 void GRenderWindow::mouseMoveEvent(QMouseEvent* event) {
-    if (event->source() == Qt::MouseEventSynthesizedBySystem)
+    if (event->source() == Qt::MouseEventSynthesizedBySystem) {
         return; // touch input is handled in TouchUpdateEvent
+    }
 
     auto pos = event->pos();
     const auto [x, y] = ScaleTouch(pos);
@@ -510,8 +512,9 @@ void GRenderWindow::mouseMoveEvent(QMouseEvent* event) {
 }
 
 void GRenderWindow::mouseReleaseEvent(QMouseEvent* event) {
-    if (event->source() == Qt::MouseEventSynthesizedBySystem)
+    if (event->source() == Qt::MouseEventSynthesizedBySystem) {
         return; // touch input is handled in TouchEndEvent
+    }
 
     if (event->button() == Qt::LeftButton)
         this->TouchReleased();
@@ -724,10 +727,10 @@ std::unique_ptr<Frontend::GraphicsContext> GRenderWindow::CreateSharedContext() 
 #ifdef HAS_OPENGL
     const auto graphics_api = Settings::values.graphics_api.GetValue();
     if (graphics_api == Settings::GraphicsAPI::OpenGL) {
-        auto c = static_cast<OpenGLSharedContext*>(main_context.get());
+        auto gl_context = static_cast<OpenGLSharedContext*>(main_context.get());
         // Bind the shared contexts to the main surface in case the backend wants to take over
         // presentation
-        return std::make_unique<OpenGLSharedContext>(c->GetShareContext(),
+        return std::make_unique<OpenGLSharedContext>(gl_context->GetShareContext(),
                                                      child_widget->windowHandle());
     }
 #endif
