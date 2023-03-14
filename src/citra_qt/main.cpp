@@ -85,6 +85,7 @@
 #include "core/frontend/applets/default_applets.h"
 #include "core/frontend/scope_acquire_context.h"
 #include "core/gdbstub/gdbstub.h"
+#include "core/hle/service/cfg/cfg.h"
 #include "core/hle/service/fs/archive.h"
 #include "core/hle/service/nfc/nfc.h"
 #include "core/loader/loader.h"
@@ -117,7 +118,6 @@ __declspec(dllexport) unsigned long NvOptimusEnablement = 0x00000001;
 #endif
 
 constexpr int default_mouse_timeout = 2500;
-constexpr int num_options_3d = 5;
 
 /**
  * "Callouts" are one-time instructional messages shown to the user. In the config settings, there
@@ -225,7 +225,6 @@ GMainWindow::GMainWindow()
 
     ConnectMenuEvents();
     ConnectWidgetEvents();
-    Connect3DStateEvents();
 
     LOG_INFO(Frontend, "Citra Version: {} | {}-{}", Common::g_build_fullname, Common::g_scm_branch,
              Common::g_scm_desc);
@@ -320,6 +319,8 @@ void GMainWindow::InitializeWidgets() {
     updater = new Updater(this);
     UISettings::values.updater_found = updater->HasUpdater();
 
+    UpdateBootHomeMenuState();
+
     // Create status bar
     message_label = new QLabel();
     // Configured separately for left alignment
@@ -349,20 +350,6 @@ void GMainWindow::InitializeWidgets() {
         label->setContentsMargins(4, 0, 4, 0);
         statusBar()->addPermanentWidget(label);
     }
-
-    option_3d_button = new QPushButton();
-    option_3d_button->setObjectName(QStringLiteral("3DOptionStatusBarButton"));
-    option_3d_button->setFocusPolicy(Qt::NoFocus);
-    option_3d_button->setToolTip(tr("Indicates the current 3D setting. Click to toggle."));
-
-    factor_3d_slider = new QSlider(Qt::Orientation::Horizontal, this);
-    factor_3d_slider->setStyleSheet(QStringLiteral("QSlider { padding: 4px; }"));
-    factor_3d_slider->setToolTip(tr("Current 3D factor while 3D is enabled."));
-    factor_3d_slider->setRange(0, 100);
-
-    Update3DState();
-    statusBar()->insertPermanentWidget(0, option_3d_button);
-    statusBar()->insertPermanentWidget(1, factor_3d_slider);
 
     statusBar()->addPermanentWidget(multiplayer_state->GetStatusText());
     statusBar()->addPermanentWidget(multiplayer_state->GetStatusIcon());
@@ -615,8 +602,6 @@ void GMainWindow::InitializeHotkeys() {
     connect_shortcut(QStringLiteral("Mute Audio"),
                      [] { Settings::values.audio_muted = !Settings::values.audio_muted; });
 
-    connect_shortcut(QStringLiteral("Toggle 3D"), &GMainWindow::Toggle3D);
-
     // We use "static" here in order to avoid capturing by lambda due to a MSVC bug, which makes the
     // variable hold a garbage value after this function exits
     static constexpr u16 FACTOR_3D_STEP = 5;
@@ -759,6 +744,7 @@ void GMainWindow::ConnectMenuEvents() {
     // File
     connect_menu(ui->action_Load_File, &GMainWindow::OnMenuLoadFile);
     connect_menu(ui->action_Install_CIA, &GMainWindow::OnMenuInstallCIA);
+    connect_menu(ui->action_Boot_Home_Menu, &GMainWindow::OnMenuBootHomeMenu);
     connect_menu(ui->action_Exit, &QMainWindow::close);
     connect_menu(ui->action_Load_Amiibo, &GMainWindow::OnLoadAmiibo);
     connect_menu(ui->action_Remove_Amiibo, &GMainWindow::OnRemoveAmiibo);
@@ -871,12 +857,6 @@ void GMainWindow::UpdateMenuState() {
     } else {
         ui->action_Pause->setText(tr("&Pause"));
     }
-}
-
-void GMainWindow::Connect3DStateEvents() {
-    connect(option_3d_button, &QPushButton::clicked, this, &GMainWindow::Toggle3D);
-    connect(factor_3d_slider, qOverload<int>(&QSlider::valueChanged), this,
-            [](int value) { Settings::values.factor_3d = value; });
 }
 
 void GMainWindow::OnDisplayTitleBars(bool show) {
@@ -1625,6 +1605,20 @@ void GMainWindow::OnMenuInstallCIA() {
     InstallCIA(filepaths);
 }
 
+static std::string GetHomeMenuPath() {
+    static const std::array<u64, 7> home_menu_tids = {
+        0x0004003000008202, 0x0004003000008F02, 0x0004003000009802, 0x0004003000009802,
+        0x000400300000A102, 0x000400300000A902, 0x000400300000B102};
+
+    Service::CFG::Module cfg{};
+    return Service::AM::GetTitleContentPath(Service::FS::MediaType::NAND,
+                                            home_menu_tids[cfg.GetRegionValue()]);
+}
+
+void GMainWindow::OnMenuBootHomeMenu() {
+    BootGame(QString::fromStdString(GetHomeMenuPath()));
+}
+
 void GMainWindow::InstallCIA(QStringList filepaths) {
     ui->action_Install_CIA->setEnabled(false);
     game_list->SetDirectoryWatcherEnabled(false);
@@ -1975,7 +1969,7 @@ void GMainWindow::OnConfigure() {
             setMouseTracking(false);
         }
         UpdateSecondaryWindowVisibility();
-        Update3DState();
+        UpdateBootHomeMenuState();
     } else {
         Settings::values.input_profiles = old_input_profiles;
         Settings::values.touch_from_button_maps = old_touch_from_button_maps;
@@ -2269,16 +2263,10 @@ void GMainWindow::UpdateStatusBar() {
     emu_frametime_label->setVisible(true);
 }
 
-void GMainWindow::Update3DState() {
-    static const std::array options_3d = {tr("Off"), tr("Side by Side"), tr("Anaglyph"),
-                                          tr("Interlaced"), tr("Reverse Interlaced")};
-
-    option_3d_button->setText(
-        tr("3D: %1").arg(options_3d[static_cast<int>(Settings::values.render_3d.GetValue())]));
-
-    factor_3d_slider->setValue(Settings::values.factor_3d.GetValue());
-    factor_3d_slider->setVisible(Settings::values.render_3d.GetValue() !=
-                                 Settings::StereoRenderOption::Off);
+void GMainWindow::UpdateBootHomeMenuState() {
+    const std::string home_menu_path = GetHomeMenuPath();
+    ui->action_Boot_Home_Menu->setEnabled(!home_menu_path.empty() &&
+                                          FileUtil::Exists(GetHomeMenuPath()));
 }
 
 void GMainWindow::HideMouseCursor() {
@@ -2390,12 +2378,6 @@ void GMainWindow::OnCoreError(Core::System::ResultStatus result, std::string det
 void GMainWindow::OnMenuAboutCitra() {
     AboutDialog about{this};
     about.exec();
-}
-
-void GMainWindow::Toggle3D() {
-    Settings::values.render_3d = static_cast<Settings::StereoRenderOption>(
-        (static_cast<int>(Settings::values.render_3d.GetValue()) + 1) % num_options_3d);
-    Update3DState();
 }
 
 bool GMainWindow::ConfirmClose() {

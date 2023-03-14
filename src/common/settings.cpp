@@ -56,6 +56,11 @@ void Apply() {
             hid->ReloadInputDevices();
         }
 
+        auto apt = Service::APT::GetModule(system);
+        if (apt) {
+            apt->GetAppletManager()->ReloadInputDevices();
+        }
+
         auto sm = system.ServiceManager();
         auto ir_user = sm.GetService<Service::IR::IR_USER>("ir:USER");
         if (ir_user)
@@ -110,6 +115,9 @@ void LogSettings() {
     log_setting("Stereoscopy_Render3d", values.render_3d.GetValue());
     log_setting("Stereoscopy_Factor3d", values.factor_3d.GetValue());
     log_setting("Stereoscopy_MonoRenderOption", values.mono_render_option.GetValue());
+    if (values.render_3d.GetValue() == StereoRenderOption::Anaglyph) {
+        log_setting("Renderer_AnaglyphShader", values.anaglyph_shader_name.GetValue());
+    }
     log_setting("Layout_LayoutOption", values.layout_option.GetValue());
     log_setting("Layout_SwapScreen", values.swap_screen.GetValue());
     log_setting("Layout_UprightScreen", values.upright_screen.GetValue());
@@ -198,6 +206,7 @@ void RestoreGlobalState(bool is_powered_on) {
     values.factor_3d.SetGlobal(true);
     values.linear_filter.SetGlobal(true);
     values.pp_shader_name.SetGlobal(true);
+    values.anaglyph_shader_name.SetGlobal(true);
     values.dump_textures.SetGlobal(true);
     values.custom_textures.SetGlobal(true);
     values.preload_textures.SetGlobal(true);

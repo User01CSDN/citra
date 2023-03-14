@@ -31,20 +31,6 @@ class AppletManager;
 /// Each APT service can only have up to 2 sessions connected at the same time.
 static const u32 MaxAPTSessions = 2;
 
-/// Used by the application to pass information about the current framebuffer to applets.
-struct CaptureBufferInfo {
-    u32_le size;
-    u8 is_3d;
-    INSERT_PADDING_BYTES(0x3); // Padding for alignment
-    u32_le top_screen_left_offset;
-    u32_le top_screen_right_offset;
-    u32_le top_screen_format;
-    u32_le bottom_screen_left_offset;
-    u32_le bottom_screen_right_offset;
-    u32_le bottom_screen_format;
-};
-static_assert(sizeof(CaptureBufferInfo) == 0x20, "CaptureBufferInfo struct has incorrect size");
-
 constexpr std::size_t SysMenuArgSize = 0x40;
 
 enum class StartupArgumentType : u32 {
@@ -87,6 +73,37 @@ public:
          *     0 : Result of function, 0 on success, otherwise error code
          */
         void SetWirelessRebootInfo(Kernel::HLERequestContext& ctx);
+
+        /**
+         * NS::ShutdownAsync service function.
+         * Inputs:
+         *     1 : None
+         * Outputs:
+         *     1 : Result of function, 0 on success, otherwise error code
+         */
+        void ShutdownAsync(Kernel::HLERequestContext& ctx);
+
+        /**
+         * NS::RebootSystem service function.
+         * Inputs:
+         *     1 : Boolean indicating whether to launch a title.
+         *     2-3 : Title ID
+         *     4 : Media Type
+         *     5 : Padding
+         *     6 : Launch memory type
+         * Outputs:
+         *     1 : Result of function, 0 on success, otherwise error code
+         */
+        void RebootSystem(Kernel::HLERequestContext& ctx);
+
+        /**
+         * NS::RebootSystemClean service function.
+         * Inputs:
+         *     1 : None
+         * Outputs:
+         *     1 : Result of function, 0 on success, otherwise error code
+         */
+        void RebootSystemClean(Kernel::HLERequestContext& ctx);
     };
 
     class APTInterface : public ServiceFramework<APTInterface> {
@@ -372,6 +389,16 @@ public:
         void WakeupApplication(Kernel::HLERequestContext& ctx);
 
         /**
+         * APT::CancelApplication service function.
+         *  Inputs:
+         *      0 : Command header [0x001D0000]
+         * Outputs:
+         *     0 : Return Header
+         *     1 : Result of function, 0 on success, otherwise error code
+         */
+        void CancelApplication(Kernel::HLERequestContext& ctx);
+
+        /**
          * APT::AppletUtility service function
          *  Inputs:
          *      1 : Unknown, but clearly used for something
@@ -415,6 +442,17 @@ public:
          *      1 : Result of function, 0 on success, otherwise error code
          */
         void PrepareToStartLibraryApplet(Kernel::HLERequestContext& ctx);
+
+        /**
+         * APT::PrepareToStartSystemApplet service function
+         *  Inputs:
+         *      0 : Command header [0x00190040]
+         *      1 : Id of the applet to start
+         *  Outputs:
+         *      0 : Return header
+         *      1 : Result of function, 0 on success, otherwise error code
+         */
+        void PrepareToStartSystemApplet(Kernel::HLERequestContext& ctx);
 
         /**
          * APT::PrepareToStartNewestHomeMenu service function
@@ -463,6 +501,43 @@ public:
          *      1 : Result of function, 0 on success, otherwise error code
          */
         void StartLibraryApplet(Kernel::HLERequestContext& ctx);
+
+        /**
+         * APT::StartSystemApplet service function
+         *  Inputs:
+         *      0 : Command header [0x001F0084]
+         *      1 : Id of the applet to start
+         *      2 : Buffer size
+         *      3 : 0x0
+         *      4 : Handle passed to the applet
+         *      5 : (Size << 14) | 2
+         *      6 : Input buffer virtual address
+         *  Outputs:
+         *      0 : Return header
+         *      1 : Result of function, 0 on success, otherwise error code
+         */
+        void StartSystemApplet(Kernel::HLERequestContext& ctx);
+
+        /**
+         * APT::OrderToCloseApplication service function
+         *  Inputs:
+         *      0 : Command header [0x00210000]
+         *  Outputs:
+         *      0 : Header code
+         *      1 : Result code
+         */
+        void OrderToCloseApplication(Kernel::HLERequestContext& ctx);
+
+        /**
+         * APT::PrepareToCloseApplication service function
+         *  Inputs:
+         *      0 : Command header [0x00220040]
+         *      1 : Boolean indicating whether to cancel applet preloads.
+         *  Outputs:
+         *      0 : Header code
+         *      1 : Result code
+         */
+        void PrepareToCloseApplication(Kernel::HLERequestContext& ctx);
 
         /**
          * APT::CloseApplication service function
@@ -563,6 +638,16 @@ public:
         void PrepareToCloseLibraryApplet(Kernel::HLERequestContext& ctx);
 
         /**
+         * APT::PrepareToCloseSystemApplet service function
+         *  Inputs:
+         *      0 : Command header [0x00260000]
+         *  Outputs:
+         *      0 : Header code
+         *      1 : Result code
+         */
+        void PrepareToCloseSystemApplet(Kernel::HLERequestContext& ctx);
+
+        /**
          * APT::CloseLibraryApplet service function
          *  Inputs:
          *      0 : Command header [0x00280044]
@@ -576,6 +661,81 @@ public:
          *      1 : Result code
          */
         void CloseLibraryApplet(Kernel::HLERequestContext& ctx);
+
+        /**
+         * APT::CloseSystemApplet service function
+         *  Inputs:
+         *      0 : Command header [0x00290044]
+         *      1 : Buffer size
+         *      2 : 0x0
+         *      3 : Object handle
+         *      4 : (Size << 14) | 2
+         *      5 : Input buffer virtual address
+         *  Outputs:
+         *      0 : Header code
+         *      1 : Result code
+         */
+        void CloseSystemApplet(Kernel::HLERequestContext& ctx);
+
+        /**
+         * APT::OrderToCloseSystemApplet service function
+         *  Inputs:
+         *      0 : Command header [0x002A0000]
+         *  Outputs:
+         *      0 : Header code
+         *      1 : Result code
+         */
+        void OrderToCloseSystemApplet(Kernel::HLERequestContext& ctx);
+
+        /**
+         * APT::PrepareToJumpToHomeMenu service function
+         *  Inputs:
+         *      0 : Command header [0x002B0000]
+         *  Outputs:
+         *      0 : Header code
+         *      1 : Result code
+         */
+        void PrepareToJumpToHomeMenu(Kernel::HLERequestContext& ctx);
+
+        /**
+         * APT::JumpToHomeMenu service function
+         *  Inputs:
+         *      0 : Command header [0x002C0044]
+         *      1 : Buffer size
+         *      2 : 0x0
+         *      3 : Object handle
+         *      4 : (Size << 14) | 2
+         *      5 : Input buffer virtual address
+         *  Outputs:
+         *      0 : Header code
+         *      1 : Result code
+         */
+        void JumpToHomeMenu(Kernel::HLERequestContext& ctx);
+
+        /**
+         * APT::PrepareToLeaveHomeMenu service function
+         *  Inputs:
+         *      0 : Command header [0x002B0000]
+         *  Outputs:
+         *      0 : Header code
+         *      1 : Result code
+         */
+        void PrepareToLeaveHomeMenu(Kernel::HLERequestContext& ctx);
+
+        /**
+         * APT::LeaveHomeMenu service function
+         *  Inputs:
+         *      0 : Command header [0x002C0044]
+         *      1 : Buffer size
+         *      2 : 0x0
+         *      3 : Object handle
+         *      4 : (Size << 14) | 2
+         *      5 : Input buffer virtual address
+         *  Outputs:
+         *      0 : Header code
+         *      1 : Result code
+         */
+        void LeaveHomeMenu(Kernel::HLERequestContext& ctx);
 
         /**
          * APT::LoadSysMenuArg service function
@@ -744,14 +904,11 @@ private:
     bool shared_font_loaded = false;
     bool shared_font_relocated = false;
 
-    std::shared_ptr<Kernel::Mutex> lock;
-
     u32 cpu_percent = 0; ///< CPU time available to the running application
 
     // APT::CheckNew3DSApp will check this unknown_ns_state_field to determine processing mode
     u8 unknown_ns_state_field = 0;
 
-    std::vector<u8> screen_capture_buffer;
     std::array<u8, SysMenuArgSize> sys_menu_arg_buffer;
 
     ScreencapPostPermission screen_capture_post_permission =

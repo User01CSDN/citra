@@ -620,6 +620,11 @@ ResultCode Module::FormatConfig() {
     if (!res.IsSuccess())
         return res;
 
+    u8 unknown_data = 0;
+    res = CreateConfigInfoBlk(Unknown_0x000E0000, sizeof(unknown_data), 0x2, &unknown_data);
+    if (!res.IsSuccess())
+        return res;
+
     res = CreateConfigInfoBlk(ConsoleModelBlockID, sizeof(CONSOLE_MODEL_OLD), 0xC,
                               &CONSOLE_MODEL_OLD);
     if (!res.IsSuccess())
@@ -634,7 +639,8 @@ ResultCode Module::FormatConfig() {
     // 0x00110000 - The low u16 indicates whether the system setup is required, such as when the
     // system is booted for the first time or after doing a System Format: 0 = setup required,
     // non-zero = no setup required
-    res = CreateConfigInfoBlk(SystemSetupRequiredBlockID, 0x4, 0xC, zero_buffer);
+    u32 system_setup_flag = 1;
+    res = CreateConfigInfoBlk(SystemSetupRequiredBlockID, 0x4, 0xC, &system_setup_flag);
     if (!res.IsSuccess())
         return res;
 
@@ -669,7 +675,7 @@ ResultCode Module::LoadConfigNANDSaveFile() {
     auto archive_result = systemsavedata_factory.Open(archive_path, 0);
 
     // If the archive didn't exist, create the files inside
-    if (archive_result.Code() == FileSys::ERR_NOT_FORMATTED) {
+    if (archive_result.Code() == FileSys::ERROR_NOT_FOUND) {
         // Format the archive to create the directories
         systemsavedata_factory.Format(archive_path, FileSys::ArchiveFormatInfo(), 0);
 
