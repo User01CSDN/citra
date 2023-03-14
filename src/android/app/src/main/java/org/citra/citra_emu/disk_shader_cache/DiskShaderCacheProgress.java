@@ -6,9 +6,7 @@ package org.citra.citra_emu.disk_shader_cache;
 
 import android.app.Activity;
 import android.app.Dialog;
-import android.content.DialogInterface;
 import android.os.Bundle;
-import android.os.Handler;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.ProgressBar;
@@ -17,6 +15,8 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.DialogFragment;
+
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import org.citra.citra_emu.NativeLibrary;
 import org.citra.citra_emu.R;
@@ -55,10 +55,10 @@ public class DiskShaderCacheProgress {
         @NonNull
         @Override
         public Dialog onCreateDialog(Bundle savedInstanceState) {
-            final Activity emulationActivity = Objects.requireNonNull(getActivity());
+            final Activity emulationActivity = requireActivity();
 
-            final String title = Objects.requireNonNull(Objects.requireNonNull(getArguments()).getString("title"));
-            final String message = Objects.requireNonNull(Objects.requireNonNull(getArguments()).getString("message"));
+            final String title = Objects.requireNonNull(requireArguments().getString("title"));
+            final String message = Objects.requireNonNull(requireArguments().getString("message"));
 
             LayoutInflater inflater = LayoutInflater.from(emulationActivity);
             View view = inflater.inflate(R.layout.dialog_progress_bar, null);
@@ -70,26 +70,21 @@ public class DiskShaderCacheProgress {
             setCancelable(false);
             setRetainInstance(true);
 
-            AlertDialog.Builder builder = new AlertDialog.Builder(emulationActivity);
-            builder.setTitle(title);
-            builder.setMessage(message);
-            builder.setView(view);
-            builder.setNegativeButton(android.R.string.cancel, null);
-
-            dialog = builder.create();
-            dialog.create();
-
-            dialog.getButton(DialogInterface.BUTTON_NEGATIVE).setOnClickListener((v) -> emulationActivity.onBackPressed());
-
             synchronized (finishLock) {
                 finishLock.notifyAll();
             }
 
+            dialog = new MaterialAlertDialogBuilder(emulationActivity)
+                    .setView(view)
+                    .setTitle(title)
+                    .setMessage(message)
+                    .setNegativeButton(android.R.string.cancel, (dialog, which) -> emulationActivity.onBackPressed())
+                    .create();
             return dialog;
         }
 
         private void onUpdateProgress(String msg, int progress, int max) {
-            Objects.requireNonNull(getActivity()).runOnUiThread(() -> {
+            requireActivity().runOnUiThread(() -> {
                 progressBar.setProgress(progress);
                 progressBar.setMax(max);
                 progressText.setText(String.format("%d/%d", progress, max));
