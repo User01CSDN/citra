@@ -465,7 +465,7 @@ struct Values {
     Setting<s32> cardboard_x_shift{0, "cardboard_x_shift"};
     Setting<s32> cardboard_y_shift{0, "cardboard_y_shift"};
 
-    SwitchableSetting<bool> linear_filter{true, "linear_filter"};
+    SwitchableSetting<bool> filter_mode{true, "filter_mode"};
     SwitchableSetting<std::string> pp_shader_name{"none (builtin)", "pp_shader_name"};
 
     SwitchableSetting<bool> dump_textures{false, "dump_textures"};

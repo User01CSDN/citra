@@ -83,7 +83,7 @@ void ConfigureEnhancements::SetConfiguration() {
     ui->mono_rendering_eye->setCurrentIndex(
         static_cast<int>(Settings::values.mono_render_option.GetValue()));
     updateShaders(Settings::values.render_3d.GetValue());
-    ui->toggle_linear_filter->setChecked(Settings::values.linear_filter.GetValue());
+    ui->toggle_linear_filter->setChecked(Settings::values.filter_mode.GetValue());
     ui->toggle_swap_screen->setChecked(Settings::values.swap_screen.GetValue());
     ui->toggle_upright_screen->setChecked(Settings::values.upright_screen.GetValue());
     ui->large_screen_proportion->setValue(Settings::values.large_screen_proportion.GetValue());
@@ -136,7 +136,7 @@ void ConfigureEnhancements::ApplyConfiguration() {
         ui->shader_combobox->itemText(ui->shader_combobox->currentIndex()).toStdString();
     Settings::values.large_screen_proportion = ui->large_screen_proportion->value();
 
-    ConfigurationShared::ApplyPerGameSetting(&Settings::values.linear_filter,
+    ConfigurationShared::ApplyPerGameSetting(&Settings::values.filter_mode,
                                              ui->toggle_linear_filter, linear_filter);
     ConfigurationShared::ApplyPerGameSetting(
         &Settings::values.texture_filter_name, ui->texture_filter_combobox,
@@ -163,7 +163,7 @@ void ConfigureEnhancements::SetupPerGameUI() {
     if (Settings::IsConfiguringGlobal()) {
         ui->widget_resolution->setEnabled(Settings::values.resolution_factor.UsingGlobal());
         ui->widget_texture_filter->setEnabled(Settings::values.texture_filter_name.UsingGlobal());
-        ui->toggle_linear_filter->setEnabled(Settings::values.linear_filter.UsingGlobal());
+        ui->toggle_linear_filter->setEnabled(Settings::values.filter_mode.UsingGlobal());
         ui->toggle_swap_screen->setEnabled(Settings::values.swap_screen.UsingGlobal());
         ui->toggle_upright_screen->setEnabled(Settings::values.upright_screen.UsingGlobal());
         ui->toggle_dump_textures->setEnabled(Settings::values.dump_textures.UsingGlobal());
@@ -176,8 +176,8 @@ void ConfigureEnhancements::SetupPerGameUI() {
     ui->widget_shader->setVisible(false);
     ui->bg_color_group->setVisible(false);
 
-    ConfigurationShared::SetColoredTristate(ui->toggle_linear_filter,
-                                            Settings::values.linear_filter, linear_filter);
+    ConfigurationShared::SetColoredTristate(ui->toggle_linear_filter, Settings::values.filter_mode,
+                                            linear_filter);
     ConfigurationShared::SetColoredTristate(ui->toggle_swap_screen, Settings::values.swap_screen,
                                             swap_screen);
     ConfigurationShared::SetColoredTristate(ui->toggle_upright_screen,

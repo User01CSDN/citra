@@ -481,7 +481,7 @@ void Config::ReadLayoutValues() {
                                                           : QStringLiteral("none (builtin)"))
             .toString()
             .toStdString();
-    ReadGlobalSetting(Settings::values.linear_filter);
+    ReadGlobalSetting(Settings::values.filter_mode);
     ReadGlobalSetting(Settings::values.layout_option);
     ReadGlobalSetting(Settings::values.swap_screen);
     ReadGlobalSetting(Settings::values.upright_screen);
@@ -994,7 +994,7 @@ void Config::SaveLayoutValues() {
                  (Settings::values.render_3d.GetValue() == Settings::StereoRenderOption::Anaglyph)
                      ? QStringLiteral("dubois (builtin)")
                      : QStringLiteral("none (builtin)"));
-    WriteGlobalSetting(Settings::values.linear_filter);
+    WriteGlobalSetting(Settings::values.filter_mode);
     WriteGlobalSetting(Settings::values.layout_option);
     WriteGlobalSetting(Settings::values.swap_screen);
     WriteGlobalSetting(Settings::values.upright_screen);

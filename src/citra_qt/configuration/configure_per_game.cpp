@@ -9,8 +9,8 @@
 #include <fmt/format.h>
 #include "citra_qt/configuration/config.h"
 #include "citra_qt/configuration/configure_audio.h"
-#include "citra_qt/configuration/configure_enhancements.h"
 #include "citra_qt/configuration/configure_debug.h"
+#include "citra_qt/configuration/configure_enhancements.h"
 #include "citra_qt/configuration/configure_general.h"
 #include "citra_qt/configuration/configure_graphics.h"
 #include "citra_qt/configuration/configure_per_game.h"

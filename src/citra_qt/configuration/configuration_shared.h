@@ -71,8 +71,8 @@ void ApplyPerGameSetting(Settings::SwitchableSetting<Type, ranged>* setting,
 void SetPerGameSetting(QCheckBox* checkbox, const Settings::SwitchableSetting<bool>* setting);
 
 template <typename Type, bool ranged>
-inline void SetPerGameSetting(QComboBox* combobox,
-                              const Settings::SwitchableSetting<Type, ranged>* setting) {
+void SetPerGameSetting(QComboBox* combobox,
+                       const Settings::SwitchableSetting<Type, ranged>* setting) {
     combobox->setCurrentIndex(setting->UsingGlobal() ? ConfigurationShared::USE_GLOBAL_INDEX
                                                      : static_cast<int>(setting->GetValue()) +
                                                            ConfigurationShared::USE_GLOBAL_OFFSET);
@@ -80,14 +80,8 @@ inline void SetPerGameSetting(QComboBox* combobox,
 
 /// Specialization for string settings
 template <>
-inline void SetPerGameSetting(QComboBox* combobox,
-                              const Settings::SwitchableSetting<std::string>* setting) {
-    const int index =
-        static_cast<int>(combobox->findText(QString::fromStdString(setting->GetValue())));
-    combobox->setCurrentIndex(setting->UsingGlobal()
-                                  ? ConfigurationShared::USE_GLOBAL_INDEX
-                                  : index + ConfigurationShared::USE_GLOBAL_OFFSET);
-}
+void SetPerGameSetting(QComboBox* combobox,
+                       const Settings::SwitchableSetting<std::string>* setting);
 
 /// Given a Qt widget sets the background color to indicate whether the setting
 /// is per-game overriden (highlighted) or global (non-highlighted)

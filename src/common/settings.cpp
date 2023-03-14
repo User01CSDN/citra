@@ -105,7 +105,7 @@ void LogSettings() {
     log_setting("Renderer_FrameLimit", values.frame_limit.GetValue());
     log_setting("Renderer_VSyncNew", values.use_vsync_new.GetValue());
     log_setting("Renderer_PostProcessingShader", values.pp_shader_name.GetValue());
-    log_setting("Renderer_LinearFilter", values.linear_filter.GetValue());
+    log_setting("Renderer_FilterMode", values.filter_mode.GetValue());
     log_setting("Renderer_TextureFilterName", values.texture_filter_name.GetValue());
     log_setting("Stereoscopy_Render3d", values.render_3d.GetValue());
     log_setting("Stereoscopy_Factor3d", values.factor_3d.GetValue());
@@ -196,7 +196,7 @@ void RestoreGlobalState(bool is_powered_on) {
     values.bg_blue.SetGlobal(true);
     values.render_3d.SetGlobal(true);
     values.factor_3d.SetGlobal(true);
-    values.linear_filter.SetGlobal(true);
+    values.filter_mode.SetGlobal(true);
     values.pp_shader_name.SetGlobal(true);
     values.dump_textures.SetGlobal(true);
     values.custom_textures.SetGlobal(true);

@@ -148,7 +148,7 @@ void Config::ReadValues() {
         default_shader = "horizontal (builtin)";
     Settings::values.pp_shader_name =
         sdl2_config->GetString("Renderer", "pp_shader_name", default_shader);
-    Settings::values.linear_filter = sdl2_config->GetBoolean("Renderer", "linear_filter", true);
+    Settings::values.filter_mode = sdl2_config->GetBoolean("Renderer", "filter_mode", true);
 
     Settings::values.bg_red = static_cast<float>(sdl2_config->GetReal("Renderer", "bg_red", 0.0));
     Settings::values.bg_green =
