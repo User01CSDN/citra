@@ -246,7 +246,7 @@ public:
         windowHandle()->setSurfaceType(QWindow::OpenGLSurface);
     }
 
-    void SetContext(std::unique_ptr<OpenGLSharedContext>&& context_) {
+    void SetContext(std::unique_ptr<Frontend::GraphicsContext>&& context_) {
         context = std::move(context_);
     }
 
@@ -269,7 +269,7 @@ public:
     }
 
 private:
-    std::unique_ptr<OpenGLSharedContext> context{};
+    std::unique_ptr<Frontend::GraphicsContext> context{};
     bool is_secondary;
 };
 #endif
@@ -384,6 +384,8 @@ static Frontend::EmuWindow::WindowSystemInfo GetWindowSystemInfo(QWindow* window
 
     return wsi;
 }
+
+std::shared_ptr<Frontend::GraphicsContext> GRenderWindow::main_context;
 
 GRenderWindow::GRenderWindow(QWidget* parent_, EmuThread* emu_thread, bool is_secondary_)
     : QWidget(parent_), EmuWindow(is_secondary_), emu_thread(emu_thread) {
@@ -627,7 +629,6 @@ void GRenderWindow::ReleaseRenderTarget() {
         child_widget->deleteLater();
         child_widget = nullptr;
     }
-    main_context.reset();
 }
 
 void GRenderWindow::CaptureScreenshot(u32 res_scale, const QString& screenshot_path) {
@@ -661,10 +662,13 @@ bool GRenderWindow::InitializeOpenGL() {
     auto child = new OpenGLRenderWidget(this, is_secondary);
     child_widget = child;
     child_widget->windowHandle()->create();
-    auto context = std::make_shared<OpenGLSharedContext>(child->windowHandle());
-    main_context = context;
-    child->SetContext(
-        std::make_unique<OpenGLSharedContext>(context->GetShareContext(), child->windowHandle()));
+
+    if (!main_context) {
+        main_context = std::make_shared<OpenGLSharedContext>(child->windowHandle());
+    }
+
+    auto child_context = CreateSharedContext();
+    child->SetContext(std::move(child_context));
 
     return true;
 #else
