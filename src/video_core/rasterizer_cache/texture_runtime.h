@@ -139,7 +139,7 @@ public:
 
     /// Returns the bpp of the internal surface format
     u32 GetInternalBytesPerPixel() const {
-        return GetBytesPerPixel(pixel_format);
+        return GetFormatBytesPerPixel(pixel_format);
     }
 
 private:

@@ -364,7 +364,7 @@ Surface::~Surface() {
 
 void Surface::Upload(const BufferTextureCopy& upload, const StagingData& staging) {
     // Ensure no bad interactions with GL_UNPACK_ALIGNMENT
-    ASSERT(stride * GetBytesPerPixel(pixel_format) % 4 == 0);
+    ASSERT(stride * GetFormatBytesPerPixel(pixel_format) % 4 == 0);
 
     const bool is_scaled = res_scale != 1;
     if (is_scaled) {
@@ -391,7 +391,7 @@ void Surface::Upload(const BufferTextureCopy& upload, const StagingData& staging
 
 void Surface::Download(const BufferTextureCopy& download, const StagingData& staging) {
     // Ensure no bad interactions with GL_PACK_ALIGNMENT
-    ASSERT(stride * GetBytesPerPixel(pixel_format) % 4 == 0);
+    ASSERT(stride * GetFormatBytesPerPixel(pixel_format) % 4 == 0);
 
     OpenGLState prev_state = OpenGLState::GetCurState();
     SCOPE_EXIT({ prev_state.Apply(); });
