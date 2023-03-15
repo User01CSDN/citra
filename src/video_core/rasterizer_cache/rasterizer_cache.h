@@ -53,6 +53,15 @@ public:
     RasterizerCacheOpenGL(VideoCore::RendererBase& renderer);
     ~RasterizerCacheOpenGL();
 
+    /// Perform hardware accelerated texture copy according to the provided configuration
+    bool AccelerateTextureCopy(const GPU::Regs::DisplayTransferConfig& config);
+
+    /// Perform hardware accelerated display transfer according to the provided configuration
+    bool AccelerateDisplayTransfer(const GPU::Regs::DisplayTransferConfig& config);
+
+    /// Perform hardware accelerated memory fill according to the provided configuration
+    bool AccelerateFill(const GPU::Regs::MemoryFillConfig& config);
+
     /// Blit one surface's texture to another
     bool BlitSurfaces(const Surface& src_surface, const Common::Rectangle<u32>& src_rect,
                       const Surface& dst_surface, const Common::Rectangle<u32>& dst_rect);
