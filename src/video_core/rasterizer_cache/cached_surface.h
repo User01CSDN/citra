@@ -45,8 +45,7 @@ class RasterizerCacheOpenGL;
 
 class CachedSurface : public SurfaceParams, public std::enable_shared_from_this<CachedSurface> {
 public:
-    CachedSurface(SurfaceParams params, RasterizerCacheOpenGL& owner, TextureRuntime& runtime)
-        : SurfaceParams(params), owner(owner), runtime(runtime) {}
+    CachedSurface(SurfaceParams params, TextureRuntime& runtime);
     ~CachedSurface();
 
     /// Uploads pixel data in staging to a rectangle region of the surface texture
@@ -54,6 +53,16 @@ public:
 
     /// Downloads pixel data to staging from a rectangle region of the surface texture
     void Download(const BufferTextureCopy& download, const StagingData& staging);
+
+    /// Returns the surface image handle
+    GLuint Handle() const noexcept {
+        return alloc.texture.handle;
+    }
+
+    /// Returns the surface texture
+    OGLTexture& Texture() noexcept {
+        return alloc.texture;
+    }
 
     bool CanFill(const SurfaceParams& dest_surface, SurfaceInterval fill_interval) const;
     bool CanCopy(const SurfaceParams& dest_surface, SurfaceInterval copy_interval) const;
@@ -103,14 +112,13 @@ public:
     // Number of bytes to read from fill_data
     u32 fill_size = 0;
     std::array<u8, 4> fill_data;
-    OGLTexture texture;
+    Allocation alloc;
 
     // level_watchers[i] watches the (i+1)-th level mipmap source surface
     std::array<std::shared_ptr<SurfaceWatcher>, 7> level_watchers;
     u32 max_level = 0;
 
 private:
-    RasterizerCacheOpenGL& owner;
     TextureRuntime& runtime;
     std::list<std::weak_ptr<SurfaceWatcher>> watchers;
 };
