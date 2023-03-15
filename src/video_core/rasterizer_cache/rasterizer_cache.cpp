@@ -346,29 +346,6 @@ RasterizerCacheOpenGL::~RasterizerCacheOpenGL() {
 #endif
 }
 
-MICROPROFILE_DEFINE(RasterizerCache_BlitSurface, "RasterizerCache", "BlitSurface",
-                    MP_RGB(128, 192, 64));
-bool RasterizerCacheOpenGL::BlitSurfaces(const Surface& src_surface,
-                                         const Common::Rectangle<u32>& src_rect,
-                                         const Surface& dst_surface,
-                                         const Common::Rectangle<u32>& dst_rect) {
-    MICROPROFILE_SCOPE(RasterizerCache_BlitSurface);
-
-    if (CheckFormatsBlittable(src_surface->pixel_format, dst_surface->pixel_format)) {
-        dst_surface->InvalidateAllWatcher();
-
-        const TextureBlit blit = {
-            .src_level = 0,
-            .dst_level = 0,
-            .src_rect = src_rect,
-            .dst_rect = dst_rect,
-        };
-        return runtime.BlitTextures(*src_surface, *dst_surface, blit);
-    }
-
-    return false;
-}
-
 auto RasterizerCacheOpenGL::GetSurface(const SurfaceParams& params, ScaleMatch match_res_scale,
                                        bool load_if_create) -> Surface {
     if (params.addr == 0 || params.height * params.width == 0) {
@@ -831,8 +808,18 @@ void RasterizerCacheOpenGL::DuplicateSurface(const Surface& src_surface,
                                              const Surface& dest_surface) {
     ASSERT(dest_surface->addr <= src_surface->addr && dest_surface->end >= src_surface->end);
 
-    BlitSurfaces(src_surface, src_surface->GetScaledRect(), dest_surface,
-                 dest_surface->GetScaledSubRect(*src_surface));
+    const auto src_rect = src_surface->GetScaledRect();
+    const auto dst_rect = dest_surface->GetScaledSubRect(*src_surface);
+    ASSERT(src_rect.GetWidth() == dst_rect.GetWidth());
+
+    const TextureCopy copy = {
+        .src_level = 0,
+        .dst_level = 0,
+        .src_offset = {0, 0},
+        .dst_offset = {0, 0},
+        .extent = {src_rect.GetWidth(), src_rect.GetHeight()},
+    };
+    runtime.CopyTextures(*src_surface, *dest_surface, copy);
 
     dest_surface->invalid_regions -= src_surface->GetInterval();
     dest_surface->invalid_regions += src_surface->invalid_regions;
