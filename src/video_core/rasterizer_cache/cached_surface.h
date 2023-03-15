@@ -5,7 +5,6 @@
 #pragma once
 #include <list>
 #include "common/assert.h"
-#include "core/custom_tex_cache.h"
 #include "video_core/rasterizer_cache/surface_params.h"
 #include "video_core/rasterizer_cache/texture_runtime.h"
 
@@ -53,10 +52,6 @@ public:
     /// Read/Write data in 3DS memory to/from gl_buffer
     void LoadGLBuffer(PAddr load_start, PAddr load_end);
     void FlushGLBuffer(PAddr flush_start, PAddr flush_end);
-
-    /// Custom texture loading and dumping
-    bool LoadCustomTexture(u64 tex_hash);
-    void DumpTexture(GLuint target_tex, u64 tex_hash);
 
     /// Upload/Download data in gl_buffer in/to this surface's texture
     void UploadGLTexture(Common::Rectangle<u32> rect);
@@ -112,10 +107,6 @@ public:
     // level_watchers[i] watches the (i+1)-th level mipmap source surface
     std::array<std::shared_ptr<SurfaceWatcher>, 7> level_watchers;
     u32 max_level = 0;
-
-    // Information about custom textures
-    bool is_custom = false;
-    Core::CustomTexInfo custom_tex_info;
 
 private:
     RasterizerCacheOpenGL& owner;
