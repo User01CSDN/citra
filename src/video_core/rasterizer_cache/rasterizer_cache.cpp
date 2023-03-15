@@ -10,6 +10,7 @@
 #include "video_core/pica_state.h"
 #include "video_core/rasterizer_cache/rasterizer_cache.h"
 #include "video_core/renderer_opengl/gl_format_reinterpreter.h"
+#include "video_core/renderer_opengl/gl_vars.h"
 #include "video_core/renderer_opengl/texture_downloader_es.h"
 #include "video_core/renderer_opengl/texture_filters/texture_filterer.h"
 
@@ -804,9 +805,97 @@ void RasterizerCacheOpenGL::ValidateSurface(const Surface& surface, PAddr addr, 
 
         // Load data from 3DS memory
         FlushRegion(params.addr, params.size);
-        surface->LoadGLBuffer(params.addr, params.end);
-        surface->UploadGLTexture(surface->GetSubRect(params));
+        UploadSurface(surface, interval);
         notify_validated(params.GetInterval());
+    }
+}
+
+void RasterizerCacheOpenGL::UploadSurface(const Surface& surface, SurfaceInterval interval) {
+    const SurfaceParams load_info = surface->FromInterval(interval);
+    ASSERT(load_info.addr >= surface->addr && load_info.end <= surface->end);
+
+    const auto staging = runtime.FindStaging(
+        load_info.width * load_info.height * surface->GetInternalBytesPerPixel(), true);
+
+    MemoryRef source_ptr = VideoCore::g_memory->GetPhysicalRef(load_info.addr);
+    if (!source_ptr) [[unlikely]] {
+        return;
+    }
+
+    const auto upload_data = source_ptr.GetWriteBytes(load_info.end - load_info.addr);
+    const bool needs_convertion = OpenGL::GLES && (surface->pixel_format == PixelFormat::RGBA8 ||
+                                                   surface->pixel_format == PixelFormat::RGB8);
+
+    DecodeTexture(load_info, load_info.addr, load_info.end, upload_data, staging.mapped,
+                  needs_convertion);
+
+    const BufferTextureCopy upload = {
+        .buffer_offset = 0,
+        .buffer_size = staging.size,
+        .texture_rect = surface->GetSubRect(load_info),
+        .texture_level = 0,
+    };
+    surface->Upload(upload, staging);
+}
+
+void RasterizerCacheOpenGL::DownloadSurface(const Surface& surface, SurfaceInterval interval) {
+    const SurfaceParams flush_info = surface->FromInterval(interval);
+    const u32 flush_start = boost::icl::first(interval);
+    const u32 flush_end = boost::icl::last_next(interval);
+    ASSERT(flush_start >= surface->addr && flush_end <= surface->end);
+
+    const auto staging = runtime.FindStaging(
+        flush_info.width * flush_info.height * surface->GetInternalBytesPerPixel(), false);
+
+    const BufferTextureCopy download = {
+        .buffer_offset = 0,
+        .buffer_size = staging.size,
+        .texture_rect = surface->GetSubRect(flush_info),
+        .texture_level = 0,
+    };
+    surface->Download(download, staging);
+
+    MemoryRef dest_ptr = VideoCore::g_memory->GetPhysicalRef(flush_start);
+    if (!dest_ptr) [[unlikely]] {
+        return;
+    }
+
+    const auto download_dest = dest_ptr.GetWriteBytes(flush_end - flush_start);
+    const bool needs_convertion = OpenGL::GLES && (surface->pixel_format == PixelFormat::RGBA8 ||
+                                                   surface->pixel_format == PixelFormat::RGB8);
+
+    EncodeTexture(flush_info, flush_start, flush_end, staging.mapped, download_dest,
+                  needs_convertion);
+}
+
+void RasterizerCacheOpenGL::DownloadFillSurface(const Surface& surface, SurfaceInterval interval) {
+    const u32 flush_start = boost::icl::first(interval);
+    const u32 flush_end = boost::icl::last_next(interval);
+    ASSERT(flush_start >= surface->addr && flush_end <= surface->end);
+
+    MemoryRef dest_ptr = VideoCore::g_memory->GetPhysicalRef(flush_start);
+    if (!dest_ptr) [[unlikely]] {
+        return;
+    }
+
+    const u32 start_offset = flush_start - surface->addr;
+    const u32 download_size =
+        std::clamp(flush_end - flush_start, 0u, static_cast<u32>(dest_ptr.GetSize()));
+    const u32 coarse_start_offset = start_offset - (start_offset % surface->fill_size);
+    const u32 backup_bytes = start_offset % surface->fill_size;
+
+    std::array<u8, 4> backup_data;
+    if (backup_bytes) {
+        std::memcpy(backup_data.data(), &dest_ptr[coarse_start_offset], backup_bytes);
+    }
+
+    for (u32 offset = coarse_start_offset; offset < download_size; offset += surface->fill_size) {
+        std::memcpy(&dest_ptr[offset], &surface->fill_data[0],
+                    std::min(surface->fill_size, download_size - offset));
+    }
+
+    if (backup_bytes) {
+        std::memcpy(&dest_ptr[coarse_start_offset], &backup_data[0], backup_bytes);
     }
 }
 
@@ -948,14 +1037,15 @@ void RasterizerCacheOpenGL::FlushRegion(PAddr addr, u32 size, Surface flush_surf
         // Sanity check, this surface is the last one that marked this region dirty
         ASSERT(surface->IsRegionValid(interval));
 
-        if (surface->type != SurfaceType::Fill) {
-            SurfaceParams params = surface->FromInterval(interval);
-            surface->DownloadGLTexture(surface->GetSubRect(params));
+        if (surface->type == SurfaceType::Fill) {
+            DownloadFillSurface(surface, interval);
+        } else {
+            DownloadSurface(surface, interval);
         }
 
-        surface->FlushGLBuffer(boost::icl::first(interval), boost::icl::last_next(interval));
         flushed_intervals += interval;
     }
+
     // Reset dirty regions
     dirty_regions -= flushed_intervals;
 }

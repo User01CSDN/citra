@@ -25,41 +25,53 @@ TextureRuntime::TextureRuntime() {
     draw_fbo.Create();
 }
 
-void TextureRuntime::ReadTexture(const OGLTexture& tex, Subresource subresource,
-                                 const FormatTuple& tuple, u8* pixels) {
+StagingData TextureRuntime::FindStaging(u32 size, bool upload) {
+    if (size > staging_buffer.size()) {
+        staging_buffer.resize(size);
+    }
+    return StagingData{
+        .size = size,
+        .mapped = std::span{staging_buffer.data(), size},
+        .buffer_offset = 0,
+    };
+}
 
+void TextureRuntime::ReadTexture(OGLTexture& texture, Common::Rectangle<u32> rect,
+                                 PixelFormat format, GLint level, std::span<u8> pixels) const {
     OpenGLState prev_state = OpenGLState::GetCurState();
     SCOPE_EXIT({ prev_state.Apply(); });
 
     OpenGLState state;
-    state.ResetTexture(tex.handle);
+    state.ResetTexture(texture.handle);
     state.draw.read_framebuffer = read_fbo.handle;
     state.Apply();
 
-    const u32 level = subresource.level;
-    switch (subresource.aspect) {
-    case Aspect::Color:
-        glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex.handle,
-                               level);
+    switch (GetFormatType(format)) {
+    case SurfaceType::Color:
+    case SurfaceType::Texture:
+        glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                               texture.handle, level);
         glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, 0,
                                0);
         break;
-    case Aspect::Depth:
+    case SurfaceType::Depth:
         glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, 0, 0);
-        glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, tex.handle,
-                               level);
+        glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D,
+                               texture.handle, level);
         glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_TEXTURE_2D, 0, 0);
         break;
-    case Aspect::DepthStencil:
+    case SurfaceType::DepthStencil:
         glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, 0, 0);
         glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D,
-                               tex.handle, level);
+                               texture.handle, level);
         break;
+    default:
+        UNREACHABLE_MSG("Invalid surface type!");
     }
 
-    const auto& rect = subresource.region;
+    const auto tuple = GetFormatTuple(format);
     glReadPixels(rect.left, rect.bottom, rect.GetWidth(), rect.GetHeight(), tuple.format,
-                 tuple.type, pixels);
+                 tuple.type, pixels.data());
 }
 
 bool TextureRuntime::ClearTexture(const OGLTexture& tex, Subresource subresource,

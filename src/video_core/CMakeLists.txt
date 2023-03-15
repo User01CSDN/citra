@@ -28,7 +28,6 @@ add_library(video_core STATIC
     renderer_base.h
     rasterizer_cache/cached_surface.cpp
     rasterizer_cache/cached_surface.h
-    rasterizer_cache/morton_swizzle.h
     rasterizer_cache/pixel_format.h
     rasterizer_cache/rasterizer_cache.cpp
     rasterizer_cache/rasterizer_cache.h
@@ -37,6 +36,7 @@ add_library(video_core STATIC
     rasterizer_cache/rasterizer_cache_utils.h
     rasterizer_cache/surface_params.cpp
     rasterizer_cache/surface_params.h
+    rasterizer_cache/texture_codec.h
     rasterizer_cache/texture_runtime.cpp
     rasterizer_cache/texture_runtime.h
     renderer_opengl/frame_dumper_opengl.cpp
