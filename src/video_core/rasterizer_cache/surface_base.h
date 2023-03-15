@@ -78,7 +78,6 @@ public:
     SurfaceRegions invalid_regions;
     u32 fill_size = 0;
     std::array<u8, 4> fill_data;
-    u32 max_level = 0;
     std::array<std::shared_ptr<SurfaceWatcher>, 7> level_watchers;
     std::list<std::weak_ptr<SurfaceWatcher>> watchers;
 };

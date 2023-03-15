@@ -483,9 +483,9 @@ auto RasterizerCacheOpenGL::GetSurfaceSubRect(const SurfaceParams& params,
 
 auto RasterizerCacheOpenGL::GetTextureSurface(const Pica::TexturingRegs::FullTextureConfig& config)
     -> Surface {
-    Pica::Texture::TextureInfo info =
-        Pica::Texture::TextureInfo::FromPicaRegister(config.config, config.format);
-    return GetTextureSurface(info, config.config.lod.max_level);
+    const auto info = Pica::Texture::TextureInfo::FromPicaRegister(config.config, config.format);
+    const u32 max_level = MipLevels(info.width, info.height, config.config.lod.max_level) - 1;
+    return GetTextureSurface(info, max_level);
 }
 
 auto RasterizerCacheOpenGL::GetTextureSurface(const Pica::Texture::TextureInfo& info, u32 max_level)
@@ -498,6 +498,7 @@ auto RasterizerCacheOpenGL::GetTextureSurface(const Pica::Texture::TextureInfo& 
     params.addr = info.physical_address;
     params.width = info.width;
     params.height = info.height;
+    params.levels = max_level + 1;
     params.is_tiled = true;
     params.pixel_format = PixelFormatFromTextureFormat(info.format);
     params.res_scale = texture_filterer->IsNull() ? 1 : resolution_scale_factor;
@@ -547,11 +548,6 @@ auto RasterizerCacheOpenGL::GetTextureSurface(const Pica::Texture::TextureInfo& 
             return nullptr;
         }
 
-        // Allocate more mipmap level if necessary
-        if (surface->max_level < max_level) {
-            surface->max_level = max_level;
-        }
-
         // Blit mipmaps that have been invalidated
         SurfaceParams surface_params = *surface;
         for (u32 level = 1; level <= max_level; ++level) {
@@ -561,6 +557,7 @@ auto RasterizerCacheOpenGL::GetTextureSurface(const Pica::Texture::TextureInfo& 
             surface_params.width /= 2;
             surface_params.height /= 2;
             surface_params.stride = 0; // reset stride and let UpdateParams re-initialize it
+            surface_params.levels = 1;
             surface_params.UpdateParams();
 
             auto& watcher = surface->level_watchers[level - 1];
