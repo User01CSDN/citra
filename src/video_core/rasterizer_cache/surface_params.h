@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "video_core/rasterizer_cache/rasterizer_cache_utils.h"
+#include "video_core/rasterizer_cache/utils.h"
 
 namespace OpenGL {
 

@@ -65,9 +65,8 @@ GLenum MakeAttributeType(Pica::PipelineRegs::VertexAttributeFormat format) {
 
 RasterizerOpenGL::RasterizerOpenGL(Memory::MemorySystem& memory, Frontend::EmuWindow& emu_window,
                                    Driver& driver_)
-    : VideoCore::RasterizerAccelerated{memory}, driver{driver_}, vertex_buffer{driver,
-                                                                               GL_ARRAY_BUFFER,
-                                                                               VERTEX_BUFFER_SIZE},
+    : VideoCore::RasterizerAccelerated{memory}, driver{driver_}, res_cache{runtime},
+      vertex_buffer{driver, GL_ARRAY_BUFFER, VERTEX_BUFFER_SIZE},
       uniform_buffer{driver, GL_UNIFORM_BUFFER, UNIFORM_BUFFER_SIZE},
       index_buffer{driver, GL_ELEMENT_ARRAY_BUFFER, INDEX_BUFFER_SIZE},
       texture_buffer{driver, GL_TEXTURE_BUFFER, TEXTURE_BUFFER_SIZE}, texture_lf_buffer{
@@ -595,31 +594,32 @@ bool RasterizerOpenGL::Draw(bool accelerate, bool is_indexed) {
         }
     }
 
-    OGLTexture temp_tex;
     if (need_duplicate_texture) {
-        const auto& tuple = TextureRuntime::GetFormatTuple(color_surface->pixel_format);
-        const GLsizei levels = color_surface->levels;
-
         // The game is trying to use a surface as a texture and framebuffer at the same time
         // which causes unpredictable behavior on the host.
         // Making a copy to sample from eliminates this issue and seems to be fairly cheap.
-        temp_tex.Create();
-        temp_tex.Allocate(GL_TEXTURE_2D, levels, tuple.internal_format,
-                          color_surface->GetScaledWidth(), color_surface->GetScaledHeight());
-
-        temp_tex.CopyFrom(color_surface->Texture(), GL_TEXTURE_2D, levels,
-                          color_surface->GetScaledWidth(), color_surface->GetScaledHeight());
+        Surface temp{runtime, *color_surface};
+        const TextureCopy copy = {
+            .src_level = 0,
+            .dst_level = 0,
+            .src_layer = 0,
+            .dst_layer = 0,
+            .src_offset = {0, 0},
+            .dst_offset = {0, 0},
+            .extent = {temp.GetScaledWidth(), temp.GetScaledHeight()},
+        };
+        runtime.CopyTextures(*color_surface, temp, copy);
 
         for (auto& unit : state.texture_units) {
             if (unit.texture_2d == color_surface->Handle()) {
-                unit.texture_2d = temp_tex.handle;
+                unit.texture_2d = temp.Handle();
             }
         }
         for (auto shadow_unit : {&state.image_shadow_texture_nx, &state.image_shadow_texture_ny,
                                  &state.image_shadow_texture_nz, &state.image_shadow_texture_px,
                                  &state.image_shadow_texture_py, &state.image_shadow_texture_pz}) {
             if (*shadow_unit == color_surface->Handle()) {
-                *shadow_unit = temp_tex.handle;
+                *shadow_unit = temp.Handle();
             }
         }
     }
