@@ -17,7 +17,6 @@ enum class ScaleMatch {
     Ignore   // accept every scaled res
 };
 
-class TextureDownloaderES;
 class TextureFilterer;
 class FormatReinterpreterOpenGL;
 
@@ -124,7 +123,6 @@ private:
 public:
     std::unique_ptr<TextureFilterer> texture_filterer;
     std::unique_ptr<FormatReinterpreterOpenGL> format_reinterpreter;
-    std::unique_ptr<TextureDownloaderES> texture_downloader_es;
 };
 
 } // namespace OpenGL
