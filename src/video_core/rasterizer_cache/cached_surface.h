@@ -49,16 +49,18 @@ public:
         : SurfaceParams(params), owner(owner), runtime(runtime) {}
     ~CachedSurface();
 
-    /// Read/Write data in 3DS memory to/from gl_buffer
-    void LoadGLBuffer(PAddr load_start, PAddr load_end);
-    void FlushGLBuffer(PAddr flush_start, PAddr flush_end);
+    /// Uploads pixel data in staging to a rectangle region of the surface texture
+    void Upload(const BufferTextureCopy& upload, const StagingData& staging);
 
-    /// Upload/Download data in gl_buffer in/to this surface's texture
-    void UploadGLTexture(Common::Rectangle<u32> rect);
-    void DownloadGLTexture(const Common::Rectangle<u32>& rect);
+    /// Downloads pixel data to staging from a rectangle region of the surface texture
+    void Download(const BufferTextureCopy& download, const StagingData& staging);
 
     bool CanFill(const SurfaceParams& dest_surface, SurfaceInterval fill_interval) const;
     bool CanCopy(const SurfaceParams& dest_surface, SurfaceInterval copy_interval) const;
+
+    u32 GetInternalBytesPerPixel() const {
+        return GetBytesPerPixel(pixel_format);
+    }
 
     bool IsRegionValid(SurfaceInterval interval) const {
         return (invalid_regions.find(interval) == invalid_regions.end());
@@ -97,7 +99,6 @@ public:
 public:
     bool registered = false;
     SurfaceRegions invalid_regions;
-    std::vector<u8> gl_buffer;
 
     // Number of bytes to read from fill_data
     u32 fill_size = 0;
