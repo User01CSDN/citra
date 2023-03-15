@@ -3,10 +3,14 @@
 // Refer to the license.txt file included.
 
 #pragma once
+
 #include <unordered_map>
-#include "video_core/rasterizer_cache/cached_surface.h"
+#include <boost/icl/interval_map.hpp>
+#include <boost/icl/interval_set.hpp>
 #include "video_core/rasterizer_cache/rasterizer_cache_utils.h"
+#include "video_core/rasterizer_cache/surface_base.h"
 #include "video_core/rasterizer_cache/surface_params.h"
+#include "video_core/rasterizer_cache/texture_runtime.h"
 #include "video_core/texture/texture_decode.h"
 
 namespace VideoCore {
@@ -23,8 +27,29 @@ enum class ScaleMatch {
 
 class TextureFilterer;
 class FormatReinterpreterOpenGL;
+class Surface;
 
 class RasterizerCacheOpenGL : NonCopyable {
+public:
+    using Surface = std::shared_ptr<OpenGL::Surface>;
+
+    // Declare rasterizer interval types
+    using SurfaceSet = std::set<Surface>;
+    using SurfaceMap = boost::icl::interval_map<PAddr, Surface, boost::icl::partial_absorber,
+                                                std::less, boost::icl::inplace_plus,
+                                                boost::icl::inter_section, SurfaceInterval>;
+    using SurfaceCache = boost::icl::interval_map<PAddr, SurfaceSet, boost::icl::partial_absorber,
+                                                  std::less, boost::icl::inplace_plus,
+                                                  boost::icl::inter_section, SurfaceInterval>;
+
+    static_assert(std::is_same<SurfaceRegions::interval_type, SurfaceCache::interval_type>() &&
+                      std::is_same<SurfaceMap::interval_type, SurfaceCache::interval_type>(),
+                  "Incorrect interval types");
+
+    using SurfaceRect_Tuple = std::tuple<Surface, Common::Rectangle<u32>>;
+    using SurfaceSurfaceRect_Tuple = std::tuple<Surface, Surface, Common::Rectangle<u32>>;
+    using PageMap = boost::icl::interval_map<u32, int>;
+
 public:
     RasterizerCacheOpenGL(VideoCore::RendererBase& renderer);
     ~RasterizerCacheOpenGL();
@@ -91,9 +116,8 @@ private:
     void DownloadFillSurface(const Surface& surface, SurfaceInterval interval);
 
     /// Returns false if there is a surface in the cache at the interval with the same bit-width,
-    bool NoUnimplementedReinterpretations(const OpenGL::Surface& surface,
-                                          OpenGL::SurfaceParams& params,
-                                          const OpenGL::SurfaceInterval& interval);
+    bool NoUnimplementedReinterpretations(const Surface& surface, SurfaceParams& params,
+                                          const SurfaceInterval& interval);
 
     /// Return true if a surface with an invalid pixel format exists at the interval
     bool IntervalHasInvalidPixelFormat(SurfaceParams& params, const SurfaceInterval& interval);
@@ -114,6 +138,7 @@ private:
     /// Increase/decrease the number of surface in pages touching the specified region
     void UpdatePagesCachedCount(PAddr addr, u32 size, int delta);
 
+private:
     VideoCore::RendererBase& renderer;
     TextureRuntime runtime;
     SurfaceCache surface_cache;

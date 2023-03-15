@@ -4,10 +4,7 @@
 
 #pragma once
 
-#include <array>
-#include <climits>
-#include "video_core/rasterizer_cache/pixel_format.h"
-#include "video_core/rasterizer_cache/rasterizer_cache_types.h"
+#include "video_core/rasterizer_cache/rasterizer_cache_utils.h"
 
 namespace OpenGL {
 
@@ -25,9 +22,6 @@ public:
     // Returns the outer rectangle containing "interval"
     SurfaceParams FromInterval(SurfaceInterval interval) const;
     SurfaceInterval GetSubRectInterval(Common::Rectangle<u32> unscaled_rect) const;
-
-    // Returns the region of the biggest valid rectange within interval
-    SurfaceInterval GetCopyableInterval(const Surface& src_surface) const;
 
     /// Updates remaining members from the already set addr, width, height and pixel_format
     void UpdateParams() {
