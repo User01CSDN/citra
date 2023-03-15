@@ -45,6 +45,17 @@ ClearValue MakeClearValue(SurfaceType type, PixelFormat format, const u8* fill_d
     return result;
 }
 
+u32 MipLevels(u32 width, u32 height, u32 max_level) {
+    u32 levels = 1;
+    while (width > 8 && height > 8) {
+        levels++;
+        width >>= 1;
+        height >>= 1;
+    }
+
+    return std::min(levels, max_level + 1);
+}
+
 void EncodeTexture(const SurfaceParams& surface_info, PAddr start_addr, PAddr end_addr,
                    std::span<u8> source, std::span<u8> dest, bool convert) {
     const PixelFormat format = surface_info.pixel_format;

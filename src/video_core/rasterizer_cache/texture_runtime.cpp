@@ -342,7 +342,6 @@ Surface::Surface(TextureRuntime& runtime_, const SurfaceParams& params)
 
     const u32 scaled_width = GetScaledWidth();
     const u32 scaled_height = GetScaledHeight();
-    const u32 levels = static_cast<u32>(std::log2(std::max(width, height))) + 1;
     const auto& tuple = runtime->GetFormatTuple(pixel_format);
     alloc = runtime->Allocate(scaled_width, scaled_height, levels, tuple, texture_type);
 }
