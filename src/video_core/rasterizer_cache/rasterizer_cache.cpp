@@ -11,6 +11,7 @@
 #include "video_core/rasterizer_cache/rasterizer_cache.h"
 #include "video_core/renderer_base.h"
 #include "video_core/renderer_opengl/gl_format_reinterpreter.h"
+#include "video_core/renderer_opengl/gl_texture_runtime.h"
 #include "video_core/renderer_opengl/gl_vars.h"
 #include "video_core/renderer_opengl/texture_filters/texture_filterer.h"
 
@@ -340,9 +341,8 @@ static auto FindMatch(const auto& surface_cache, const SurfaceParams& params,
     return match_surface;
 }
 
-RasterizerCacheOpenGL::RasterizerCacheOpenGL(VideoCore::RendererBase& renderer_)
-    : renderer{renderer_} {
-    resolution_scale_factor = renderer.GetResolutionScaleFactor();
+RasterizerCacheOpenGL::RasterizerCacheOpenGL(TextureRuntime& runtime_, VideoCore::RendererBase& renderer_)
+    : runtime{runtime_}, renderer{renderer_}, resolution_scale_factor{renderer.GetResolutionScaleFactor()} {
     texture_filterer = std::make_unique<TextureFilterer>(
         Settings::values.texture_filter_name.GetValue(), resolution_scale_factor);
 }
