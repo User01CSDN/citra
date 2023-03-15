@@ -58,6 +58,14 @@ static constexpr std::array<FormatTuple, 5> COLOR_TUPLES_OES = {{
 TextureRuntime::TextureRuntime() {
     read_fbo.Create();
     draw_fbo.Create();
+
+    auto Register = [this](PixelFormat dest, std::unique_ptr<FormatReinterpreterBase>&& obj) {
+        const u32 dst_index = static_cast<u32>(dest);
+        return reinterpreters[dst_index].push_back(std::move(obj));
+    };
+
+    Register(PixelFormat::RGBA8, std::make_unique<ShaderD24S8toRGBA8>());
+    Register(PixelFormat::RGB5A1, std::make_unique<RGBA4toRGB5A1>());
 }
 
 TextureRuntime::~TextureRuntime() = default;
@@ -319,6 +327,11 @@ void TextureRuntime::GenerateMipmaps(Surface& surface, u32 max_level) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, max_level);
 
     glGenerateMipmap(GL_TEXTURE_2D);
+}
+
+const ReinterpreterList& TextureRuntime::GetPossibleReinterpretations(
+    PixelFormat dest_format) const {
+    return reinterpreters[static_cast<u32>(dest_format)];
 }
 
 Surface::Surface(TextureRuntime& runtime_, const SurfaceParams& params)
