@@ -45,6 +45,11 @@ enum class SurfaceType {
     Invalid = 5
 };
 
+enum class TextureType : u32 {
+    Texture2D = 0,
+    CubeMap = 1,
+};
+
 constexpr std::string_view PixelFormatAsString(PixelFormat format) {
     switch (format) {
     case PixelFormat::RGBA8:

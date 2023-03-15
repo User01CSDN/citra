@@ -84,6 +84,7 @@ public:
     u16 res_scale = 1;
 
     bool is_tiled = false;
+    TextureType texture_type = TextureType::Texture2D;
     PixelFormat pixel_format = PixelFormat::Invalid;
     SurfaceType type = SurfaceType::Invalid;
 };
