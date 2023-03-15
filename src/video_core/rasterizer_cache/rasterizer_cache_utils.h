@@ -3,14 +3,17 @@
 // Refer to the license.txt file included.
 
 #pragma once
-#include <functional>
+
 #include <span>
+#include <boost/icl/right_open_interval.hpp>
 #include "common/hash.h"
 #include "common/math_util.h"
 #include "common/vector_math.h"
 #include "video_core/rasterizer_cache/pixel_format.h"
 
 namespace OpenGL {
+
+using SurfaceInterval = boost::icl::right_open_interval<PAddr>;
 
 struct Offset {
     constexpr auto operator<=>(const Offset&) const noexcept = default;
