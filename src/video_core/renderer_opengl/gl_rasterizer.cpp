@@ -406,10 +406,7 @@ bool RasterizerOpenGL::Draw(bool accelerate, bool is_indexed) {
         regs.rasterizer.viewport_corner.y // bottom
     };
 
-    Surface color_surface;
-    Surface depth_surface;
-    Common::Rectangle<u32> surfaces_rect;
-    std::tie(color_surface, depth_surface, surfaces_rect) =
+    const auto [color_surface, depth_surface, surfaces_rect] =
         res_cache.GetFramebufferSurfaces(using_color_fb, using_depth_fb, viewport_rect_unscaled);
 
     const u16 res_scale = color_surface != nullptr
@@ -509,7 +506,7 @@ bool RasterizerOpenGL::Draw(bool accelerate, bool is_indexed) {
     }
 
     bool need_duplicate_texture = false;
-    auto CheckBarrier = [&need_duplicate_texture, &color_surface](GLuint handle) {
+    auto CheckBarrier = [&need_duplicate_texture, &color_surface = color_surface](GLuint handle) {
         if (color_surface && color_surface->Handle() == handle) {
             need_duplicate_texture = true;
         }
@@ -518,7 +515,7 @@ bool RasterizerOpenGL::Draw(bool accelerate, bool is_indexed) {
     const auto BindCubeFace = [&](GLuint& target, Pica::TexturingRegs::CubeFace face,
                                   Pica::Texture::TextureInfo& info) {
         info.physical_address = regs.texturing.GetCubePhysicalAddress(face);
-        Surface surface = res_cache.GetTextureSurface(info);
+        auto surface = res_cache.GetTextureSurface(info);
 
         if (surface != nullptr) {
             CheckBarrier(target = surface->Handle());
@@ -537,7 +534,7 @@ bool RasterizerOpenGL::Draw(bool accelerate, bool is_indexed) {
                 using TextureType = Pica::TexturingRegs::TextureConfig::TextureType;
                 switch (texture.config.type.Value()) {
                 case TextureType::Shadow2D: {
-                    Surface surface = res_cache.GetTextureSurface(texture);
+                    auto surface = res_cache.GetTextureSurface(texture);
                     if (surface != nullptr) {
                         CheckBarrier(state.image_shadow_texture_px = surface->Handle());
                     } else {
@@ -582,7 +579,7 @@ bool RasterizerOpenGL::Draw(bool accelerate, bool is_indexed) {
             }
 
             texture_samplers[texture_index].SyncWithConfig(texture.config);
-            Surface surface = res_cache.GetTextureSurface(texture);
+            auto surface = res_cache.GetTextureSurface(texture);
             if (surface != nullptr) {
                 CheckBarrier(state.texture_units[texture_index].texture_2d = surface->Handle());
             } else {
@@ -835,18 +832,14 @@ bool RasterizerOpenGL::AccelerateDisplayTransfer(const GPU::Regs::DisplayTransfe
     dst_params.pixel_format = PixelFormatFromGPUPixelFormat(config.output_format);
     dst_params.UpdateParams();
 
-    Common::Rectangle<u32> src_rect;
-    Surface src_surface;
-    std::tie(src_surface, src_rect) =
+    auto [src_surface, src_rect] =
         res_cache.GetSurfaceSubRect(src_params, ScaleMatch::Ignore, true);
     if (src_surface == nullptr)
         return false;
 
     dst_params.res_scale = src_surface->res_scale;
 
-    Common::Rectangle<u32> dst_rect;
-    Surface dst_surface;
-    std::tie(dst_surface, dst_rect) =
+    auto [dst_surface, dst_rect] =
         res_cache.GetSurfaceSubRect(dst_params, ScaleMatch::Upscale, false);
     if (dst_surface == nullptr)
         return false;
@@ -904,9 +897,7 @@ bool RasterizerOpenGL::AccelerateTextureCopy(const GPU::Regs::DisplayTransferCon
     src_params.size = ((src_params.height - 1) * src_params.stride) + src_params.width;
     src_params.end = src_params.addr + src_params.size;
 
-    Common::Rectangle<u32> src_rect;
-    Surface src_surface;
-    std::tie(src_surface, src_rect) = res_cache.GetTexCopySurface(src_params);
+    auto [src_surface, src_rect] = res_cache.GetTexCopySurface(src_params);
     if (src_surface == nullptr) {
         return false;
     }
@@ -929,9 +920,7 @@ bool RasterizerOpenGL::AccelerateTextureCopy(const GPU::Regs::DisplayTransferCon
 
     // Since we are going to invalidate the gap if there is one, we will have to load it first
     const bool load_gap = output_gap != 0;
-    Common::Rectangle<u32> dst_rect;
-    Surface dst_surface;
-    std::tie(dst_surface, dst_rect) =
+    auto [dst_surface, dst_rect] =
         res_cache.GetSurfaceSubRect(dst_params, ScaleMatch::Upscale, load_gap);
     if (dst_surface == nullptr) {
         return false;
@@ -950,7 +939,7 @@ bool RasterizerOpenGL::AccelerateTextureCopy(const GPU::Regs::DisplayTransferCon
 }
 
 bool RasterizerOpenGL::AccelerateFill(const GPU::Regs::MemoryFillConfig& config) {
-    Surface dst_surface = res_cache.GetFillSurface(config);
+    auto dst_surface = res_cache.GetFillSurface(config);
     if (dst_surface == nullptr)
         return false;
 
@@ -975,9 +964,7 @@ bool RasterizerOpenGL::AccelerateDisplay(const GPU::Regs::FramebufferConfig& con
     src_params.pixel_format = PixelFormatFromGPUPixelFormat(config.color_format);
     src_params.UpdateParams();
 
-    Common::Rectangle<u32> src_rect;
-    Surface src_surface;
-    std::tie(src_surface, src_rect) =
+    auto [src_surface, src_rect] =
         res_cache.GetSurfaceSubRect(src_params, ScaleMatch::Ignore, true);
 
     if (src_surface == nullptr) {

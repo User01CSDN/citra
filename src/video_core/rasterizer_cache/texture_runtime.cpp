@@ -4,7 +4,6 @@
 
 #include "common/scope_exit.h"
 #include "common/settings.h"
-#include "video_core/rasterizer_cache/cached_surface.h"
 #include "video_core/rasterizer_cache/rasterizer_cache_utils.h"
 #include "video_core/rasterizer_cache/texture_runtime.h"
 #include "video_core/renderer_opengl/gl_state.h"
@@ -173,7 +172,7 @@ void TextureRuntime::ReadTexture(OGLTexture& texture, Common::Rectangle<u32> rec
                  tuple.type, pixels.data());
 }
 
-bool TextureRuntime::ClearTexture(CachedSurface& surface, const TextureClear& clear) {
+bool TextureRuntime::ClearTexture(Surface& surface, const TextureClear& clear) {
     OpenGLState prev_state = OpenGLState::GetCurState();
     SCOPE_EXIT({ prev_state.Apply(); });
 
@@ -233,8 +232,7 @@ bool TextureRuntime::ClearTexture(CachedSurface& surface, const TextureClear& cl
     return true;
 }
 
-bool TextureRuntime::CopyTextures(CachedSurface& source, CachedSurface& dest,
-                                  const TextureCopy& copy) {
+bool TextureRuntime::CopyTextures(Surface& source, Surface& dest, const TextureCopy& copy) {
     const GLenum src_textarget =
         source.texture_type == TextureType::CubeMap ? GL_TEXTURE_CUBE_MAP : GL_TEXTURE_2D;
     const GLenum dst_textarget =
@@ -246,7 +244,7 @@ bool TextureRuntime::CopyTextures(CachedSurface& source, CachedSurface& dest,
     return true;
 }
 
-bool TextureRuntime::CopyTextures(CachedSurface& source, CachedTextureCube& dest,
+bool TextureRuntime::CopyTextures(Surface& source, CachedTextureCube& dest,
                                   const TextureCopy& copy) {
     glCopyImageSubData(source.Handle(), GL_TEXTURE_2D, copy.src_level, copy.src_offset.x,
                        copy.src_offset.y, copy.src_layer, dest.texture.handle, GL_TEXTURE_CUBE_MAP,
@@ -255,8 +253,7 @@ bool TextureRuntime::CopyTextures(CachedSurface& source, CachedTextureCube& dest
     return true;
 }
 
-bool TextureRuntime::BlitTextures(CachedSurface& source, CachedSurface& dest,
-                                  const TextureBlit& blit) {
+bool TextureRuntime::BlitTextures(Surface& source, Surface& dest, const TextureBlit& blit) {
     OpenGLState prev_state = OpenGLState::GetCurState();
     SCOPE_EXIT({ prev_state.Apply(); });
 
@@ -310,7 +307,7 @@ bool TextureRuntime::BlitTextures(CachedSurface& source, CachedSurface& dest,
     return true;
 }
 
-void TextureRuntime::GenerateMipmaps(CachedSurface& surface, u32 max_level) {
+void TextureRuntime::GenerateMipmaps(Surface& surface, u32 max_level) {
     OpenGLState prev_state = OpenGLState::GetCurState();
     SCOPE_EXIT({ prev_state.Apply(); });
 
@@ -322,6 +319,82 @@ void TextureRuntime::GenerateMipmaps(CachedSurface& surface, u32 max_level) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, max_level);
 
     glGenerateMipmap(GL_TEXTURE_2D);
+}
+
+Surface::Surface(TextureRuntime& runtime_, const SurfaceParams& params)
+    : SurfaceBase{params}, runtime{&runtime_} {
+    if (pixel_format == PixelFormat::Invalid) {
+        return;
+    }
+
+    const u32 scaled_width = GetScaledWidth();
+    const u32 scaled_height = GetScaledHeight();
+    const u32 levels = static_cast<u32>(std::log2(std::max(width, height))) + 1;
+    const auto& tuple = runtime->GetFormatTuple(pixel_format);
+    alloc = runtime->Allocate(scaled_width, scaled_height, levels, tuple, texture_type);
+}
+
+Surface::~Surface() {
+    if (pixel_format == PixelFormat::Invalid || !Handle()) {
+        return;
+    }
+
+    const HostTextureTag tag = {
+        .tuple = alloc.tuple,
+        .type = texture_type,
+        .width = alloc.width,
+        .height = alloc.height,
+        .levels = alloc.levels,
+    };
+    runtime->Recycle(tag, std::move(alloc));
+}
+
+void Surface::Upload(const BufferTextureCopy& upload, const StagingData& staging) {
+    // Ensure no bad interactions with GL_UNPACK_ALIGNMENT
+    ASSERT(stride * GetBytesPerPixel(pixel_format) % 4 == 0);
+
+    const bool is_scaled = res_scale != 1;
+    if (is_scaled) {
+        LOG_ERROR(Render_OpenGL, "Scaled uploads not supported!");
+        return;
+    } else {
+        glPixelStorei(GL_UNPACK_ROW_LENGTH, static_cast<GLint>(stride));
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, Handle());
+
+        const auto& tuple = runtime->GetFormatTuple(pixel_format);
+        glTexSubImage2D(GL_TEXTURE_2D, upload.texture_level, upload.texture_rect.left,
+                        upload.texture_rect.bottom, upload.texture_rect.GetWidth(),
+                        upload.texture_rect.GetHeight(), tuple.format, tuple.type,
+                        staging.mapped.data());
+
+        glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+        glBindTexture(GL_TEXTURE_2D, OpenGLState::GetCurState().texture_units[0].texture_2d);
+    }
+
+    InvalidateAllWatcher();
+}
+
+void Surface::Download(const BufferTextureCopy& download, const StagingData& staging) {
+    // Ensure no bad interactions with GL_PACK_ALIGNMENT
+    ASSERT(stride * GetBytesPerPixel(pixel_format) % 4 == 0);
+
+    OpenGLState prev_state = OpenGLState::GetCurState();
+    SCOPE_EXIT({ prev_state.Apply(); });
+
+    glPixelStorei(GL_PACK_ROW_LENGTH, static_cast<GLint>(stride));
+
+    const bool is_scaled = res_scale != 1;
+    if (is_scaled) {
+        LOG_ERROR(Render_OpenGL, "Scaled downloads not supported!");
+        return;
+    } else {
+        runtime->ReadTexture(alloc.texture, download.texture_rect, pixel_format,
+                             download.texture_level, staging.mapped);
+    }
+
+    glPixelStorei(GL_PACK_ROW_LENGTH, 0);
 }
 
 } // namespace OpenGL

@@ -26,14 +26,13 @@ add_library(video_core STATIC
     regs_texturing.h
     renderer_base.cpp
     renderer_base.h
-    rasterizer_cache/cached_surface.cpp
-    rasterizer_cache/cached_surface.h
     rasterizer_cache/pixel_format.h
     rasterizer_cache/rasterizer_cache.cpp
     rasterizer_cache/rasterizer_cache.h
-    rasterizer_cache/rasterizer_cache_types.h
     rasterizer_cache/rasterizer_cache_utils.cpp
     rasterizer_cache/rasterizer_cache_utils.h
+    rasterizer_cache/surface_base.cpp
+    rasterizer_cache/surface_base.h
     rasterizer_cache/surface_params.cpp
     rasterizer_cache/surface_params.h
     rasterizer_cache/texture_codec.h

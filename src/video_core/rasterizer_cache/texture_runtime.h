@@ -6,6 +6,7 @@
 
 #include "common/math_util.h"
 #include "video_core/rasterizer_cache/rasterizer_cache_utils.h"
+#include "video_core/rasterizer_cache/surface_base.h"
 #include "video_core/renderer_opengl/gl_resource_manager.h"
 
 namespace OpenGL {
@@ -52,7 +53,7 @@ struct Allocation {
     }
 };
 
-class CachedSurface;
+class Surface;
 struct CachedTextureCube;
 
 /**
@@ -60,7 +61,7 @@ struct CachedTextureCube;
  * Separating this into a class makes it easier to abstract graphics API code
  */
 class TextureRuntime {
-    friend class CachedSurface;
+    friend class Surface;
 
 public:
     explicit TextureRuntime();
@@ -80,19 +81,19 @@ public:
                         TextureType type);
 
     /// Fills the rectangle of the texture with the clear value provided
-    bool ClearTexture(CachedSurface& surface, const TextureClear& clear);
+    bool ClearTexture(Surface& surface, const TextureClear& clear);
 
     /// Copies a rectangle of source to another rectange of dest
-    bool CopyTextures(CachedSurface& source, CachedSurface& dest, const TextureCopy& copy);
+    bool CopyTextures(Surface& source, Surface& dest, const TextureCopy& copy);
 
     /// Copies a rectangle of source to a face of dest cube
-    bool CopyTextures(CachedSurface& source, CachedTextureCube& dest, const TextureCopy& copy);
+    bool CopyTextures(Surface& source, CachedTextureCube& dest, const TextureCopy& copy);
 
     /// Blits a rectangle of source to another rectange of dest
-    bool BlitTextures(CachedSurface& source, CachedSurface& dest, const TextureBlit& blit);
+    bool BlitTextures(Surface& source, Surface& dest, const TextureBlit& blit);
 
     /// Generates mipmaps for all the available levels of the texture
-    void GenerateMipmaps(CachedSurface& surface, u32 max_level);
+    void GenerateMipmaps(Surface& surface, u32 max_level);
 
 private:
     /// Copies the GPU pixel data to the provided pixel buffer
@@ -103,6 +104,43 @@ private:
     std::vector<u8> staging_buffer;
     OGLFramebuffer read_fbo, draw_fbo;
     std::unordered_multimap<HostTextureTag, Allocation, HostTextureTag::Hash> texture_recycler;
+};
+
+class Surface : public SurfaceBase {
+public:
+    explicit Surface(TextureRuntime& runtime, const SurfaceParams& params);
+    ~Surface();
+
+    Surface(const Surface&) = delete;
+    Surface& operator=(const Surface&) = delete;
+
+    Surface(Surface&& o) noexcept = default;
+    Surface& operator=(Surface&& o) noexcept = default;
+
+    /// Returns the surface image handle
+    GLuint Handle() const noexcept {
+        return alloc.texture.handle;
+    }
+
+    /// Returns the surface texture
+    OGLTexture& Texture() {
+        return alloc.texture;
+    }
+
+    /// Uploads pixel data in staging to a rectangle region of the surface texture
+    void Upload(const BufferTextureCopy& upload, const StagingData& staging);
+
+    /// Downloads pixel data to staging from a rectangle region of the surface texture
+    void Download(const BufferTextureCopy& download, const StagingData& staging);
+
+    /// Returns the bpp of the internal surface format
+    u32 GetInternalBytesPerPixel() const {
+        return GetBytesPerPixel(pixel_format);
+    }
+
+private:
+    TextureRuntime* runtime;
+    Allocation alloc{};
 };
 
 } // namespace OpenGL
