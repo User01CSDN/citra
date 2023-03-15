@@ -587,8 +587,6 @@ void GRenderWindow::resizeEvent(QResizeEvent* event) {
 }
 
 bool GRenderWindow::InitRenderTarget() {
-    ReleaseRenderTarget();
-
     {
         // Create a dummy render widget so that Qt
         // places the render window at the correct position.
@@ -632,6 +630,7 @@ void GRenderWindow::ReleaseRenderTarget() {
         child_widget->deleteLater();
         child_widget = nullptr;
     }
+    main_context.reset();
 }
 
 void GRenderWindow::CaptureScreenshot(u32 res_scale, const QString& screenshot_path) {

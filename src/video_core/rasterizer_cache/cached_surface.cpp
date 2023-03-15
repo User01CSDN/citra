@@ -4,18 +4,36 @@
 
 #include "common/scope_exit.h"
 #include "video_core/rasterizer_cache/cached_surface.h"
-#include "video_core/rasterizer_cache/rasterizer_cache.h"
 #include "video_core/renderer_opengl/gl_state.h"
 
 namespace OpenGL {
 
-CachedSurface::~CachedSurface() {
-    if (texture.handle) {
-        auto tag =
-            HostTextureTag{GetFormatTuple(pixel_format), GetScaledWidth(), GetScaledHeight()};
-
-        owner.host_texture_recycler.emplace(tag, std::move(texture));
+CachedSurface::CachedSurface(SurfaceParams params, TextureRuntime& runtime_)
+    : SurfaceParams{params}, runtime{runtime_} {
+    if (pixel_format == PixelFormat::Invalid) {
+        return;
     }
+
+    const u32 scaled_width = GetScaledWidth();
+    const u32 scaled_height = GetScaledHeight();
+    const u32 levels = static_cast<u32>(std::log2(std::max(width, height))) + 1;
+    const auto& tuple = runtime.GetFormatTuple(pixel_format);
+    alloc = runtime.Allocate(scaled_width, scaled_height, levels, tuple, texture_type);
+}
+
+CachedSurface::~CachedSurface() {
+    if (pixel_format == PixelFormat::Invalid || !Handle()) {
+        return;
+    }
+
+    const HostTextureTag tag = {
+        .tuple = alloc.tuple,
+        .type = texture_type,
+        .width = alloc.width,
+        .height = alloc.height,
+        .levels = alloc.levels,
+    };
+    runtime.Recycle(tag, std::move(alloc));
 }
 
 void CachedSurface::Upload(const BufferTextureCopy& upload, const StagingData& staging) {
@@ -30,9 +48,9 @@ void CachedSurface::Upload(const BufferTextureCopy& upload, const StagingData& s
         glPixelStorei(GL_UNPACK_ROW_LENGTH, static_cast<GLint>(stride));
 
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, texture.handle);
+        glBindTexture(GL_TEXTURE_2D, Handle());
 
-        const auto& tuple = GetFormatTuple(pixel_format);
+        const auto& tuple = runtime.GetFormatTuple(pixel_format);
         glTexSubImage2D(GL_TEXTURE_2D, upload.texture_level, upload.texture_rect.left,
                         upload.texture_rect.bottom, upload.texture_rect.GetWidth(),
                         upload.texture_rect.GetHeight(), tuple.format, tuple.type,
@@ -59,8 +77,8 @@ void CachedSurface::Download(const BufferTextureCopy& download, const StagingDat
         LOG_ERROR(Render_OpenGL, "Scaled downloads not supported!");
         return;
     } else {
-        runtime.ReadTexture(texture, download.texture_rect, pixel_format, download.texture_level,
-                            staging.mapped);
+        runtime.ReadTexture(alloc.texture, download.texture_rect, pixel_format,
+                            download.texture_level, staging.mapped);
     }
 
     glPixelStorei(GL_PACK_ROW_LENGTH, 0);

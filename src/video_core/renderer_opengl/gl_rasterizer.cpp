@@ -445,19 +445,19 @@ bool RasterizerOpenGL::Draw(bool accelerate, bool is_indexed) {
         glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, 0, 0);
         glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, 0,
                                0);
-        state.image_shadow_buffer = color_surface->texture.handle;
+        state.image_shadow_buffer = color_surface->Handle();
     } else {
         glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
-                               color_surface != nullptr ? color_surface->texture.handle : 0, 0);
+                               color_surface != nullptr ? color_surface->Handle() : 0, 0);
         if (depth_surface != nullptr) {
             if (has_stencil) {
                 // attach both depth and stencil
                 glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT,
-                                       GL_TEXTURE_2D, depth_surface->texture.handle, 0);
+                                       GL_TEXTURE_2D, depth_surface->Handle(), 0);
             } else {
                 // attach depth
                 glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D,
-                                       depth_surface->texture.handle, 0);
+                                       depth_surface->Handle(), 0);
                 // clear stencil attachment
                 glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_TEXTURE_2D, 0,
                                        0);
@@ -509,7 +509,7 @@ bool RasterizerOpenGL::Draw(bool accelerate, bool is_indexed) {
 
     bool need_duplicate_texture = false;
     auto CheckBarrier = [&need_duplicate_texture, &color_surface](GLuint handle) {
-        if (color_surface && color_surface->texture.handle == handle) {
+        if (color_surface && color_surface->Handle() == handle) {
             need_duplicate_texture = true;
         }
     };
@@ -520,7 +520,7 @@ bool RasterizerOpenGL::Draw(bool accelerate, bool is_indexed) {
         Surface surface = res_cache.GetTextureSurface(info);
 
         if (surface != nullptr) {
-            CheckBarrier(target = surface->texture.handle);
+            CheckBarrier(target = surface->Handle());
         } else {
             target = 0;
         }
@@ -538,7 +538,7 @@ bool RasterizerOpenGL::Draw(bool accelerate, bool is_indexed) {
                 case TextureType::Shadow2D: {
                     Surface surface = res_cache.GetTextureSurface(texture);
                     if (surface != nullptr) {
-                        CheckBarrier(state.image_shadow_texture_px = surface->texture.handle);
+                        CheckBarrier(state.image_shadow_texture_px = surface->Handle());
                     } else {
                         state.image_shadow_texture_px = 0;
                     }
@@ -583,8 +583,7 @@ bool RasterizerOpenGL::Draw(bool accelerate, bool is_indexed) {
             texture_samplers[texture_index].SyncWithConfig(texture.config);
             Surface surface = res_cache.GetTextureSurface(texture);
             if (surface != nullptr) {
-                CheckBarrier(state.texture_units[texture_index].texture_2d =
-                                 surface->texture.handle);
+                CheckBarrier(state.texture_units[texture_index].texture_2d = surface->Handle());
             } else {
                 // Can occur when texture addr is null or its memory is unmapped/invalid
                 // HACK: In this case, the correct behaviour for the PICA is to use the last
@@ -602,7 +601,7 @@ bool RasterizerOpenGL::Draw(bool accelerate, bool is_indexed) {
 
     OGLTexture temp_tex;
     if (need_duplicate_texture) {
-        const auto& tuple = GetFormatTuple(color_surface->pixel_format);
+        const auto& tuple = TextureRuntime::GetFormatTuple(color_surface->pixel_format);
         const GLsizei levels = color_surface->max_level + 1;
 
         // The game is trying to use a surface as a texture and framebuffer at the same time
@@ -612,18 +611,18 @@ bool RasterizerOpenGL::Draw(bool accelerate, bool is_indexed) {
         temp_tex.Allocate(GL_TEXTURE_2D, levels, tuple.internal_format,
                           color_surface->GetScaledWidth(), color_surface->GetScaledHeight());
 
-        temp_tex.CopyFrom(color_surface->texture, GL_TEXTURE_2D, levels,
+        temp_tex.CopyFrom(color_surface->Texture(), GL_TEXTURE_2D, levels,
                           color_surface->GetScaledWidth(), color_surface->GetScaledHeight());
 
         for (auto& unit : state.texture_units) {
-            if (unit.texture_2d == color_surface->texture.handle) {
+            if (unit.texture_2d == color_surface->Handle()) {
                 unit.texture_2d = temp_tex.handle;
             }
         }
         for (auto shadow_unit : {&state.image_shadow_texture_nx, &state.image_shadow_texture_ny,
                                  &state.image_shadow_texture_nz, &state.image_shadow_texture_px,
                                  &state.image_shadow_texture_py, &state.image_shadow_texture_pz}) {
-            if (*shadow_unit == color_surface->texture.handle) {
+            if (*shadow_unit == color_surface->Handle()) {
                 *shadow_unit = temp_tex.handle;
             }
         }
@@ -991,7 +990,7 @@ bool RasterizerOpenGL::AccelerateDisplay(const GPU::Regs::FramebufferConfig& con
         (float)src_rect.bottom / (float)scaled_height, (float)src_rect.left / (float)scaled_width,
         (float)src_rect.top / (float)scaled_height, (float)src_rect.right / (float)scaled_width);
 
-    screen_info.display_texture = src_surface->texture.handle;
+    screen_info.display_texture = src_surface->Handle();
 
     return true;
 }
