@@ -3,42 +3,23 @@
 // Refer to the license.txt file included.
 
 #pragma once
+
 #include "common/math_util.h"
-#include "common/vector_math.h"
 #include "video_core/rasterizer_cache/rasterizer_cache_utils.h"
 #include "video_core/renderer_opengl/gl_resource_manager.h"
 
 namespace OpenGL {
 
-// Describes the type of data a texture holds
-enum class Aspect { Color = 0, Depth = 1, DepthStencil = 2 };
-
-// A union for both color and depth/stencil clear values
-union ClearValue {
-    Common::Vec4f color;
-    struct {
-        float depth;
-        u8 stencil;
-    };
-};
-
-struct Subresource {
-    Subresource(Aspect aspect, Common::Rectangle<u32> region, u32 level = 0, u32 layer = 0)
-        : aspect(aspect), region(region), level(level), layer(layer) {}
-
-    Aspect aspect;
-    Common::Rectangle<u32> region;
-    u32 level = 0;
-    u32 layer = 0;
-};
-
 struct FormatTuple;
+class CachedSurface;
+struct CachedTextureCube;
 
 /**
  * Provides texture manipulation functions to the rasterizer cache
  * Separating this into a class makes it easier to abstract graphics API code
  */
 class TextureRuntime {
+    friend class CachedSurface;
 public:
     TextureRuntime();
     ~TextureRuntime() = default;
@@ -46,26 +27,25 @@ public:
     /// Maps an internal staging buffer of the provided size of pixel uploads/downloads
     StagingData FindStaging(u32 size, bool upload);
 
-    // Copies the GPU pixel data to the provided pixels buffer
+    /// Fills the rectangle of the texture with the clear value provided
+    bool ClearTexture(CachedSurface& surface, const TextureClear& clear);
+
+    /// Copies a rectangle of source to another rectange of dest
+    bool CopyTextures(CachedSurface& source, CachedSurface& dest, const TextureCopy& copy);
+
+    /// Copies a rectangle of source to a face of dest cube
+    bool CopyTextures(CachedSurface& source, CachedTextureCube& dest, const TextureCopy& copy);
+
+    /// Blits a rectangle of source to another rectange of dest
+    bool BlitTextures(CachedSurface& source, CachedSurface& dest, const TextureBlit& blit);
+
+    /// Generates mipmaps for all the available levels of the texture
+    void GenerateMipmaps(CachedSurface& surface, u32 max_level);
+
+private:
+    /// Copies the GPU pixel data to the provided pixel buffer
     void ReadTexture(OGLTexture& texture, Common::Rectangle<u32> rect, PixelFormat format,
                      GLint level, std::span<u8> pixels) const;
-
-    // Fills the rectangle of the texture with the clear value provided
-    bool ClearTexture(const OGLTexture& texture, Subresource subresource, ClearValue value);
-
-    // Copies a rectangle of src_tex to another rectange of dst_rect
-    // NOTE: The width and height of the rectangles must be equal
-    bool CopyTextures(const OGLTexture& src_tex, Subresource src_subresource,
-                      const OGLTexture& dst_tex, Subresource dst_subresource);
-
-    // Copies a rectangle of src_tex to another rectange of dst_rect performing
-    // scaling and format conversions
-    bool BlitTextures(const OGLTexture& src_tex, Subresource src_subresource,
-                      const OGLTexture& dst_tex, Subresource dst_subresource,
-                      bool dst_cube = false);
-
-    // Generates mipmaps for all the available levels of the texture
-    void GenerateMipmaps(const OGLTexture& tex, u32 max_level);
 
 private:
     std::vector<u8> staging_buffer;

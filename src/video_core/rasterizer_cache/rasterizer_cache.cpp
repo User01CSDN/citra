@@ -17,60 +17,6 @@
 
 namespace OpenGL {
 
-// TODO: Deduplicate this
-static Aspect ToAspect(SurfaceType type) {
-    switch (type) {
-    case SurfaceType::Color:
-    case SurfaceType::Texture:
-    case SurfaceType::Fill:
-        return Aspect::Color;
-    case SurfaceType::Depth:
-        return Aspect::Depth;
-    case SurfaceType::DepthStencil:
-        return Aspect::DepthStencil;
-    default:
-        LOG_CRITICAL(Render_OpenGL, "Unknown SurfaceType {}", type);
-        UNREACHABLE();
-    }
-
-    return Aspect::Color;
-}
-
-static ClearValue ToClearValue(Aspect aspect, PixelFormat format, const u8* fill_data) {
-    ClearValue result{};
-    switch (aspect) {
-    case Aspect::Color: {
-        Pica::Texture::TextureInfo tex_info{};
-        tex_info.format = static_cast<Pica::TexturingRegs::TextureFormat>(format);
-
-        Common::Vec4<u8> color = Pica::Texture::LookupTexture(fill_data, 0, 0, tex_info);
-        result.color = color / 255.f;
-        break;
-    }
-    case Aspect::Depth: {
-        u32 depth_uint = 0;
-        if (format == PixelFormat::D16) {
-            std::memcpy(&depth_uint, fill_data, 2);
-            result.depth = depth_uint / 65535.0f; // 2^16 - 1
-        } else if (format == PixelFormat::D24) {
-            std::memcpy(&depth_uint, fill_data, 3);
-            result.depth = depth_uint / 16777215.0f; // 2^24 - 1
-        }
-        break;
-    }
-    case Aspect::DepthStencil: {
-        u32 clear_value_uint;
-        std::memcpy(&clear_value_uint, fill_data, sizeof(u32));
-
-        result.depth = (clear_value_uint & 0xFFFFFF) / 16777215.0f; // 2^24 - 1
-        result.stencil = (clear_value_uint >> 24);
-        break;
-    }
-    }
-
-    return result;
-}
-
 template <typename Map, typename Interval>
 static constexpr auto RangeFromInterval(Map& map, const Interval& interval) {
     return boost::make_iterator_range(map.equal_range(interval));
@@ -106,7 +52,6 @@ void RasterizerCacheOpenGL::CopySurface(const Surface& src_surface, const Surfac
     ASSERT(src_surface != dst_surface);
 
     // This is only called when CanCopy is true, no need to run checks here
-    const Aspect aspect = ToAspect(dst_surface->type);
     if (src_surface->type == SurfaceType::Fill) {
         // FillSurface needs a 4 bytes buffer
         const u32 fill_offset =
@@ -118,20 +63,23 @@ void RasterizerCacheOpenGL::CopySurface(const Surface& src_surface, const Surfac
             fill_buffer[i] = src_surface->fill_data[fill_buff_pos++ % src_surface->fill_size];
         }
 
-        const auto clear_rect = dst_surface->GetScaledSubRect(subrect_params);
-        const ClearValue clear_value =
-            ToClearValue(aspect, dst_surface->pixel_format, fill_buffer.data());
-
-        runtime.ClearTexture(dst_surface->texture, {aspect, clear_rect}, clear_value);
+        const TextureClear clear = {
+            .texture_level = 0,
+            .texture_rect = dst_surface->GetScaledSubRect(subrect_params),
+            .value = MakeClearValue(dst_surface->type, dst_surface->pixel_format, fill_buffer.data()),
+        };
+        runtime.ClearTexture(*dst_surface, clear);
         return;
     }
 
     if (src_surface->CanSubRect(subrect_params)) {
-        const auto src_rect = src_surface->GetScaledSubRect(subrect_params);
-        const auto dst_rect = dst_surface->GetScaledSubRect(subrect_params);
-
-        runtime.BlitTextures(src_surface->texture, {aspect, src_rect}, dst_surface->texture,
-                             {aspect, dst_rect});
+        const TextureBlit blit = {
+            .src_level = 0,
+            .dst_level = 0,
+            .src_rect = src_surface->GetScaledSubRect(subrect_params),
+            .dst_rect = dst_surface->GetScaledSubRect(subrect_params),
+        };
+        runtime.BlitTextures(*src_surface, *dst_surface, blit);
         return;
     }
 
@@ -268,9 +216,13 @@ bool RasterizerCacheOpenGL::BlitSurfaces(const Surface& src_surface,
     if (CheckFormatsBlittable(src_surface->pixel_format, dst_surface->pixel_format)) {
         dst_surface->InvalidateAllWatcher();
 
-        const Aspect aspect = ToAspect(src_surface->type);
-        return runtime.BlitTextures(src_surface->texture, {aspect, src_rect}, dst_surface->texture,
-                                    {aspect, dst_rect});
+        const TextureBlit blit = {
+            .src_level = 0,
+            .dst_level = 0,
+            .src_rect = src_rect,
+            .dst_rect = dst_rect,
+        };
+        return runtime.BlitTextures(*src_surface, *dst_surface, blit);
     }
 
     return false;
@@ -485,12 +437,13 @@ Surface RasterizerCacheOpenGL::GetTextureSurface(const Pica::Texture::TextureInf
                 }
 
                 if (texture_filterer->IsNull()) {
-                    const auto src_rect = level_surface->GetScaledRect();
-                    const auto dst_rect = surface_params.GetScaledRect();
-                    const Aspect aspect = ToAspect(surface->type);
-
-                    runtime.BlitTextures(level_surface->texture, {aspect, src_rect},
-                                         surface->texture, {aspect, dst_rect, level});
+                    const TextureBlit blit = {
+                        .src_level = 0,
+                        .dst_level = level,
+                        .src_rect = level_surface->GetScaledRect(),
+                        .dst_rect = surface_params.GetScaledRect(),
+                    };
+                    runtime.BlitTextures(*level_surface, *surface, blit);
                 }
 
                 watcher->Validate();
@@ -567,11 +520,16 @@ const CachedTextureCube& RasterizerCacheOpenGL::GetTextureCube(const TextureCube
                 ValidateSurface(surface, surface->addr, surface->size);
             }
 
-            const auto src_rect = surface->GetScaledRect();
-            const auto dst_rect = Common::Rectangle<u32>{0, scaled_size, scaled_size, 0};
-            const Aspect aspect = ToAspect(surface->type);
-            runtime.BlitTextures(surface->texture, {aspect, src_rect}, cube.texture,
-                                 {aspect, dst_rect, 0, static_cast<u32>(i)}, true);
+            const TextureCopy copy = {
+                .src_level = 0,
+                .dst_level = 0,
+                .src_layer = 0,
+                .dst_layer = static_cast<u32>(i),
+                .src_offset = {0, 0},
+                .dst_offset = {0, 0},
+                .extent = {scaled_size, scaled_size},
+            };
+            runtime.CopyTextures(*surface, cube, copy);
 
             face.watcher->Validate();
         }
@@ -946,12 +904,7 @@ bool RasterizerCacheOpenGL::ValidateByReinterpretation(const Surface& surface,
                                                        SurfaceParams& params,
                                                        const SurfaceInterval& interval) {
     const PixelFormat dst_format = surface->pixel_format;
-    const SurfaceType type = GetFormatType(dst_format);
-    const FormatTuple& tuple = GetFormatTuple(dst_format);
-
-    for (auto& reinterpreter :
-         format_reinterpreter->GetPossibleReinterpretations(surface->pixel_format)) {
-
+    for (auto& reinterpreter : format_reinterpreter->GetPossibleReinterpretations(dst_format)) {
         params.pixel_format = reinterpreter->GetSourceFormat();
         Surface reinterpret_surface =
             FindMatch<MatchFlags::Copy>(surface_cache, params, ScaleMatch::Ignore, interval);
@@ -962,30 +915,7 @@ bool RasterizerCacheOpenGL::ValidateByReinterpretation(const Surface& surface,
             auto src_rect = reinterpret_surface->GetScaledSubRect(reinterpret_params);
             auto dest_rect = surface->GetScaledSubRect(reinterpret_params);
 
-            if (!texture_filterer->IsNull() && reinterpret_surface->res_scale == 1 &&
-                surface->res_scale == resolution_scale_factor) {
-                // The destination surface is either a framebuffer, or a filtered texture.
-                // Create an intermediate surface to convert to before blitting to the
-                // destination.
-                const u32 width = dest_rect.GetHeight() / resolution_scale_factor;
-                const u32 height = dest_rect.GetWidth() / resolution_scale_factor;
-                const Common::Rectangle<u32> tmp_rect{0, width, height, 0};
-
-                OGLTexture tmp_tex = AllocateSurfaceTexture(tuple, height, width);
-                reinterpreter->Reinterpret(reinterpret_surface->texture, src_rect, tmp_tex,
-                                           tmp_rect);
-
-                if (!texture_filterer->Filter(tmp_tex, tmp_rect, surface->texture, dest_rect,
-                                              type)) {
-
-                    const Aspect aspect = ToAspect(type);
-                    runtime.BlitTextures(tmp_tex, {aspect, tmp_rect}, surface->texture,
-                                         {aspect, dest_rect});
-                }
-            } else {
-                reinterpreter->Reinterpret(reinterpret_surface->texture, src_rect, surface->texture,
-                                           dest_rect);
-            }
+            reinterpreter->Reinterpret(reinterpret_surface->texture, src_rect, surface->texture, dest_rect);
 
             return true;
         }

@@ -7,6 +7,7 @@
 #include <span>
 #include "common/hash.h"
 #include "common/math_util.h"
+#include "common/vector_math.h"
 #include "video_core/rasterizer_cache/pixel_format.h"
 
 namespace OpenGL {
@@ -31,6 +32,53 @@ struct HostTextureTag {
     const u64 Hash() const {
         return Common::ComputeHash64(this, sizeof(HostTextureTag));
     }
+};
+
+struct Offset {
+    constexpr auto operator<=>(const Offset&) const noexcept = default;
+
+    u32 x = 0;
+    u32 y = 0;
+};
+
+struct Extent {
+    constexpr auto operator<=>(const Extent&) const noexcept = default;
+
+    u32 width = 1;
+    u32 height = 1;
+};
+
+union ClearValue {
+    Common::Vec4f color;
+    struct {
+        float depth;
+        u8 stencil;
+    };
+};
+
+struct TextureClear {
+    u32 texture_level;
+    Common::Rectangle<u32> texture_rect;
+    ClearValue value;
+};
+
+struct TextureCopy {
+    u32 src_level;
+    u32 dst_level;
+    u32 src_layer;
+    u32 dst_layer;
+    Offset src_offset;
+    Offset dst_offset;
+    Extent extent;
+};
+
+struct TextureBlit {
+    u32 src_level;
+    u32 dst_level;
+    u32 src_layer;
+    u32 dst_layer;
+    Common::Rectangle<u32> src_rect;
+    Common::Rectangle<u32> dst_rect;
 };
 
 struct BufferTextureCopy {
@@ -70,6 +118,8 @@ struct TextureCubeConfig {
 };
 
 class SurfaceParams;
+
+[[nodiscard]] ClearValue MakeClearValue(SurfaceType type, PixelFormat format, const u8* fill_data);
 
 /**
  * Encodes a linear texture to the expected linear or tiled format.
