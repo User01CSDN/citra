@@ -453,11 +453,6 @@ Surface RasterizerCacheOpenGL::GetTextureSurface(const Pica::Texture::TextureInf
 
         // Allocate more mipmap level if necessary
         if (surface->max_level < max_level) {
-            if (surface->is_custom || !texture_filterer->IsNull()) {
-                // TODO: proper mipmap support for custom textures
-                runtime.GenerateMipmaps(surface->texture, max_level);
-            }
-
             surface->max_level = max_level;
         }
 
@@ -488,7 +483,7 @@ Surface RasterizerCacheOpenGL::GetTextureSurface(const Pica::Texture::TextureInf
                     ValidateSurface(level_surface, level_surface->addr, level_surface->size);
                 }
 
-                if (!surface->is_custom && texture_filterer->IsNull()) {
+                if (texture_filterer->IsNull()) {
                     const auto src_rect = level_surface->GetScaledRect();
                     const auto dst_rect = surface_params.GetScaledRect();
                     const Aspect aspect = ToAspect(surface->type);
@@ -935,8 +930,6 @@ void RasterizerCacheOpenGL::ClearAll(bool flush) {
 }
 
 void RasterizerCacheOpenGL::FlushRegion(PAddr addr, u32 size, Surface flush_surface) {
-    std::lock_guard lock{mutex};
-
     if (size == 0)
         return;
 
@@ -973,8 +966,6 @@ void RasterizerCacheOpenGL::FlushAll() {
 }
 
 void RasterizerCacheOpenGL::InvalidateRegion(PAddr addr, u32 size, const Surface& region_owner) {
-    std::lock_guard lock{mutex};
-
     if (size == 0)
         return;
 
@@ -1049,8 +1040,6 @@ Surface RasterizerCacheOpenGL::CreateSurface(const SurfaceParams& params) {
 }
 
 void RasterizerCacheOpenGL::RegisterSurface(const Surface& surface) {
-    std::lock_guard lock{mutex};
-
     if (surface->registered) {
         return;
     }
@@ -1060,8 +1049,6 @@ void RasterizerCacheOpenGL::RegisterSurface(const Surface& surface) {
 }
 
 void RasterizerCacheOpenGL::UnregisterSurface(const Surface& surface) {
-    std::lock_guard lock{mutex};
-
     if (!surface->registered) {
         return;
     }
