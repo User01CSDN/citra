@@ -22,25 +22,6 @@ static constexpr auto RangeFromInterval(Map& map, const Interval& interval) {
     return boost::make_iterator_range(map.equal_range(interval));
 }
 
-// Allocate an uninitialized texture of appropriate size and format for the surface
-OGLTexture RasterizerCacheOpenGL::AllocateSurfaceTexture(const FormatTuple& tuple, u32 width,
-                                                         u32 height) {
-    auto recycled_tex = host_texture_recycler.find({tuple, width, height});
-    if (recycled_tex != host_texture_recycler.end()) {
-        OGLTexture texture = std::move(recycled_tex->second);
-        host_texture_recycler.erase(recycled_tex);
-        return texture;
-    }
-
-    const GLsizei levels = static_cast<GLsizei>(std::log2(std::max(width, height))) + 1;
-
-    OGLTexture texture;
-    texture.Create();
-    texture.Allocate(GL_TEXTURE_2D, levels, tuple.internal_format, width, height);
-
-    return texture;
-}
-
 MICROPROFILE_DEFINE(RasterizerCache_CopySurface, "RasterizerCache", "CopySurface",
                     MP_RGB(128, 192, 64));
 void RasterizerCacheOpenGL::CopySurface(const Surface& src_surface, const Surface& dst_surface,
@@ -66,7 +47,8 @@ void RasterizerCacheOpenGL::CopySurface(const Surface& src_surface, const Surfac
         const TextureClear clear = {
             .texture_level = 0,
             .texture_rect = dst_surface->GetScaledSubRect(subrect_params),
-            .value = MakeClearValue(dst_surface->type, dst_surface->pixel_format, fill_buffer.data()),
+            .value =
+                MakeClearValue(dst_surface->type, dst_surface->pixel_format, fill_buffer.data()),
         };
         runtime.ClearTexture(*dst_surface, clear);
         return;
@@ -501,7 +483,7 @@ const CachedTextureCube& RasterizerCacheOpenGL::GetTextureCube(const TextureCube
             }
         }
 
-        const auto& tuple = GetFormatTuple(PixelFormatFromTextureFormat(config.format));
+        const auto& tuple = runtime.GetFormatTuple(PixelFormatFromTextureFormat(config.format));
         const u32 width = cube.res_scale * config.width;
         const GLsizei levels = static_cast<GLsizei>(std::log2(width)) + 1;
 
@@ -642,7 +624,7 @@ Surface RasterizerCacheOpenGL::GetFillSurface(const GPU::Regs::MemoryFillConfig&
     params.type = SurfaceType::Fill;
     params.res_scale = std::numeric_limits<u16>::max();
 
-    Surface new_surface = std::make_shared<CachedSurface>(params, *this, runtime);
+    Surface new_surface = std::make_shared<CachedSurface>(params, runtime);
 
     std::memcpy(&new_surface->fill_data[0], &config.value_32bit, 4);
     if (config.fill_32bit) {
@@ -915,7 +897,8 @@ bool RasterizerCacheOpenGL::ValidateByReinterpretation(const Surface& surface,
             auto src_rect = reinterpret_surface->GetScaledSubRect(reinterpret_params);
             auto dest_rect = surface->GetScaledSubRect(reinterpret_params);
 
-            reinterpreter->Reinterpret(reinterpret_surface->texture, src_rect, surface->texture, dest_rect);
+            reinterpreter->Reinterpret(reinterpret_surface->Texture(), src_rect, surface->Texture(),
+                                       dest_rect);
 
             return true;
         }
@@ -1048,14 +1031,8 @@ void RasterizerCacheOpenGL::InvalidateRegion(PAddr addr, u32 size, const Surface
 }
 
 Surface RasterizerCacheOpenGL::CreateSurface(const SurfaceParams& params) {
-    Surface surface = std::make_shared<CachedSurface>(params, *this, runtime);
+    Surface surface = std::make_shared<CachedSurface>(params, runtime);
     surface->invalid_regions.insert(surface->GetInterval());
-
-    // Allocate surface texture
-    const FormatTuple& tuple = GetFormatTuple(surface->pixel_format);
-    surface->texture =
-        AllocateSurfaceTexture(tuple, surface->GetScaledWidth(), surface->GetScaledHeight());
-
     return surface;
 }
 

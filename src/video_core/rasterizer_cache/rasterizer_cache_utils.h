@@ -12,28 +12,6 @@
 
 namespace OpenGL {
 
-struct FormatTuple {
-    int internal_format;
-    u32 format;
-    u32 type;
-};
-
-const FormatTuple& GetFormatTuple(PixelFormat pixel_format);
-
-struct HostTextureTag {
-    FormatTuple format_tuple{};
-    u32 width = 0;
-    u32 height = 0;
-
-    bool operator==(const HostTextureTag& rhs) const noexcept {
-        return std::memcmp(this, &rhs, sizeof(HostTextureTag)) == 0;
-    };
-
-    const u64 Hash() const {
-        return Common::ComputeHash64(this, sizeof(HostTextureTag));
-    }
-};
-
 struct Offset {
     constexpr auto operator<=>(const Offset&) const noexcept = default;
 
@@ -150,13 +128,6 @@ void DecodeTexture(const SurfaceParams& surface_info, PAddr start_addr, PAddr en
 } // namespace OpenGL
 
 namespace std {
-template <>
-struct hash<OpenGL::HostTextureTag> {
-    std::size_t operator()(const OpenGL::HostTextureTag& tag) const noexcept {
-        return tag.Hash();
-    }
-};
-
 template <>
 struct hash<OpenGL::TextureCubeConfig> {
     std::size_t operator()(const OpenGL::TextureCubeConfig& config) const noexcept {
