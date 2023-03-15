@@ -5,6 +5,7 @@
 #pragma once
 
 #include <list>
+#include <memory>
 #include <boost/icl/interval_set.hpp>
 #include "common/assert.h"
 #include "video_core/rasterizer_cache/surface_params.h"

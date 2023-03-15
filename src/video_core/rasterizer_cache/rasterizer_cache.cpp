@@ -858,8 +858,7 @@ bool RasterizerCacheOpenGL::NoUnimplementedReinterpretations(const Surface& surf
                 FindMatch<MatchFlags::Copy>(surface_cache, params, ScaleMatch::Ignore, interval);
             if (test_surface != nullptr) {
                 LOG_WARNING(Render_OpenGL, "Missing pixel_format reinterpreter: {} -> {}",
-                            PixelFormatAsString(format),
-                            PixelFormatAsString(surface->pixel_format));
+                            GetFormatName(format), GetFormatName(surface->pixel_format));
                 implemented = false;
             }
         }
