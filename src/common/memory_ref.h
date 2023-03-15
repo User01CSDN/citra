@@ -5,8 +5,8 @@
 #pragma once
 
 #include <memory>
-#include <vector>
 #include <span>
+#include <vector>
 #include <boost/serialization/export.hpp>
 #include <boost/serialization/shared_ptr.hpp>
 #include <boost/serialization/vector.hpp>

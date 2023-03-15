@@ -175,7 +175,6 @@ RasterizerCacheOpenGL::RasterizerCacheOpenGL(VideoCore::RendererBase& renderer_)
     resolution_scale_factor = renderer.GetResolutionScaleFactor();
     texture_filterer = std::make_unique<TextureFilterer>(
         Settings::values.texture_filter_name.GetValue(), resolution_scale_factor);
-    format_reinterpreter = std::make_unique<FormatReinterpreterOpenGL>();
 }
 
 RasterizerCacheOpenGL::~RasterizerCacheOpenGL() {
@@ -884,8 +883,8 @@ bool RasterizerCacheOpenGL::IntervalHasInvalidPixelFormat(SurfaceParams& params,
 bool RasterizerCacheOpenGL::ValidateByReinterpretation(const Surface& surface,
                                                        SurfaceParams& params,
                                                        const SurfaceInterval& interval) {
-    const PixelFormat dst_format = surface->pixel_format;
-    for (auto& reinterpreter : format_reinterpreter->GetPossibleReinterpretations(dst_format)) {
+    const PixelFormat dest_format = surface->pixel_format;
+    for (const auto& reinterpreter : runtime.GetPossibleReinterpretations(dest_format)) {
         params.pixel_format = reinterpreter->GetSourceFormat();
         Surface reinterpret_surface =
             FindMatch<MatchFlags::Copy>(surface_cache, params, ScaleMatch::Ignore, interval);
@@ -895,9 +894,7 @@ bool RasterizerCacheOpenGL::ValidateByReinterpretation(const Surface& surface,
             auto reinterpret_params = surface->FromInterval(reinterpret_interval);
             auto src_rect = reinterpret_surface->GetScaledSubRect(reinterpret_params);
             auto dest_rect = surface->GetScaledSubRect(reinterpret_params);
-
-            reinterpreter->Reinterpret(reinterpret_surface->Texture(), src_rect, surface->Texture(),
-                                       dest_rect);
+            reinterpreter->Reinterpret(*reinterpret_surface, src_rect, *surface, dest_rect);
 
             return true;
         }

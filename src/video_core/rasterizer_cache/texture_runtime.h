@@ -7,7 +7,7 @@
 #include "common/math_util.h"
 #include "video_core/rasterizer_cache/rasterizer_cache_utils.h"
 #include "video_core/rasterizer_cache/surface_base.h"
-#include "video_core/renderer_opengl/gl_resource_manager.h"
+#include "video_core/renderer_opengl/gl_format_reinterpreter.h"
 
 namespace OpenGL {
 
@@ -95,6 +95,9 @@ public:
     /// Generates mipmaps for all the available levels of the texture
     void GenerateMipmaps(Surface& surface, u32 max_level);
 
+    /// Returns all source formats that support reinterpretation to the dest format
+    const ReinterpreterList& GetPossibleReinterpretations(PixelFormat dest_format) const;
+
 private:
     /// Copies the GPU pixel data to the provided pixel buffer
     void ReadTexture(OGLTexture& texture, Common::Rectangle<u32> rect, PixelFormat format,
@@ -103,6 +106,7 @@ private:
 private:
     std::vector<u8> staging_buffer;
     OGLFramebuffer read_fbo, draw_fbo;
+    std::array<ReinterpreterList, PIXEL_FORMAT_COUNT> reinterpreters;
     std::unordered_multimap<HostTextureTag, Allocation, HostTextureTag::Hash> texture_recycler;
 };
 

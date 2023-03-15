@@ -26,7 +26,6 @@ enum class ScaleMatch {
 };
 
 class TextureFilterer;
-class FormatReinterpreterOpenGL;
 class Surface;
 
 class RasterizerCacheOpenGL : NonCopyable {
@@ -152,7 +151,6 @@ private:
 
 public:
     std::unique_ptr<TextureFilterer> texture_filterer;
-    std::unique_ptr<FormatReinterpreterOpenGL> format_reinterpreter;
 };
 
 } // namespace OpenGL
