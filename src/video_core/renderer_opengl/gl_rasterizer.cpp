@@ -598,7 +598,7 @@ bool RasterizerOpenGL::Draw(bool accelerate, bool is_indexed) {
     OGLTexture temp_tex;
     if (need_duplicate_texture) {
         const auto& tuple = TextureRuntime::GetFormatTuple(color_surface->pixel_format);
-        const GLsizei levels = color_surface->max_level + 1;
+        const GLsizei levels = color_surface->levels;
 
         // The game is trying to use a surface as a texture and framebuffer at the same time
         // which causes unpredictable behavior on the host.
