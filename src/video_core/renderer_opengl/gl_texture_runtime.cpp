@@ -1,12 +1,11 @@
-// Copyright 2022 Citra Emulator Project
+// Copyright 2023 Citra Emulator Project
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
 #include "common/scope_exit.h"
 #include "common/settings.h"
-#include "video_core/rasterizer_cache/rasterizer_cache_utils.h"
-#include "video_core/rasterizer_cache/texture_runtime.h"
 #include "video_core/renderer_opengl/gl_state.h"
+#include "video_core/renderer_opengl/gl_texture_runtime.h"
 
 namespace OpenGL {
 

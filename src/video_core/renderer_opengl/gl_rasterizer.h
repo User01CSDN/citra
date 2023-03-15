@@ -12,7 +12,7 @@
 #include "video_core/renderer_opengl/gl_shader_manager.h"
 #include "video_core/renderer_opengl/gl_state.h"
 #include "video_core/renderer_opengl/gl_stream_buffer.h"
-#include "video_core/shader/shader.h"
+#include "video_core/renderer_opengl/gl_texture_runtime.h"
 
 namespace VideoCore {
 class RendererBase;
@@ -138,6 +138,7 @@ private:
     Driver& driver;
     OpenGLState state;
     GLuint default_texture;
+    TextureRuntime runtime;
     RasterizerCacheOpenGL res_cache;
     std::unique_ptr<ShaderProgramManager> shader_program_manager;
 

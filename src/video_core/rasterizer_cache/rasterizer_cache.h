@@ -7,10 +7,8 @@
 #include <unordered_map>
 #include <boost/icl/interval_map.hpp>
 #include <boost/icl/interval_set.hpp>
-#include "video_core/rasterizer_cache/rasterizer_cache_utils.h"
 #include "video_core/rasterizer_cache/surface_base.h"
 #include "video_core/rasterizer_cache/surface_params.h"
-#include "video_core/rasterizer_cache/texture_runtime.h"
 #include "video_core/texture/texture_decode.h"
 
 namespace VideoCore {
@@ -25,6 +23,7 @@ enum class ScaleMatch {
     Ignore   // accept every scaled res
 };
 
+class TextureRuntime;
 class TextureFilterer;
 class Surface;
 
@@ -50,7 +49,7 @@ public:
     using PageMap = boost::icl::interval_map<u32, int>;
 
 public:
-    RasterizerCacheOpenGL(VideoCore::RendererBase& renderer);
+    RasterizerCacheOpenGL(TextureRuntime& runtime, VideoCore::RendererBase& renderer);
     ~RasterizerCacheOpenGL();
 
     /// Perform hardware accelerated texture copy according to the provided configuration
@@ -143,14 +142,14 @@ private:
     void UpdatePagesCachedCount(PAddr addr, u32 size, int delta);
 
 private:
+    TextureRuntime& runtime;
     VideoCore::RendererBase& renderer;
-    TextureRuntime runtime;
     SurfaceCache surface_cache;
     PageMap cached_pages;
     SurfaceMap dirty_regions;
     SurfaceSet remove_surfaces;
 
-    u16 resolution_scale_factor;
+    u32 resolution_scale_factor;
 
     std::unordered_map<TextureCubeConfig, CachedTextureCube> texture_cube_cache;
 

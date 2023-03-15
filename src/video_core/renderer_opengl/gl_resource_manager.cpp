@@ -83,20 +83,6 @@ void OGLTexture::Allocate(GLenum target, GLsizei levels, GLenum internalformat, 
     glBindTexture(GL_TEXTURE_2D, old_tex);
 }
 
-void OGLTexture::CopyFrom(const OGLTexture& other, GLenum target, GLsizei levels, GLsizei width,
-                          GLsizei height) {
-    GLuint old_tex = OpenGLState::GetCurState().texture_units[0].texture_2d;
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, handle);
-
-    for (GLsizei level = 0; level < levels; level++) {
-        glCopyImageSubData(other.handle, target, level, 0, 0, 0, handle, target, level, 0, 0, 0,
-                           width >> level, height >> level, 1);
-    }
-
-    glBindTexture(GL_TEXTURE_2D, old_tex);
-}
-
 void OGLSampler::Create() {
     if (handle != 0) {
         return;
