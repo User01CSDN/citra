@@ -136,4 +136,12 @@ SurfaceInterval SurfaceParams::GetSubRectInterval(Common::Rectangle<u32> unscale
     return {addr + BytesInPixels(pixel_offset), addr + BytesInPixels(pixel_offset + pixels)};
 }
 
+std::string SurfaceParams::DebugName(bool scaled) const noexcept {
+    const u32 scaled_width = GetScaledWidth();
+    const u32 scaled_height = GetScaledHeight();
+    return fmt::format("Surface: {}x{} {} {} levels from {:#x} to {:#x} ({})", scaled_width,
+                       scaled_height, GetFormatName(pixel_format), levels, addr, end,
+                       scaled ? "scaled" : "unscaled");
+}
+
 } // namespace VideoCore
