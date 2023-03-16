@@ -14,8 +14,8 @@ public:
     static constexpr std::string_view NAME = "xBRZ freescale";
 
     explicit XbrzFreescale(u16 scale_factor);
-    void Filter(const OGLTexture& src_tex, Common::Rectangle<u32> src_rect,
-                const OGLTexture& dst_tex, Common::Rectangle<u32> dst_rect) override;
+    void Filter(const GLuint src_tex, Common::Rectangle<u32> src_rect, const GLuint dst_tex,
+                Common::Rectangle<u32> dst_rect) override;
 
 private:
     OpenGLState state{};

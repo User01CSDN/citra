@@ -37,6 +37,9 @@ public:
     /// Returns the address interval referenced by unscaled_rect
     SurfaceInterval GetSubRectInterval(Common::Rectangle<u32> unscaled_rect) const;
 
+    /// Returns a string identifier of the params object
+    std::string DebugName(bool scaled) const noexcept;
+
     [[nodiscard]] SurfaceInterval GetInterval() const noexcept {
         return SurfaceInterval{addr, end};
     }

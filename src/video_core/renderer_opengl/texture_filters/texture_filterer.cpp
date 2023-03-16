@@ -60,9 +60,9 @@ bool TextureFilterer::IsNull() const {
     return !filter;
 }
 
-bool TextureFilterer::Filter(const OGLTexture& src_tex, Common::Rectangle<u32> src_rect,
-                             const OGLTexture& dst_tex, Common::Rectangle<u32> dst_rect,
-                             VideoCore::SurfaceType type) {
+bool TextureFilterer::Filter(const GLuint src_tex, Common::Rectangle<u32> src_rect,
+                             const GLuint dst_tex, Common::Rectangle<u32> dst_rect,
+                             VideoCore::SurfaceType type) const {
 
     // Depth/Stencil texture filtering is not supported for now
     if (IsNull() ||

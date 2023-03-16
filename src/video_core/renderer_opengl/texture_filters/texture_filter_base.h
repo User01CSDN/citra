@@ -24,8 +24,8 @@ public:
     virtual ~TextureFilterBase() = default;
 
 private:
-    virtual void Filter(const OGLTexture& src_tex, Common::Rectangle<u32> src_rect,
-                        const OGLTexture& dst_tex, Common::Rectangle<u32> dst_rect) = 0;
+    virtual void Filter(const GLuint src_tex, Common::Rectangle<u32> src_rect, const GLuint dst_tex,
+                        Common::Rectangle<u32> dst_rect) = 0;
 
 protected:
     OGLFramebuffer draw_fbo;

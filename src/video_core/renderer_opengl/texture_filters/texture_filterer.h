@@ -26,9 +26,8 @@ public:
     bool IsNull() const;
 
     // Returns true if the texture was able to be filtered
-    bool Filter(const OGLTexture& src_tex, Common::Rectangle<u32> src_rect,
-                const OGLTexture& dst_tex, Common::Rectangle<u32> dst_rect,
-                VideoCore::SurfaceType type);
+    bool Filter(const GLuint src_tex, Common::Rectangle<u32> src_rect, const GLuint dst_tex,
+                Common::Rectangle<u32> dst_rect, VideoCore::SurfaceType type) const;
 
     static std::vector<std::string_view> GetFilterNames();
 

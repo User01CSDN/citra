@@ -56,6 +56,11 @@ public:
         return gpu_vendor;
     }
 
+    /// Returns true if the an OpenGLES context is used
+    bool IsOpenGLES() const noexcept {
+        return is_gles;
+    }
+
     /// Returns true if the implementation is suitable for emulation
     bool IsSuitable() const {
         return is_suitable;
@@ -97,6 +102,7 @@ private:
     Vendor vendor = Vendor::Unknown;
     DriverBug bugs{};
     bool is_suitable{};
+    bool is_gles{};
 
     bool ext_buffer_storage{};
     bool arb_buffer_storage{};

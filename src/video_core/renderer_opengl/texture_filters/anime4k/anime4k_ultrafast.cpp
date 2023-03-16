@@ -71,8 +71,8 @@ Anime4kUltrafast::Anime4kUltrafast(u16 scale_factor) : TextureFilterBase(scale_f
     cur_state.Apply();
 }
 
-void Anime4kUltrafast::Filter(const OGLTexture& src_tex, Common::Rectangle<u32> src_rect,
-                              const OGLTexture& dst_tex, Common::Rectangle<u32> dst_rect) {
+void Anime4kUltrafast::Filter(const GLuint src_tex, Common::Rectangle<u32> src_rect,
+                              const GLuint dst_tex, Common::Rectangle<u32> dst_rect) {
     const OpenGLState cur_state = OpenGLState::GetCurState();
 
     // These will have handles from the previous texture that was filtered, reset them to avoid
@@ -104,7 +104,7 @@ void Anime4kUltrafast::Filter(const OGLTexture& src_tex, Common::Rectangle<u32> 
                       static_cast<GLint>(src_rect.bottom * internal_scale_factor),
                       static_cast<GLsizei>(src_rect.GetWidth() * internal_scale_factor),
                       static_cast<GLsizei>(src_rect.GetHeight() * internal_scale_factor)};
-    state.texture_units[0].texture_2d = src_tex.handle;
+    state.texture_units[0].texture_2d = src_tex;
     state.texture_units[1].texture_2d = LUMAD.tex.handle;
     state.texture_units[2].texture_2d = XY.tex.handle;
     state.draw.draw_framebuffer = XY.fbo.handle;
@@ -127,8 +127,7 @@ void Anime4kUltrafast::Filter(const OGLTexture& src_tex, Common::Rectangle<u32> 
     state.draw.shader_program = refine_program.handle;
     state.Apply();
 
-    glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, dst_tex.handle,
-                           0);
+    glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, dst_tex, 0);
     glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, 0, 0);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 

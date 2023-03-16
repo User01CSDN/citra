@@ -65,8 +65,8 @@ GLenum MakeAttributeType(Pica::PipelineRegs::VertexAttributeFormat format) {
 
 RasterizerOpenGL::RasterizerOpenGL(Memory::MemorySystem& memory, Frontend::EmuWindow& emu_window,
                                    Driver& driver_)
-    : VideoCore::RasterizerAccelerated{memory}, driver{driver_}, res_cache{runtime},
-      vertex_buffer{driver, GL_ARRAY_BUFFER, VERTEX_BUFFER_SIZE},
+    : VideoCore::RasterizerAccelerated{memory}, driver{driver_}, runtime{driver},
+      res_cache{runtime}, vertex_buffer{driver, GL_ARRAY_BUFFER, VERTEX_BUFFER_SIZE},
       uniform_buffer{driver, GL_UNIFORM_BUFFER, UNIFORM_BUFFER_SIZE},
       index_buffer{driver, GL_ELEMENT_ARRAY_BUFFER, INDEX_BUFFER_SIZE},
       texture_buffer{driver, GL_TEXTURE_BUFFER, TEXTURE_BUFFER_SIZE}, texture_lf_buffer{

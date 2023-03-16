@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <compare>
 #include <span>
 #include <boost/icl/right_open_interval.hpp>
 #include "common/hash.h"
