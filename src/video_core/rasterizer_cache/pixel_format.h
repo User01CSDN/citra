@@ -10,7 +10,7 @@
 #include "video_core/regs_framebuffer.h"
 #include "video_core/regs_texturing.h"
 
-namespace OpenGL {
+namespace VideoCore {
 
 enum class PixelFormat : u32 {
     RGBA8 = 0,
@@ -111,4 +111,4 @@ PixelFormat PixelFormatFromDepthFormat(Pica::FramebufferRegs::DepthFormat format
 
 PixelFormat PixelFormatFromGPUPixelFormat(GPU::Regs::PixelFormat format);
 
-} // namespace OpenGL
+} // namespace VideoCore

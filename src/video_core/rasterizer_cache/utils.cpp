@@ -7,7 +7,7 @@
 #include "video_core/rasterizer_cache/utils.h"
 #include "video_core/texture/texture_decode.h"
 
-namespace OpenGL {
+namespace VideoCore {
 
 ClearValue MakeClearValue(SurfaceType type, PixelFormat format, const u8* fill_data) {
     ClearValue result{};
@@ -110,4 +110,4 @@ void DecodeTexture(const SurfaceParams& surface_info, PAddr start_addr, PAddr en
     UNIMPLEMENTED();
 }
 
-} // namespace OpenGL
+} // namespace VideoCore

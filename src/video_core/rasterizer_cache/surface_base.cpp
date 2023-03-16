@@ -5,7 +5,7 @@
 #include "common/alignment.h"
 #include "video_core/rasterizer_cache/surface_base.h"
 
-namespace OpenGL {
+namespace VideoCore {
 
 SurfaceBase::SurfaceBase(const SurfaceParams& params) : SurfaceParams{params} {}
 
@@ -121,4 +121,4 @@ void SurfaceBase::UnlinkAllWatcher() {
     watchers.clear();
 }
 
-} // namespace OpenGL
+} // namespace VideoCore

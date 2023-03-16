@@ -22,7 +22,7 @@ public:
 
     virtual ~FormatReinterpreterBase() = default;
 
-    virtual PixelFormat GetSourceFormat() const = 0;
+    virtual VideoCore::PixelFormat GetSourceFormat() const = 0;
     virtual void Reinterpret(Surface& source, Common::Rectangle<u32> src_rect, Surface& dest,
                              Common::Rectangle<u32> dst_rect) = 0;
 
@@ -37,8 +37,8 @@ class RGBA4toRGB5A1 final : public FormatReinterpreterBase {
 public:
     RGBA4toRGB5A1();
 
-    PixelFormat GetSourceFormat() const override {
-        return PixelFormat::RGBA4;
+    VideoCore::PixelFormat GetSourceFormat() const override {
+        return VideoCore::PixelFormat::RGBA4;
     }
 
     void Reinterpret(Surface& source, Common::Rectangle<u32> src_rect, Surface& dest,
@@ -56,8 +56,8 @@ class ShaderD24S8toRGBA8 final : public FormatReinterpreterBase {
 public:
     ShaderD24S8toRGBA8();
 
-    PixelFormat GetSourceFormat() const override {
-        return PixelFormat::D24S8;
+    VideoCore::PixelFormat GetSourceFormat() const override {
+        return VideoCore::PixelFormat::D24S8;
     }
 
     void Reinterpret(Surface& source, Common::Rectangle<u32> src_rect, Surface& dest,
