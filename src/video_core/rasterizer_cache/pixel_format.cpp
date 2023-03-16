@@ -4,7 +4,7 @@
 
 #include "video_core/rasterizer_cache/pixel_format.h"
 
-namespace OpenGL {
+namespace VideoCore {
 
 std::string_view PixelFormatAsString(PixelFormat format) {
     switch (format) {
@@ -97,4 +97,4 @@ PixelFormat PixelFormatFromGPUPixelFormat(GPU::Regs::PixelFormat format) {
     }
 }
 
-} // namespace OpenGL
+} // namespace VideoCore

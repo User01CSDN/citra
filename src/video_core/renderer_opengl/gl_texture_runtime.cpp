@@ -12,6 +12,9 @@ namespace OpenGL {
 
 namespace {
 
+using VideoCore::PixelFormat;
+using VideoCore::SurfaceType;
+
 constexpr FormatTuple DEFAULT_TUPLE = {GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE};
 
 static constexpr std::array<FormatTuple, 4> DEPTH_TUPLES = {{
@@ -77,11 +80,11 @@ bool TextureRuntime::ResetFilter() {
                           VideoCore::GetResolutionScaleFactor());
 }
 
-StagingData TextureRuntime::FindStaging(u32 size, bool upload) {
+VideoCore::StagingData TextureRuntime::FindStaging(u32 size, bool upload) {
     if (size > staging_buffer.size()) {
         staging_buffer.resize(size);
     }
-    return StagingData{
+    return VideoCore::StagingData{
         .size = size,
         .mapped = std::span{staging_buffer.data(), size},
         .buffer_offset = 0,
@@ -110,8 +113,9 @@ void TextureRuntime::Recycle(const HostTextureTag tag, Allocation&& alloc) {
 }
 
 Allocation TextureRuntime::Allocate(u32 width, u32 height, u32 levels, const FormatTuple& tuple,
-                                    TextureType type) {
-    const GLenum target = type == TextureType::CubeMap ? GL_TEXTURE_CUBE_MAP : GL_TEXTURE_2D;
+                                    VideoCore::TextureType type) {
+    const GLenum target =
+        type == VideoCore::TextureType::CubeMap ? GL_TEXTURE_CUBE_MAP : GL_TEXTURE_2D;
     const HostTextureTag key = {
         .tuple = tuple,
         .type = type,
@@ -187,7 +191,7 @@ void TextureRuntime::ReadTexture(OGLTexture& texture, Common::Rectangle<u32> rec
                  tuple.type, pixels.data());
 }
 
-bool TextureRuntime::ClearTexture(Surface& surface, const TextureClear& clear) {
+bool TextureRuntime::ClearTexture(Surface& surface, const VideoCore::TextureClear& clear) {
     OpenGLState prev_state = OpenGLState::GetCurState();
     SCOPE_EXIT({ prev_state.Apply(); });
 
@@ -247,11 +251,13 @@ bool TextureRuntime::ClearTexture(Surface& surface, const TextureClear& clear) {
     return true;
 }
 
-bool TextureRuntime::CopyTextures(Surface& source, Surface& dest, const TextureCopy& copy) {
-    const GLenum src_textarget =
-        source.texture_type == TextureType::CubeMap ? GL_TEXTURE_CUBE_MAP : GL_TEXTURE_2D;
+bool TextureRuntime::CopyTextures(Surface& source, Surface& dest,
+                                  const VideoCore::TextureCopy& copy) {
+    const GLenum src_textarget = source.texture_type == VideoCore::TextureType::CubeMap
+                                     ? GL_TEXTURE_CUBE_MAP
+                                     : GL_TEXTURE_2D;
     const GLenum dst_textarget =
-        dest.texture_type == TextureType::CubeMap ? GL_TEXTURE_CUBE_MAP : GL_TEXTURE_2D;
+        dest.texture_type == VideoCore::TextureType::CubeMap ? GL_TEXTURE_CUBE_MAP : GL_TEXTURE_2D;
     glCopyImageSubData(source.Handle(), src_textarget, copy.src_level, copy.src_offset.x,
                        copy.src_offset.y, copy.src_layer, dest.Handle(), dst_textarget,
                        copy.dst_level, copy.dst_offset.x, copy.dst_offset.y, copy.dst_layer,
@@ -260,7 +266,7 @@ bool TextureRuntime::CopyTextures(Surface& source, Surface& dest, const TextureC
 }
 
 bool TextureRuntime::CopyTextures(Surface& source, CachedTextureCube& dest,
-                                  const TextureCopy& copy) {
+                                  const VideoCore::TextureCopy& copy) {
     glCopyImageSubData(source.Handle(), GL_TEXTURE_2D, copy.src_level, copy.src_offset.x,
                        copy.src_offset.y, copy.src_layer, dest.texture.handle, GL_TEXTURE_CUBE_MAP,
                        copy.dst_level, copy.dst_offset.x, copy.dst_offset.y, copy.dst_layer,
@@ -268,7 +274,8 @@ bool TextureRuntime::CopyTextures(Surface& source, CachedTextureCube& dest,
     return true;
 }
 
-bool TextureRuntime::BlitTextures(Surface& source, Surface& dest, const TextureBlit& blit) {
+bool TextureRuntime::BlitTextures(Surface& source, Surface& dest,
+                                  const VideoCore::TextureBlit& blit) {
     OpenGLState prev_state = OpenGLState::GetCurState();
     SCOPE_EXIT({ prev_state.Apply(); });
 
@@ -278,10 +285,10 @@ bool TextureRuntime::BlitTextures(Surface& source, Surface& dest, const TextureB
     state.Apply();
 
     const auto BindAttachment = [&](GLenum target, u32 src_tex, u32 dst_tex) -> void {
-        const GLenum src_textarget = source.texture_type == TextureType::CubeMap
+        const GLenum src_textarget = source.texture_type == VideoCore::TextureType::CubeMap
                                          ? GL_TEXTURE_CUBE_MAP_POSITIVE_X + blit.src_layer
                                          : GL_TEXTURE_2D;
-        const GLenum dst_textarget = dest.texture_type == TextureType::CubeMap
+        const GLenum dst_textarget = dest.texture_type == VideoCore::TextureType::CubeMap
                                          ? GL_TEXTURE_CUBE_MAP_POSITIVE_X + blit.dst_layer
                                          : GL_TEXTURE_2D;
         glFramebufferTexture2D(GL_READ_FRAMEBUFFER, target, src_textarget, src_tex, blit.src_level);
@@ -341,7 +348,7 @@ const ReinterpreterList& TextureRuntime::GetPossibleReinterpretations(
     return reinterpreters[static_cast<u32>(dest_format)];
 }
 
-Surface::Surface(TextureRuntime& runtime_, const SurfaceParams& params)
+Surface::Surface(TextureRuntime& runtime_, const VideoCore::SurfaceParams& params)
     : SurfaceBase{params}, runtime{&runtime_} {
     if (pixel_format == PixelFormat::Invalid) {
         return;
@@ -368,7 +375,8 @@ Surface::~Surface() {
     runtime->Recycle(tag, std::move(alloc));
 }
 
-void Surface::Upload(const BufferTextureCopy& upload, const StagingData& staging) {
+void Surface::Upload(const VideoCore::BufferTextureCopy& upload,
+                     const VideoCore::StagingData& staging) {
     // Ensure no bad interactions with GL_UNPACK_ALIGNMENT
     ASSERT(stride * GetBytesPerPixel(pixel_format) % 4 == 0);
 
@@ -395,7 +403,8 @@ void Surface::Upload(const BufferTextureCopy& upload, const StagingData& staging
     InvalidateAllWatcher();
 }
 
-void Surface::Download(const BufferTextureCopy& download, const StagingData& staging) {
+void Surface::Download(const VideoCore::BufferTextureCopy& download,
+                       const VideoCore::StagingData& staging) {
     // Ensure no bad interactions with GL_PACK_ALIGNMENT
     ASSERT(stride * GetBytesPerPixel(pixel_format) % 4 == 0);
 

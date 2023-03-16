@@ -12,7 +12,7 @@
 #include "video_core/texture/etc1.h"
 #include "video_core/utils.h"
 
-namespace OpenGL {
+namespace VideoCore {
 
 template <typename T>
 inline T MakeInt(const u8* bytes) {
@@ -552,4 +552,4 @@ static constexpr std::array<LinearFunc, 18> LINEAR_ENCODE_TABLE_CONVERTED = {
     nullptr, // 17
 };
 
-} // namespace OpenGL
+} // namespace VideoCore

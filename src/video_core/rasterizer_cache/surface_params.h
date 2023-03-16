@@ -6,7 +6,7 @@
 
 #include "video_core/rasterizer_cache/utils.h"
 
-namespace OpenGL {
+namespace VideoCore {
 
 class SurfaceParams {
 public:
@@ -42,7 +42,7 @@ public:
     }
 
     [[nodiscard]] u32 GetFormatBpp() const noexcept {
-        return OpenGL::GetFormatBpp(pixel_format);
+        return VideoCore::GetFormatBpp(pixel_format);
     }
 
     [[nodiscard]] u32 GetScaledWidth() const noexcept {
@@ -86,4 +86,4 @@ public:
     SurfaceType type = SurfaceType::Invalid;
 };
 
-} // namespace OpenGL
+} // namespace VideoCore

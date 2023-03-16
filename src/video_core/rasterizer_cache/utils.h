@@ -11,7 +11,7 @@
 #include "common/vector_math.h"
 #include "video_core/rasterizer_cache/pixel_format.h"
 
-namespace OpenGL {
+namespace VideoCore {
 
 using SurfaceInterval = boost::icl::right_open_interval<PAddr>;
 
@@ -130,12 +130,12 @@ void EncodeTexture(const SurfaceParams& surface_info, PAddr start_addr, PAddr en
 void DecodeTexture(const SurfaceParams& surface_info, PAddr start_addr, PAddr end_addr,
                    std::span<u8> source, std::span<u8> dest, bool convert = false);
 
-} // namespace OpenGL
+} // namespace VideoCore
 
 namespace std {
 template <>
-struct hash<OpenGL::TextureCubeConfig> {
-    std::size_t operator()(const OpenGL::TextureCubeConfig& config) const noexcept {
+struct hash<VideoCore::TextureCubeConfig> {
+    std::size_t operator()(const VideoCore::TextureCubeConfig& config) const noexcept {
         return config.Hash();
     }
 };

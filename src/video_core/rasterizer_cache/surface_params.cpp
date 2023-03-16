@@ -5,7 +5,7 @@
 #include "common/alignment.h"
 #include "video_core/rasterizer_cache/surface_params.h"
 
-namespace OpenGL {
+namespace VideoCore {
 
 bool SurfaceParams::ExactMatch(const SurfaceParams& other_surface) const {
     return std::tie(other_surface.addr, other_surface.width, other_surface.height,
@@ -136,4 +136,4 @@ SurfaceInterval SurfaceParams::GetSubRectInterval(Common::Rectangle<u32> unscale
     return {addr + BytesInPixels(pixel_offset), addr + BytesInPixels(pixel_offset + pixels)};
 }
 
-} // namespace OpenGL
+} // namespace VideoCore

@@ -11,7 +11,7 @@
 #include "video_core/rasterizer_cache/surface_params.h"
 #include "video_core/renderer_opengl/gl_resource_manager.h"
 
-namespace OpenGL {
+namespace VideoCore {
 
 class SurfaceBase;
 
@@ -84,15 +84,19 @@ public:
     std::list<std::weak_ptr<SurfaceWatcher>> watchers;
 };
 
+} // namespace VideoCore
+
+namespace OpenGL {
+
 struct CachedTextureCube {
-    OGLTexture texture;
+    OpenGL::OGLTexture texture;
     u16 res_scale = 1;
-    std::shared_ptr<SurfaceWatcher> px;
-    std::shared_ptr<SurfaceWatcher> nx;
-    std::shared_ptr<SurfaceWatcher> py;
-    std::shared_ptr<SurfaceWatcher> ny;
-    std::shared_ptr<SurfaceWatcher> pz;
-    std::shared_ptr<SurfaceWatcher> nz;
+    std::shared_ptr<VideoCore::SurfaceWatcher> px;
+    std::shared_ptr<VideoCore::SurfaceWatcher> nx;
+    std::shared_ptr<VideoCore::SurfaceWatcher> py;
+    std::shared_ptr<VideoCore::SurfaceWatcher> ny;
+    std::shared_ptr<VideoCore::SurfaceWatcher> pz;
+    std::shared_ptr<VideoCore::SurfaceWatcher> nz;
 };
 
 } // namespace OpenGL

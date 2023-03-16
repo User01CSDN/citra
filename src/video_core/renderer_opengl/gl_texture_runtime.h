@@ -24,7 +24,7 @@ struct FormatTuple {
 
 struct HostTextureTag {
     FormatTuple tuple{};
-    TextureType type{};
+    VideoCore::TextureType type{};
     u32 width = 0;
     u32 height = 0;
     u32 levels = 1;
@@ -76,52 +76,52 @@ public:
     bool ResetFilter();
 
     /// Maps an internal staging buffer of the provided size of pixel uploads/downloads
-    StagingData FindStaging(u32 size, bool upload);
+    VideoCore::StagingData FindStaging(u32 size, bool upload);
 
     /// Returns the OpenGL format tuple associated with the provided pixel format
-    static const FormatTuple& GetFormatTuple(PixelFormat pixel_format);
+    static const FormatTuple& GetFormatTuple(VideoCore::PixelFormat pixel_format);
 
     /// Takes back ownership of the allocation for recycling
     void Recycle(const HostTextureTag tag, Allocation&& alloc);
 
     /// Allocates an OpenGL texture with the specified dimentions and format
     Allocation Allocate(u32 width, u32 height, u32 levels, const FormatTuple& tuple,
-                        TextureType type);
+                        VideoCore::TextureType type);
 
     /// Fills the rectangle of the texture with the clear value provided
-    bool ClearTexture(Surface& surface, const TextureClear& clear);
+    bool ClearTexture(Surface& surface, const VideoCore::TextureClear& clear);
 
     /// Copies a rectangle of source to another rectange of dest
-    bool CopyTextures(Surface& source, Surface& dest, const TextureCopy& copy);
+    bool CopyTextures(Surface& source, Surface& dest, const VideoCore::TextureCopy& copy);
 
     /// Copies a rectangle of source to a face of dest cube
-    bool CopyTextures(Surface& source, CachedTextureCube& dest, const TextureCopy& copy);
+    bool CopyTextures(Surface& source, CachedTextureCube& dest, const VideoCore::TextureCopy& copy);
 
     /// Blits a rectangle of source to another rectange of dest
-    bool BlitTextures(Surface& source, Surface& dest, const TextureBlit& blit);
+    bool BlitTextures(Surface& source, Surface& dest, const VideoCore::TextureBlit& blit);
 
     /// Generates mipmaps for all the available levels of the texture
     void GenerateMipmaps(Surface& surface, u32 max_level);
 
     /// Returns all source formats that support reinterpretation to the dest format
-    const ReinterpreterList& GetPossibleReinterpretations(PixelFormat dest_format) const;
+    const ReinterpreterList& GetPossibleReinterpretations(VideoCore::PixelFormat dest_format) const;
 
 private:
     /// Copies the GPU pixel data to the provided pixel buffer
-    void ReadTexture(OGLTexture& texture, Common::Rectangle<u32> rect, PixelFormat format,
-                     GLint level, std::span<u8> pixels) const;
+    void ReadTexture(OGLTexture& texture, Common::Rectangle<u32> rect,
+                     VideoCore::PixelFormat format, GLint level, std::span<u8> pixels) const;
 
 private:
     TextureFilterer filterer;
     std::vector<u8> staging_buffer;
     OGLFramebuffer read_fbo, draw_fbo;
-    std::array<ReinterpreterList, PIXEL_FORMAT_COUNT> reinterpreters;
+    std::array<ReinterpreterList, VideoCore::PIXEL_FORMAT_COUNT> reinterpreters;
     std::unordered_multimap<HostTextureTag, Allocation, HostTextureTag::Hash> texture_recycler;
 };
 
-class Surface : public SurfaceBase {
+class Surface : public VideoCore::SurfaceBase {
 public:
-    explicit Surface(TextureRuntime& runtime, const SurfaceParams& params);
+    explicit Surface(TextureRuntime& runtime, const VideoCore::SurfaceParams& params);
     ~Surface();
 
     Surface(const Surface&) = delete;
@@ -141,10 +141,11 @@ public:
     }
 
     /// Uploads pixel data in staging to a rectangle region of the surface texture
-    void Upload(const BufferTextureCopy& upload, const StagingData& staging);
+    void Upload(const VideoCore::BufferTextureCopy& upload, const VideoCore::StagingData& staging);
 
     /// Downloads pixel data to staging from a rectangle region of the surface texture
-    void Download(const BufferTextureCopy& download, const StagingData& staging);
+    void Download(const VideoCore::BufferTextureCopy& download,
+                  const VideoCore::StagingData& staging);
 
     /// Returns the bpp of the internal surface format
     u32 GetInternalBytesPerPixel() const {
