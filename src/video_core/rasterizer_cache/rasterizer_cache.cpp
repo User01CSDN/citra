@@ -7,12 +7,14 @@
 #include "common/alignment.h"
 #include "common/logging/log.h"
 #include "common/microprofile.h"
-#include "video_core/pica_state.h"
+#include "core/memory.h"
 #include "video_core/rasterizer_cache/rasterizer_cache.h"
+#include "video_core/regs.h"
 #include "video_core/renderer_base.h"
 #include "video_core/renderer_opengl/gl_format_reinterpreter.h"
 #include "video_core/renderer_opengl/gl_texture_runtime.h"
 #include "video_core/renderer_opengl/gl_vars.h"
+#include "video_core/video_core.h"
 
 namespace VideoCore {
 
@@ -339,9 +341,10 @@ static auto FindMatch(const auto& surface_cache, const SurfaceParams& params,
     return match_surface;
 }
 
-RasterizerCache::RasterizerCache(OpenGL::TextureRuntime& runtime_, RendererBase& renderer_)
-    : runtime{runtime_}, renderer{renderer_}, resolution_scale_factor{
-                                                  renderer.GetResolutionScaleFactor()} {}
+RasterizerCache::RasterizerCache(Memory::MemorySystem& memory_, OpenGL::TextureRuntime& runtime_,
+                                 Pica::Regs& regs_, RendererBase& renderer_)
+    : memory{memory_}, runtime{runtime_}, regs{regs_}, renderer{renderer_},
+      resolution_scale_factor{renderer.GetResolutionScaleFactor()} {}
 
 RasterizerCache::~RasterizerCache() {
 #ifndef ANDROID
@@ -676,7 +679,6 @@ const OpenGL::CachedTextureCube& RasterizerCache::GetTextureCube(const TextureCu
 auto RasterizerCache::GetFramebufferSurfaces(bool using_color_fb, bool using_depth_fb,
                                              const Common::Rectangle<s32>& viewport_rect)
     -> SurfaceSurfaceRect_Tuple {
-    const auto& regs = Pica::g_state.regs;
     const auto& config = regs.framebuffer.framebuffer;
 
     // Update resolution_scale_factor and reset cache if changed
@@ -921,7 +923,7 @@ void RasterizerCache::UploadSurface(const Surface& surface, SurfaceInterval inte
     const auto staging = runtime.FindStaging(
         load_info.width * load_info.height * surface->GetInternalBytesPerPixel(), true);
 
-    MemoryRef source_ptr = VideoCore::g_memory->GetPhysicalRef(load_info.addr);
+    MemoryRef source_ptr = memory.GetPhysicalRef(load_info.addr);
     if (!source_ptr) [[unlikely]] {
         return;
     }
@@ -959,7 +961,7 @@ void RasterizerCache::DownloadSurface(const Surface& surface, SurfaceInterval in
     };
     surface->Download(download, staging);
 
-    MemoryRef dest_ptr = VideoCore::g_memory->GetPhysicalRef(flush_start);
+    MemoryRef dest_ptr = memory.GetPhysicalRef(flush_start);
     if (!dest_ptr) [[unlikely]] {
         return;
     }
@@ -977,7 +979,7 @@ void RasterizerCache::DownloadFillSurface(const Surface& surface, SurfaceInterva
     const u32 flush_end = boost::icl::last_next(interval);
     ASSERT(flush_start >= surface->addr && flush_end <= surface->end);
 
-    MemoryRef dest_ptr = VideoCore::g_memory->GetPhysicalRef(flush_start);
+    MemoryRef dest_ptr = memory.GetPhysicalRef(flush_start);
     if (!dest_ptr) [[unlikely]] {
         return;
     }
@@ -1081,7 +1083,7 @@ void RasterizerCache::ClearAll(bool flush) {
         const PAddr interval_end_addr = boost::icl::last_next(interval) << Memory::CITRA_PAGE_BITS;
         const u32 interval_size = interval_end_addr - interval_start_addr;
 
-        VideoCore::g_memory->RasterizerMarkRegionCached(interval_start_addr, interval_size, false);
+        memory.RasterizerMarkRegionCached(interval_start_addr, interval_size, false);
     }
 
     // Remove the whole cache without really looking at it.
@@ -1223,8 +1225,9 @@ void RasterizerCache::UpdatePagesCachedCount(PAddr addr, u32 size, int delta) {
     // Interval maps will erase segments if count reaches 0, so if delta is negative we have to
     // subtract after iterating
     const auto pages_interval = PageMap::interval_type::right_open(page_start, page_end);
-    if (delta > 0)
+    if (delta > 0) {
         cached_pages.add({pages_interval, delta});
+    }
 
     for (const auto& pair : RangeFromInterval(cached_pages, pages_interval)) {
         const auto interval = pair.first & pages_interval;
@@ -1234,18 +1237,18 @@ void RasterizerCache::UpdatePagesCachedCount(PAddr addr, u32 size, int delta) {
         const PAddr interval_end_addr = boost::icl::last_next(interval) << Memory::CITRA_PAGE_BITS;
         const u32 interval_size = interval_end_addr - interval_start_addr;
 
-        if (delta > 0 && count == delta)
-            VideoCore::g_memory->RasterizerMarkRegionCached(interval_start_addr, interval_size,
-                                                            true);
-        else if (delta < 0 && count == -delta)
-            VideoCore::g_memory->RasterizerMarkRegionCached(interval_start_addr, interval_size,
-                                                            false);
-        else
+        if (delta > 0 && count == delta) {
+            memory.RasterizerMarkRegionCached(interval_start_addr, interval_size, true);
+        } else if (delta < 0 && count == -delta) {
+            memory.RasterizerMarkRegionCached(interval_start_addr, interval_size, false);
+        } else {
             ASSERT(count >= 0);
+        }
     }
 
-    if (delta < 0)
+    if (delta < 0) {
         cached_pages.add({pages_interval, delta});
+    }
 }
 
 } // namespace VideoCore

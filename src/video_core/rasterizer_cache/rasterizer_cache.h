@@ -11,6 +11,14 @@
 #include "video_core/rasterizer_cache/surface_params.h"
 #include "video_core/texture/texture_decode.h"
 
+namespace Memory {
+class MemorySystem;
+}
+
+namespace Pica {
+struct Regs;
+}
+
 namespace OpenGL {
 class Surface;
 class TextureRuntime;
@@ -48,7 +56,8 @@ public:
     using PageMap = boost::icl::interval_map<u32, int>;
 
 public:
-    RasterizerCache(OpenGL::TextureRuntime& runtime, RendererBase& renderer);
+    RasterizerCache(Memory::MemorySystem& memory, OpenGL::TextureRuntime& runtime, Pica::Regs& regs,
+                    RendererBase& renderer);
     ~RasterizerCache();
 
     /// Perform hardware accelerated texture copy according to the provided configuration
@@ -141,7 +150,9 @@ private:
     void UpdatePagesCachedCount(PAddr addr, u32 size, int delta);
 
 private:
+    Memory::MemorySystem& memory;
     OpenGL::TextureRuntime& runtime;
+    Pica::Regs& regs;
     RendererBase& renderer;
     SurfaceCache surface_cache;
     PageMap cached_pages;
