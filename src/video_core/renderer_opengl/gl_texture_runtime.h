@@ -7,6 +7,7 @@
 #include "common/math_util.h"
 #include "video_core/rasterizer_cache/surface_base.h"
 #include "video_core/renderer_opengl/gl_format_reinterpreter.h"
+#include "video_core/renderer_opengl/texture_filters/texture_filterer.h"
 
 namespace OpenGL {
 
@@ -66,6 +67,14 @@ public:
     explicit TextureRuntime();
     ~TextureRuntime();
 
+    /// Returns true if no texture filter is in use
+    bool IsNullFilter() const noexcept {
+        return filterer.IsNull();
+    }
+
+    /// Resets texture filtering settings to the global settings
+    bool ResetFilter();
+
     /// Maps an internal staging buffer of the provided size of pixel uploads/downloads
     StagingData FindStaging(u32 size, bool upload);
 
@@ -103,6 +112,7 @@ private:
                      GLint level, std::span<u8> pixels) const;
 
 private:
+    TextureFilterer filterer;
     std::vector<u8> staging_buffer;
     OGLFramebuffer read_fbo, draw_fbo;
     std::array<ReinterpreterList, PIXEL_FORMAT_COUNT> reinterpreters;

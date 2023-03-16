@@ -20,7 +20,6 @@ enum class ScaleMatch {
 };
 
 class TextureRuntime;
-class TextureFilterer;
 class Surface;
 
 class RasterizerCacheOpenGL : NonCopyable {
@@ -143,13 +142,8 @@ private:
     PageMap cached_pages;
     SurfaceMap dirty_regions;
     SurfaceSet remove_surfaces;
-
     u16 resolution_scale_factor;
-
     std::unordered_map<TextureCubeConfig, CachedTextureCube> texture_cube_cache;
-
-public:
-    std::unique_ptr<TextureFilterer> texture_filterer;
 };
 
 } // namespace OpenGL
