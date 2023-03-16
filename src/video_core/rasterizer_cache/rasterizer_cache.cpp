@@ -522,6 +522,11 @@ auto RasterizerCache::GetTextureSurface(const Pica::Texture::TextureInfo& info, 
             return nullptr;
         }
 
+        // When texture filtering is enabled generate mipmaps
+        if (!runtime.IsNullFilter()) {
+            runtime.GenerateMipmaps(*surface, max_level);
+        }
+
         // Blit mipmaps that have been invalidated
         SurfaceParams surface_params = *surface;
         for (u32 level = 1; level <= max_level; ++level) {
@@ -652,9 +657,8 @@ const OpenGL::CachedTextureCube& RasterizerCache::GetTextureCube(const TextureCu
     return cube;
 }
 
-auto RasterizerCache::GetFramebufferSurfaces(bool using_color_fb, bool using_depth_fb,
-                                             const Common::Rectangle<s32>& viewport_rect)
-    -> SurfaceSurfaceRect_Tuple {
+auto RasterizerCache::GetFramebufferSurfaces(bool using_color_fb, bool using_depth_fb)
+    -> OpenGL::Framebuffer {
     const auto& config = regs.framebuffer.framebuffer;
 
     // Update resolution_scale_factor and reset cache if changed
@@ -671,12 +675,15 @@ auto RasterizerCache::GetFramebufferSurfaces(bool using_color_fb, bool using_dep
         texture_cube_cache.clear();
     }
 
-    Common::Rectangle<u32> viewport_clamped{
-        static_cast<u32>(std::clamp(viewport_rect.left, 0, static_cast<s32>(config.GetWidth()))),
-        static_cast<u32>(std::clamp(viewport_rect.top, 0, static_cast<s32>(config.GetHeight()))),
-        static_cast<u32>(std::clamp(viewport_rect.right, 0, static_cast<s32>(config.GetWidth()))),
-        static_cast<u32>(
-            std::clamp(viewport_rect.bottom, 0, static_cast<s32>(config.GetHeight())))};
+    const s32 framebuffer_width = config.GetWidth();
+    const s32 framebuffer_height = config.GetHeight();
+    const auto viewport_rect = regs.rasterizer.GetViewportRect();
+    const Common::Rectangle<u32> viewport_clamped = {
+        static_cast<u32>(std::clamp(viewport_rect.left, 0, framebuffer_width)),
+        static_cast<u32>(std::clamp(viewport_rect.top, 0, framebuffer_height)),
+        static_cast<u32>(std::clamp(viewport_rect.right, 0, framebuffer_width)),
+        static_cast<u32>(std::clamp(viewport_rect.bottom, 0, framebuffer_height)),
+    };
 
     // get color and depth surfaces
     SurfaceParams color_params;
@@ -744,30 +751,25 @@ auto RasterizerCache::GetFramebufferSurfaces(bool using_color_fb, bool using_dep
         depth_surface->InvalidateAllWatcher();
     }
 
-    return std::make_tuple(color_surface, depth_surface, fb_rect);
+    render_targets = RenderTargets{
+        .color_surface = color_surface,
+        .depth_surface = depth_surface,
+    };
+
+    return OpenGL::Framebuffer{runtime, color_surface.get(), depth_surface.get(), regs, fb_rect};
 }
 
-auto RasterizerCache::GetFillSurface(const GPU::Regs::MemoryFillConfig& config) -> Surface {
-    SurfaceParams params;
-    params.addr = config.GetStartAddress();
-    params.end = config.GetEndAddress();
-    params.size = params.end - params.addr;
-    params.type = SurfaceType::Fill;
-    params.res_scale = std::numeric_limits<u16>::max();
-
-    Surface new_surface = std::make_shared<OpenGL::Surface>(runtime, params);
-
-    std::memcpy(&new_surface->fill_data[0], &config.value_32bit, 4);
-    if (config.fill_32bit) {
-        new_surface->fill_size = 4;
-    } else if (config.fill_24bit) {
-        new_surface->fill_size = 3;
-    } else {
-        new_surface->fill_size = 2;
+void RasterizerCache::InvalidateFramebuffer(const OpenGL::Framebuffer& framebuffer) {
+    if (framebuffer.HasAttachment(SurfaceType::Color)) {
+        const auto interval = framebuffer.Interval(SurfaceType::Color);
+        InvalidateRegion(boost::icl::first(interval), boost::icl::length(interval),
+                         render_targets.color_surface);
     }
-
-    RegisterSurface(new_surface);
-    return new_surface;
+    if (framebuffer.HasAttachment(SurfaceType::DepthStencil)) {
+        const auto interval = framebuffer.Interval(SurfaceType::DepthStencil);
+        InvalidateRegion(boost::icl::first(interval), boost::icl::length(interval),
+                         render_targets.depth_surface);
+    }
 }
 
 auto RasterizerCache::GetTexCopySurface(const SurfaceParams& params) -> SurfaceRect_Tuple {
