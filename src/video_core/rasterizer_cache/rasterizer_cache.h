@@ -11,11 +11,12 @@
 #include "video_core/rasterizer_cache/surface_params.h"
 #include "video_core/texture/texture_decode.h"
 
-namespace VideoCore {
-class RendererBase;
-}
-
 namespace OpenGL {
+class Surface;
+class TextureRuntime;
+} // namespace OpenGL
+
+namespace VideoCore {
 
 enum class ScaleMatch {
     Exact,   // only accept same res scale
@@ -23,10 +24,9 @@ enum class ScaleMatch {
     Ignore   // accept every scaled res
 };
 
-class TextureRuntime;
-class Surface;
+class RendererBase;
 
-class RasterizerCacheOpenGL : NonCopyable {
+class RasterizerCache : NonCopyable {
 public:
     using Surface = std::shared_ptr<OpenGL::Surface>;
 
@@ -48,8 +48,8 @@ public:
     using PageMap = boost::icl::interval_map<u32, int>;
 
 public:
-    RasterizerCacheOpenGL(TextureRuntime& runtime, VideoCore::RendererBase& renderer);
-    ~RasterizerCacheOpenGL();
+    RasterizerCache(OpenGL::TextureRuntime& runtime, RendererBase& renderer);
+    ~RasterizerCache();
 
     /// Perform hardware accelerated texture copy according to the provided configuration
     bool AccelerateTextureCopy(const GPU::Regs::DisplayTransferConfig& config);
@@ -78,7 +78,7 @@ public:
     Surface GetTextureSurface(const Pica::Texture::TextureInfo& info, u32 max_level = 0);
 
     /// Get a texture cube based on the texture configuration
-    const CachedTextureCube& GetTextureCube(const TextureCubeConfig& config);
+    const OpenGL::CachedTextureCube& GetTextureCube(const TextureCubeConfig& config);
 
     /// Get the color and depth surfaces based on the framebuffer configuration
     SurfaceSurfaceRect_Tuple GetFramebufferSurfaces(bool using_color_fb, bool using_depth_fb,
@@ -141,14 +141,14 @@ private:
     void UpdatePagesCachedCount(PAddr addr, u32 size, int delta);
 
 private:
-    TextureRuntime& runtime;
-    VideoCore::RendererBase& renderer;
+    OpenGL::TextureRuntime& runtime;
+    RendererBase& renderer;
     SurfaceCache surface_cache;
     PageMap cached_pages;
     SurfaceMap dirty_regions;
     SurfaceSet remove_surfaces;
     u32 resolution_scale_factor;
-    std::unordered_map<TextureCubeConfig, CachedTextureCube> texture_cube_cache;
+    std::unordered_map<TextureCubeConfig, OpenGL::CachedTextureCube> texture_cube_cache;
 };
 
-} // namespace OpenGL
+} // namespace VideoCore

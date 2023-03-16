@@ -555,7 +555,7 @@ bool RasterizerOpenGL::Draw(bool accelerate, bool is_indexed) {
                 }
                 case TextureType::TextureCube:
                     using CubeFace = Pica::TexturingRegs::CubeFace;
-                    TextureCubeConfig config;
+                    VideoCore::TextureCubeConfig config;
                     config.px = regs.texturing.GetCubePhysicalAddress(CubeFace::PositiveX);
                     config.nx = regs.texturing.GetCubePhysicalAddress(CubeFace::NegativeX);
                     config.py = regs.texturing.GetCubePhysicalAddress(CubeFace::PositiveY);
@@ -601,7 +601,7 @@ bool RasterizerOpenGL::Draw(bool accelerate, bool is_indexed) {
         // which causes unpredictable behavior on the host.
         // Making a copy to sample from eliminates this issue and seems to be fairly cheap.
         Surface temp{runtime, *color_surface};
-        const TextureCopy copy = {
+        const VideoCore::TextureCopy copy = {
             .src_level = 0,
             .dst_level = 0,
             .src_layer = 0,
@@ -830,24 +830,24 @@ bool RasterizerOpenGL::AccelerateDisplay(const GPU::Regs::FramebufferConfig& con
     }
     MICROPROFILE_SCOPE(OpenGL_CacheManagement);
 
-    SurfaceParams src_params;
+    VideoCore::SurfaceParams src_params;
     src_params.addr = framebuffer_addr;
     src_params.width = std::min(config.width.Value(), pixel_stride);
     src_params.height = config.height;
     src_params.stride = pixel_stride;
     src_params.is_tiled = false;
-    src_params.pixel_format = PixelFormatFromGPUPixelFormat(config.color_format);
+    src_params.pixel_format = VideoCore::PixelFormatFromGPUPixelFormat(config.color_format);
     src_params.UpdateParams();
 
     auto [src_surface, src_rect] =
-        res_cache.GetSurfaceSubRect(src_params, ScaleMatch::Ignore, true);
+        res_cache.GetSurfaceSubRect(src_params, VideoCore::ScaleMatch::Ignore, true);
 
     if (src_surface == nullptr) {
         return false;
     }
 
-    u32 scaled_width = src_surface->GetScaledWidth();
-    u32 scaled_height = src_surface->GetScaledHeight();
+    const u32 scaled_width = src_surface->GetScaledWidth();
+    const u32 scaled_height = src_surface->GetScaledHeight();
 
     screen_info.display_texcoords = Common::Rectangle<float>(
         (float)src_rect.bottom / (float)scaled_height, (float)src_rect.left / (float)scaled_width,

@@ -139,7 +139,7 @@ private:
     OpenGLState state;
     GLuint default_texture;
     TextureRuntime runtime;
-    RasterizerCacheOpenGL res_cache;
+    VideoCore::RasterizerCache res_cache;
     std::unique_ptr<ShaderProgramManager> shader_program_manager;
 
     OGLVertexArray sw_vao; // VAO for software shader draw

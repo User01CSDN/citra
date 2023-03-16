@@ -4,7 +4,7 @@
 
 #include "video_core/rasterizer_cache/pixel_format.h"
 
-namespace OpenGL {
+namespace VideoCore {
 
 bool CheckFormatsBlittable(PixelFormat source_format, PixelFormat dest_format) {
     SurfaceType source_type = GetFormatType(source_format);
@@ -110,4 +110,4 @@ PixelFormat PixelFormatFromGPUPixelFormat(GPU::Regs::PixelFormat format) {
     }
 }
 
-} // namespace OpenGL
+} // namespace VideoCore
