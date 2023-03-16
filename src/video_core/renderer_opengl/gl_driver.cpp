@@ -71,10 +71,11 @@ static void APIENTRY DebugHandler(GLenum source, GLenum type, GLuint id, GLenum 
                 id, message);
 }
 
-Driver::Driver(Core::TelemetrySession& telemetry_session_) : telemetry_session{telemetry_session_} {
+Driver::Driver(Core::TelemetrySession& telemetry_session_)
+    : telemetry_session{telemetry_session_}, is_gles{Settings::values.use_gles.GetValue()} {
     const bool enable_debug = Settings::values.renderer_debug.GetValue();
     if (enable_debug) {
-        glEnable(GL_DEBUG_OUTPUT);
+        glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
         glDebugMessageCallback(DebugHandler, nullptr);
     }
 
