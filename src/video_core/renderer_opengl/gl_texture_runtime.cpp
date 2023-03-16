@@ -4,6 +4,7 @@
 
 #include "common/scope_exit.h"
 #include "common/settings.h"
+#include "video_core/renderer_base.h"
 #include "video_core/renderer_opengl/gl_state.h"
 #include "video_core/renderer_opengl/gl_texture_runtime.h"
 
@@ -54,7 +55,9 @@ static constexpr std::array<FormatTuple, 5> COLOR_TUPLES_OES = {{
 
 } // Anonymous namespace
 
-TextureRuntime::TextureRuntime() {
+TextureRuntime::TextureRuntime(VideoCore::RendererBase& renderer)
+    : filterer{Settings::values.texture_filter_name.GetValue(),
+               renderer.GetResolutionScaleFactor()} {
     read_fbo.Create();
     draw_fbo.Create();
 
@@ -68,6 +71,10 @@ TextureRuntime::TextureRuntime() {
 }
 
 TextureRuntime::~TextureRuntime() = default;
+
+bool TextureRuntime::ResetFilter(u32 scale_factor) {
+    return filterer.Reset(Settings::values.texture_filter_name.GetValue(), scale_factor);
+}
 
 StagingData TextureRuntime::FindStaging(u32 size, bool upload) {
     if (size > staging_buffer.size()) {

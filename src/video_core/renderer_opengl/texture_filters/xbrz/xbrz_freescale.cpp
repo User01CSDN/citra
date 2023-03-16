@@ -47,7 +47,7 @@
 
 namespace OpenGL {
 
-XbrzFreescale::XbrzFreescale(u16 scale_factor) : TextureFilterBase(scale_factor) {
+XbrzFreescale::XbrzFreescale(u32 scale_factor) : TextureFilterBase(scale_factor) {
 
     const OpenGLState cur_state = OpenGLState::GetCurState();
 

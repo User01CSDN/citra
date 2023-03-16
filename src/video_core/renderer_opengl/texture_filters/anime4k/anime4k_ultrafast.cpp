@@ -39,7 +39,7 @@
 
 namespace OpenGL {
 
-Anime4kUltrafast::Anime4kUltrafast(u16 scale_factor) : TextureFilterBase(scale_factor) {
+Anime4kUltrafast::Anime4kUltrafast(u32 scale_factor) : TextureFilterBase(scale_factor) {
     const OpenGLState cur_state = OpenGLState::GetCurState();
 
     vao.Create();

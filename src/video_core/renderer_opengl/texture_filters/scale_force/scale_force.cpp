@@ -9,7 +9,7 @@
 
 namespace OpenGL {
 
-ScaleForce::ScaleForce(u16 scale_factor) : TextureFilterBase(scale_factor) {
+ScaleForce::ScaleForce(u32 scale_factor) : TextureFilterBase(scale_factor) {
     program.Create(tex_coord_vert.data(), scale_force_frag.data());
     vao.Create();
     src_sampler.Create();

@@ -13,6 +13,8 @@
 
 namespace OpenGL {
 
+class SurfaceBase;
+
 /**
  * A watcher that notifies whether a cached surface has been changed. This is useful for caching
  * surface collection objects, including texture cube and mipmap.

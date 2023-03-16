@@ -17,7 +17,7 @@ class TextureFilterBase {
     friend class TextureFilterer;
 
 public:
-    explicit TextureFilterBase(u16 scale_factor) : scale_factor(scale_factor) {
+    explicit TextureFilterBase(u32 scale_factor) : scale_factor(scale_factor) {
         draw_fbo.Create();
     };
 
@@ -29,7 +29,7 @@ private:
 
 protected:
     OGLFramebuffer draw_fbo;
-    const u16 scale_factor{};
+    const u32 scale_factor{};
 };
 
 } // namespace OpenGL
