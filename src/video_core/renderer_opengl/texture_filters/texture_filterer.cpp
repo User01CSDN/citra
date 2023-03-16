@@ -18,15 +18,15 @@ namespace OpenGL {
 
 namespace {
 
-using TextureFilterContructor = std::function<std::unique_ptr<TextureFilterBase>(u16)>;
+using TextureFilterContructor = std::function<std::unique_ptr<TextureFilterBase>(u32)>;
 
 template <typename T>
 std::pair<std::string_view, TextureFilterContructor> FilterMapPair() {
-    return {T::NAME, std::make_unique<T, u16>};
+    return {T::NAME, std::make_unique<T, u32>};
 };
 
 static const std::unordered_map<std::string_view, TextureFilterContructor> filter_map{
-    {TextureFilterer::NONE, [](u16) { return nullptr; }},
+    {TextureFilterer::NONE, [](u32) { return nullptr; }},
     FilterMapPair<Anime4kUltrafast>(),
     FilterMapPair<Bicubic>(),
     FilterMapPair<NearestNeighbor>(),
@@ -36,11 +36,11 @@ static const std::unordered_map<std::string_view, TextureFilterContructor> filte
 
 } // namespace
 
-TextureFilterer::TextureFilterer(std::string_view filter_name, u16 scale_factor) {
+TextureFilterer::TextureFilterer(std::string_view filter_name, u32 scale_factor) {
     Reset(filter_name, scale_factor);
 }
 
-bool TextureFilterer::Reset(std::string_view new_filter_name, u16 new_scale_factor) {
+bool TextureFilterer::Reset(std::string_view new_filter_name, u32 new_scale_factor) {
     if (filter_name == new_filter_name && (IsNull() || filter->scale_factor == new_scale_factor))
         return false;
 

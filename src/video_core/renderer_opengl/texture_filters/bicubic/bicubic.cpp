@@ -9,7 +9,7 @@
 
 namespace OpenGL {
 
-Bicubic::Bicubic(u16 scale_factor) : TextureFilterBase(scale_factor) {
+Bicubic::Bicubic(u32 scale_factor) : TextureFilterBase(scale_factor) {
     program.Create(tex_coord_vert.data(), bicubic_frag.data());
     vao.Create();
     src_sampler.Create();

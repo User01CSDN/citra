@@ -13,7 +13,6 @@
 #include "video_core/renderer_opengl/gl_format_reinterpreter.h"
 #include "video_core/renderer_opengl/gl_texture_runtime.h"
 #include "video_core/renderer_opengl/gl_vars.h"
-#include "video_core/renderer_opengl/texture_filters/texture_filterer.h"
 
 namespace OpenGL {
 
@@ -341,11 +340,10 @@ static auto FindMatch(const auto& surface_cache, const SurfaceParams& params,
     return match_surface;
 }
 
-RasterizerCacheOpenGL::RasterizerCacheOpenGL(TextureRuntime& runtime_, VideoCore::RendererBase& renderer_)
-    : runtime{runtime_}, renderer{renderer_}, resolution_scale_factor{renderer.GetResolutionScaleFactor()} {
-    texture_filterer = std::make_unique<TextureFilterer>(
-        Settings::values.texture_filter_name.GetValue(), resolution_scale_factor);
-}
+RasterizerCacheOpenGL::RasterizerCacheOpenGL(TextureRuntime& runtime_,
+                                             VideoCore::RendererBase& renderer_)
+    : runtime{runtime_}, renderer{renderer_}, resolution_scale_factor{
+                                                  renderer.GetResolutionScaleFactor()} {}
 
 RasterizerCacheOpenGL::~RasterizerCacheOpenGL() {
 #ifndef ANDROID
@@ -501,7 +499,7 @@ auto RasterizerCacheOpenGL::GetTextureSurface(const Pica::Texture::TextureInfo& 
     params.levels = max_level + 1;
     params.is_tiled = true;
     params.pixel_format = PixelFormatFromTextureFormat(info.format);
-    params.res_scale = texture_filterer->IsNull() ? 1 : resolution_scale_factor;
+    params.res_scale = runtime.IsNullFilter() ? 1 : resolution_scale_factor;
     params.UpdateParams();
 
     u32 min_width = info.width >> max_level;
@@ -576,7 +574,7 @@ auto RasterizerCacheOpenGL::GetTextureSurface(const Pica::Texture::TextureInfo& 
                     ValidateSurface(level_surface, level_surface->addr, level_surface->size);
                 }
 
-                if (texture_filterer->IsNull()) {
+                if (runtime.IsNullFilter()) {
                     const TextureBlit blit = {
                         .src_level = 0,
                         .dst_level = level,
@@ -689,7 +687,7 @@ auto RasterizerCacheOpenGL::GetFramebufferSurfaces(bool using_color_fb, bool usi
     const bool resolution_scale_changed = resolution_scale_factor != scale_factor;
     const bool texture_filter_changed =
         renderer.Settings().texture_filter_update_requested.exchange(false) &&
-        texture_filterer->Reset(Settings::values.texture_filter_name.GetValue(), scale_factor);
+        runtime.ResetFilter(scale_factor);
 
     if (resolution_scale_changed || texture_filter_changed) {
         resolution_scale_factor = scale_factor;

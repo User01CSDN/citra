@@ -14,7 +14,7 @@ class Anime4kUltrafast : public TextureFilterBase {
 public:
     static constexpr std::string_view NAME = "Anime4K Ultrafast";
 
-    explicit Anime4kUltrafast(u16 scale_factor);
+    explicit Anime4kUltrafast(u32 scale_factor);
     void Filter(const OGLTexture& src_tex, Common::Rectangle<u32> src_rect,
                 const OGLTexture& dst_tex, Common::Rectangle<u32> dst_rect) override;
 

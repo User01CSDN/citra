@@ -17,10 +17,10 @@ public:
     static constexpr std::string_view NONE = "Linear (Default)";
 
 public:
-    explicit TextureFilterer(std::string_view filter_name, u16 scale_factor);
+    explicit TextureFilterer(std::string_view filter_name, u32 scale_factor);
 
     // Returns true if the filter actually changed
-    bool Reset(std::string_view new_filter_name, u16 new_scale_factor);
+    bool Reset(std::string_view new_filter_name, u32 new_scale_factor);
 
     // Returns true if there is no active filter
     bool IsNull() const;

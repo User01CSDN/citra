@@ -9,7 +9,7 @@
 
 namespace OpenGL {
 
-NearestNeighbor::NearestNeighbor(u16 scale_factor) : TextureFilterBase(scale_factor) {
+NearestNeighbor::NearestNeighbor(u32 scale_factor) : TextureFilterBase(scale_factor) {
     program.Create(tex_coord_vert.data(), nearest_neighbor_frag.data());
     vao.Create();
     src_sampler.Create();
