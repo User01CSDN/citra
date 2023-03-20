@@ -319,6 +319,10 @@ System::ResultStatus System::Load(Frontend::EmuWindow& emu_window, const std::st
     perf_stats = std::make_unique<PerfStats>(title_id);
     custom_tex_cache = std::make_unique<Core::CustomTexCache>();
 
+    if (!registered_image_interface) {
+        registered_image_interface = std::make_shared<Frontend::ImageInterface>();
+    }
+
     if (Settings::values.custom_textures) {
         const u64 program_id = Kernel().GetCurrentProcess()->codeset->program_id;
         FileUtil::CreateFullPath(fmt::format(

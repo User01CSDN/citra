@@ -73,6 +73,7 @@ add_library(common STATIC
     common_precompiled_headers.h
     common_types.h
     construct.h
+    dds-ktx.h
     file_util.cpp
     file_util.h
     hash.h

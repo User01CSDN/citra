@@ -359,9 +359,6 @@ int main(int argc, char** argv) {
     // Register frontend applets
     Frontend::RegisterDefaultApplets();
 
-    // Register generic image interface
-    Core::System::GetInstance().RegisterImageInterface(std::make_shared<LodePNGImageInterface>());
-
     EmuWindow_SDL2::InitializeSDL2();
 
     const auto CreateEmuWindow = [](bool fullscreen,
