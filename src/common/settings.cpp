@@ -20,6 +20,17 @@
 
 namespace Settings {
 
+std::string_view GetAudioEmulationName(AudioEmulation emulation) {
+    switch (emulation) {
+    case AudioEmulation::HLE:
+        return "HLE";
+    case AudioEmulation::LLE:
+        return "LLE";
+    case AudioEmulation::LLEMultithreaded:
+        return "LLE Multithreaded";
+    }
+};
+
 Values values = {};
 static bool configuring_global = true;
 
@@ -81,17 +92,6 @@ void Apply() {
     Service::PLGLDR::PLG_LDR::SetAllowGameChangeState(values.allow_plugin_loader.GetValue());
 }
 
-std::string_view AudioEmulationName(AudioEmulation emulation) {
-    switch (emulation) {
-    case AudioEmulation::HLE:
-        return "HLE";
-    case AudioEmulation::LLE:
-        return "LLE";
-    case AudioEmulation::LLEMultithreaded:
-        return "LLE Multithreaded";
-    }
-};
-
 void LogSettings() {
     const auto log_setting = [](std::string_view name, const auto& value) {
         LOG_INFO(Config, "{}: {}", name, value);
@@ -125,7 +125,7 @@ void LogSettings() {
     log_setting("Utility_DumpTextures", values.dump_textures.GetValue());
     log_setting("Utility_CustomTextures", values.custom_textures.GetValue());
     log_setting("Utility_UseDiskShaderCache", values.use_disk_shader_cache.GetValue());
-    log_setting("Audio_Emulation", AudioEmulationName(values.audio_emulation.GetValue()));
+    log_setting("Audio_Emulation", GetAudioEmulationName(values.audio_emulation.GetValue()));
     log_setting("Audio_OutputEngine", values.sink_id.GetValue());
     log_setting("Audio_EnableAudioStretching", values.enable_audio_stretching.GetValue());
     log_setting("Audio_OutputDevice", values.audio_device_id.GetValue());
