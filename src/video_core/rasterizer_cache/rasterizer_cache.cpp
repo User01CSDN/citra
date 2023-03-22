@@ -8,6 +8,7 @@
 #include "common/logging/log.h"
 #include "common/microprofile.h"
 #include "core/memory.h"
+#include "video_core/rasterizer_cache/custom_tex_manager.h"
 #include "video_core/rasterizer_cache/rasterizer_cache.h"
 #include "video_core/regs.h"
 #include "video_core/renderer_opengl/gl_format_reinterpreter.h"
@@ -20,6 +21,10 @@ namespace VideoCore {
 template <typename Map, typename Interval>
 static constexpr auto RangeFromInterval(Map& map, const Interval& interval) {
     return boost::make_iterator_range(map.equal_range(interval));
+}
+
+void RasterizerCache::TickFrame() {
+
 }
 
 bool RasterizerCache::AccelerateTextureCopy(const GPU::Regs::DisplayTransferConfig& config) {
@@ -335,9 +340,9 @@ static auto FindMatch(const auto& surface_cache, const SurfaceParams& params,
 }
 
 RasterizerCache::RasterizerCache(Memory::MemorySystem& memory_, OpenGL::TextureRuntime& runtime_,
-                                 Pica::Regs& regs_)
-    : memory{memory_}, runtime{runtime_}, regs{regs_}, resolution_scale_factor{
-                                                           VideoCore::GetResolutionScaleFactor()} {}
+                                 CustomTexManager& custom_tex_manager_, Pica::Regs& regs_)
+    : memory{memory_}, runtime{runtime_}, custom_tex_manager{custom_tex_manager_},
+      regs{regs_}, resolution_scale_factor{VideoCore::GetResolutionScaleFactor()} {}
 
 RasterizerCache::~RasterizerCache() {
 #ifndef ANDROID
@@ -919,6 +924,58 @@ void RasterizerCache::UploadSurface(const Surface& surface, SurfaceInterval inte
         .texture_level = 0,
     };
     surface->Upload(upload, staging);
+}
+
+bool RasterizerCache::UploadCustomSurface(const Surface& surface, const SurfaceParams& load_info,
+                                          std::span<u8> upload_data) {
+    const u64 hash = custom_tex_manager.ComputeHash(load_info, upload_data);
+    CustomTexture& texture = custom_tex_manager.GetTexture(hash);
+
+    // The old texture pack system did not support mipmaps so older packs might do
+    // wonky things. For example many packs have mipmaps larger than the base
+    // level. To avoid crashes just don't upload mipmaps for custom surfaces in compatiblity mode.
+    if (custom_tex_manager.CompatibilityMode() && surface.IsCustom() && !is_base_level) {
+        return true;
+    }
+    if (!texture) {
+        return false;
+    }
+
+    // Swap the internal surface allocation to the desired dimentions and format
+    if (is_base_level && !surface.Swap(texture.width, texture.height, texture.format)) {
+        // This means the backend doesn't support the custom compression format.
+        // We could implement a CPU/GPU decoder but it's always better for packs to
+        // have compatible compression formats.
+        LOG_ERROR(HW_GPU, "Custom compressed format {} unsupported by host GPU", texture.format);
+        return false;
+    }
+
+    // Ensure surface has a compatible allocation before proceeding
+    if (!surface.IsCustom() || surface.CustomFormat() != texture.format) {
+        LOG_ERROR(HW_GPU, "Surface does not have a compatible allocation, ignoring");
+        return true;
+    }
+
+    // Copy and decode the custom texture to the staging buffer
+    const u32 custom_size = static_cast<u32>(texture.staging_size);
+    StagingData staging = runtime.FindStaging(custom_size, true);
+    custom_tex_manager.DecodeToStaging(texture, staging);
+
+    // Upload surface
+    const BufferTextureCopy upload = {
+        .buffer_offset = 0,
+        .buffer_size = custom_size,
+        .texture_rect = {0, texture.height, texture.width, 0},
+        .texture_level = level,
+    };
+    surface.Upload(upload, staging);
+
+    // Manually generate mipmaps in compatibility mode
+    if (custom_tex_manager.CompatibilityMode()) {
+        runtime.GenerateMipmaps(surface);
+    }
+
+    return true;
 }
 
 void RasterizerCache::DownloadSurface(const Surface& surface, SurfaceInterval interval) {

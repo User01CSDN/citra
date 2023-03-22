@@ -396,6 +396,8 @@ void RendererOpenGL::SwapBuffers() {
         }
     }
 
+    rasterizer->TickFrame();
+
     EndFrame();
     prev_state.Apply();
 }
@@ -1199,9 +1201,6 @@ void RendererOpenGL::TryPresent(int timeout_ms, bool is_secondary) {
 
     glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 }
-
-/// Updates the framerate
-void RendererOpenGL::UpdateFramerate() {}
 
 void RendererOpenGL::PrepareVideoDumping() {
     auto* mailbox = static_cast<OGLVideoDumpingMailbox*>(frame_dumper.mailbox.get());

@@ -9,7 +9,6 @@
 #include <string>
 #include <boost/serialization/version.hpp>
 #include "common/common_types.h"
-#include "core/custom_tex_cache.h"
 #include "core/frontend/applets/mii_selector.h"
 #include "core/frontend/applets/swkbd.h"
 #include "core/frontend/image_interface.h"
@@ -58,6 +57,7 @@ class Backend;
 }
 
 namespace VideoCore {
+class CustomTexManager;
 class RendererBase;
 }
 
@@ -255,10 +255,10 @@ public:
     [[nodiscard]] const Cheats::CheatEngine& CheatEngine() const;
 
     /// Gets a reference to the custom texture cache system
-    [[nodiscard]] Core::CustomTexCache& CustomTexCache();
+    [[nodiscard]] VideoCore::CustomTexManager& CustomTexManager();
 
     /// Gets a const reference to the custom texture cache system
-    [[nodiscard]] const Core::CustomTexCache& CustomTexCache() const;
+    [[nodiscard]] const VideoCore::CustomTexManager& CustomTexManager() const;
 
     /// Gets a reference to the video dumper backend
     [[nodiscard]] VideoDumper::Backend& VideoDumper();
@@ -364,7 +364,7 @@ private:
     std::unique_ptr<VideoDumper::Backend> video_dumper;
 
     /// Custom texture cache system
-    std::unique_ptr<Core::CustomTexCache> custom_tex_cache;
+    std::unique_ptr<VideoCore::CustomTexManager> custom_tex_manager;
 
     /// Image interface
     std::shared_ptr<Frontend::ImageInterface> registered_image_interface;

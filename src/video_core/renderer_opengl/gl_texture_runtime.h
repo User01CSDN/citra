@@ -91,6 +91,7 @@ public:
 
     /// Returns the OpenGL format tuple associated with the provided pixel format
     const FormatTuple& GetFormatTuple(VideoCore::PixelFormat pixel_format) const;
+    const FormatTuple& GetFormatTuple(VideoCore::CustomPixelFormat pixel_format);
 
     /// Takes back ownership of the allocation for recycling
     void Recycle(const HostTextureTag tag, Allocation&& alloc);
@@ -163,6 +164,9 @@ public:
 
     /// Attaches a handle of surface to the specified framebuffer target
     void Attach(GLenum target, u32 level, u32 layer, bool scaled = true);
+
+    /// Swaps the internal allocation to match the provided dimentions and format
+    bool Swap(u32 width, u32 height, VideoCore::CustomPixelFormat format);
 
     /// Returns the bpp of the internal surface format
     u32 GetInternalBytesPerPixel() const {

@@ -22,6 +22,8 @@ struct Regs;
 
 namespace VideoCore {
 
+class CustomTexManager;
+
 enum class ScaleMatch {
     Exact,   // only accept same res scale
     Upscale, // only allow higher scale than params
@@ -55,8 +57,11 @@ public:
 
 public:
     RasterizerCache(Memory::MemorySystem& memory, OpenGL::TextureRuntime& runtime,
-                    Pica::Regs& regs);
+                    CustomTexManager& custom_tex_manager, Pica::Regs& regs);
     ~RasterizerCache();
+
+    /// Notify the cache that a new frame has been queued
+    void TickFrame();
 
     /// Perform hardware accelerated texture copy according to the provided configuration
     bool AccelerateTextureCopy(const GPU::Regs::DisplayTransferConfig& config);
@@ -117,6 +122,10 @@ private:
     /// Copies pixel data in interval from the guest VRAM to the host GPU surface
     void UploadSurface(const Surface& surface, SurfaceInterval interval);
 
+    /// Uploads a custom texture associated with upload_data to the target surface
+    bool UploadCustomSurface(const Surface& surface, const SurfaceParams& load_info,
+                             std::span<u8> upload_data);
+
     /// Copies pixel data in interval from the host GPU surface to the guest VRAM
     void DownloadSurface(const Surface& surface, SurfaceInterval interval);
 
@@ -149,6 +158,7 @@ private:
 private:
     Memory::MemorySystem& memory;
     OpenGL::TextureRuntime& runtime;
+    CustomTexManager& custom_tex_manager;
     Pica::Regs& regs;
     SurfaceCache surface_cache;
     PageMap cached_pages;

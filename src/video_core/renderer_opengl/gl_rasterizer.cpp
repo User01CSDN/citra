@@ -182,6 +182,10 @@ RasterizerOpenGL::RasterizerOpenGL(Memory::MemorySystem& memory, Frontend::EmuWi
 
 RasterizerOpenGL::~RasterizerOpenGL() = default;
 
+void RasterizerOpenGL::TickFrame() {
+    res_cache.TickFrame();
+}
+
 void RasterizerOpenGL::LoadDiskResources(const std::atomic_bool& stop_loading,
                                          const VideoCore::DiskResourceLoadCallback& callback) {
     shader_program_manager->LoadDiskCache(stop_loading, callback);

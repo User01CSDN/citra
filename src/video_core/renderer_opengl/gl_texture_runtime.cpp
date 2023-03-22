@@ -42,6 +42,17 @@ static constexpr std::array<FormatTuple, 5> COLOR_TUPLES_OES = {{
     {GL_RGBA4, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4},   // RGBA4
 }};
 
+static constexpr std::array<FormatTuple, 8> CUSTOM_TUPLES = {{
+    DEFAULT_TUPLE,
+    {GL_COMPRESSED_RGBA_S3TC_DXT1_EXT, GL_COMPRESSED_RGBA_S3TC_DXT1_EXT, GL_UNSIGNED_BYTE},
+    {GL_COMPRESSED_RGBA_S3TC_DXT5_EXT, GL_COMPRESSED_RGBA_S3TC_DXT5_EXT, GL_UNSIGNED_BYTE},
+    {GL_COMPRESSED_RG_RGTC2, GL_COMPRESSED_RG_RGTC2, GL_UNSIGNED_BYTE},
+    {GL_COMPRESSED_RGBA_BPTC_UNORM_ARB, GL_COMPRESSED_RGBA_BPTC_UNORM_ARB, GL_UNSIGNED_BYTE},
+    {GL_COMPRESSED_RGBA_ASTC_4x4, GL_COMPRESSED_RGBA_ASTC_4x4, GL_UNSIGNED_BYTE},
+    {GL_COMPRESSED_RGBA_ASTC_6x6, GL_COMPRESSED_RGBA_ASTC_6x6, GL_UNSIGNED_BYTE},
+    {GL_COMPRESSED_RGBA_ASTC_8x6, GL_COMPRESSED_RGBA_ASTC_8x6, GL_UNSIGNED_BYTE},
+}};
+
 [[nodiscard]] GLbitfield MakeBufferMask(SurfaceType type) {
     switch (type) {
     case SurfaceType::Color:
@@ -145,6 +156,11 @@ const FormatTuple& TextureRuntime::GetFormatTuple(PixelFormat pixel_format) cons
     }
 
     return DEFAULT_TUPLE;
+}
+
+const FormatTuple& TextureRuntime::GetFormatTuple(VideoCore::CustomPixelFormat pixel_format) {
+    const std::size_t format_index = static_cast<std::size_t>(pixel_format);
+    return CUSTOM_TUPLES[format_index];
 }
 
 void TextureRuntime::Recycle(const HostTextureTag tag, Allocation&& alloc) {
@@ -489,20 +505,46 @@ void Surface::Attach(GLenum target, u32 level, u32 layer, bool scaled) {
     case VideoCore::SurfaceType::Color:
     case VideoCore::SurfaceType::Texture:
         glFramebufferTexture2D(target, GL_COLOR_ATTACHMENT0, textarget, handle, level);
-        glFramebufferTexture2D(target, GL_DEPTH_STENCIL_ATTACHMENT, textarget, 0, 0);
         break;
     case VideoCore::SurfaceType::Depth:
-        glFramebufferTexture2D(target, GL_COLOR_ATTACHMENT0, textarget, 0, 0);
         glFramebufferTexture2D(target, GL_DEPTH_ATTACHMENT, textarget, handle, level);
-        glFramebufferTexture2D(target, GL_STENCIL_ATTACHMENT, textarget, 0, 0);
         break;
     case VideoCore::SurfaceType::DepthStencil:
-        glFramebufferTexture2D(target, GL_COLOR_ATTACHMENT0, textarget, 0, 0);
         glFramebufferTexture2D(target, GL_DEPTH_STENCIL_ATTACHMENT, textarget, handle, level);
         break;
     default:
         UNREACHABLE_MSG("Invalid surface type!");
     }
+}
+
+bool Surface::Swap(u32 width, u32 height, VideoCore::CustomPixelFormat format) {
+    if (!driver->IsCustomFormatSupported(format)) {
+        return false;
+    }
+
+    const auto& tuple = runtime->GetFormatTuple(format);
+    if (alloc.Matches(width, height, levels, tuple)) {
+        return true;
+    }
+
+    const HostTextureTag tag = {
+        .tuple = alloc.tuple,
+        .type = texture_type,
+        .width = alloc.width,
+        .height = alloc.height,
+        .levels = alloc.levels,
+    };
+    runtime->Recycle(tag, std::move(alloc));
+
+    is_custom = true;
+    custom_format = format;
+    alloc = runtime->Allocate(width, height, levels, tuple, texture_type);
+
+    LOG_DEBUG(Render_OpenGL, "Swapped {}x{} {} surface at address {:#x} to {}x{} {}",
+              GetScaledWidth(), GetScaledHeight(), VideoCore::PixelFormatAsString(pixel_format),
+              addr, width, height, VideoCore::CustomPixelFormatAsString(format));
+
+    return true;
 }
 
 void Surface::BlitScale(const VideoCore::TextureBlit& blit, bool up_scale) {
@@ -546,8 +588,9 @@ Framebuffer::Framebuffer(TextureRuntime& runtime, Surface* const color,
 
     const u64 hash = Common::ComputeStructHash64(attachments);
     auto [it, new_framebuffer] = runtime.framebuffer_cache.try_emplace(hash);
+    handle = it->second.handle;
+
     if (!new_framebuffer) {
-        handle = it->second.handle;
         return;
     }
 
