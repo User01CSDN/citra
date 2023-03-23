@@ -84,6 +84,7 @@ struct TextureCubeConfig {
     PAddr pz;
     PAddr nz;
     u32 width;
+    u32 levels;
     Pica::TexturingRegs::TextureFormat format;
 
     bool operator==(const TextureCubeConfig& rhs) const {

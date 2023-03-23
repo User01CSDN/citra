@@ -3,15 +3,17 @@
 // Refer to the license.txt file included.
 
 #pragma once
+
 #include <string_view>
 #include "common/common_types.h"
-#include "common/math_util.h"
 #include "video_core/renderer_opengl/gl_resource_manager.h"
 
-namespace OpenGL {
+namespace VideoCore {
+enum class SurfaceType : u32;
+struct TextureBlit;
+} // namespace VideoCore
 
-class TextureRuntime;
-class OGLTexture;
+namespace OpenGL {
 
 class TextureFilterBase {
     friend class TextureFilterer;
@@ -24,8 +26,7 @@ public:
     virtual ~TextureFilterBase() = default;
 
 private:
-    virtual void Filter(const GLuint src_tex, Common::Rectangle<u32> src_rect, const GLuint dst_tex,
-                        Common::Rectangle<u32> dst_rect) = 0;
+    virtual void Filter(GLuint src_tex, GLuint dst_tex, const VideoCore::TextureBlit& blit) = 0;
 
 protected:
     OGLFramebuffer draw_fbo;

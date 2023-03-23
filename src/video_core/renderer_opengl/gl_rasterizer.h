@@ -70,9 +70,6 @@ private:
         u32 lod_min;
         u32 lod_max;
         s32 lod_bias;
-
-        // TODO(wwylele): remove this once mipmap for cube is implemented
-        bool supress_mipmap_for_cube = false;
     };
 
     /// Syncs the clip enabled status to match the PICA register

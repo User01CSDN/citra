@@ -8,6 +8,8 @@
 
 namespace VideoCore {
 
+constexpr std::size_t MAX_PICA_LEVELS = 8;
+
 class SurfaceParams {
 public:
     /// Returns true if other_surface matches exactly params
@@ -35,7 +37,13 @@ public:
     SurfaceParams FromInterval(SurfaceInterval interval) const;
 
     /// Returns the address interval referenced by unscaled_rect
-    SurfaceInterval GetSubRectInterval(Common::Rectangle<u32> unscaled_rect) const;
+    SurfaceInterval GetSubRectInterval(Common::Rectangle<u32> unscaled_rect, u32 level = 0) const;
+
+    /// Return the address interval of the provided level
+    SurfaceInterval LevelInterval(u32 level) const;
+
+    /// Returns the level of the provided address
+    u32 LevelOf(PAddr addr) const;
 
     /// Returns a string identifier of the params object
     std::string DebugName(bool scaled) const noexcept;
@@ -72,6 +80,13 @@ public:
         return pixels * GetFormatBpp() / 8;
     }
 
+private:
+    /// Computes the offset of each mipmap level
+    void CalculateMipLevelOffsets();
+
+    /// Calculates total surface size taking mipmaps into account
+    u32 CalculateSurfaceSize() const;
+
 public:
     PAddr addr = 0;
     PAddr end = 0;
@@ -81,12 +96,14 @@ public:
     u32 height = 0;
     u32 stride = 0;
     u32 levels = 1;
-    u16 res_scale = 1;
+    u32 res_scale = 1;
 
     bool is_tiled = false;
     TextureType texture_type = TextureType::Texture2D;
     PixelFormat pixel_format = PixelFormat::Invalid;
     SurfaceType type = SurfaceType::Invalid;
+
+    std::array<u32, MAX_PICA_LEVELS> mipmap_offsets{};
 };
 
 } // namespace VideoCore
