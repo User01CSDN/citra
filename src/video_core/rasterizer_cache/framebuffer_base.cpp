@@ -31,10 +31,10 @@ FramebufferBase::FramebufferBase(const Pica::Regs& regs, SurfaceBase* const colo
                         surfaces_rect.bottom, surfaces_rect.top);
 
     // Update viewport
-    viewport.x = surfaces_rect.left + viewport_rect.left * res_scale;
-    viewport.y = surfaces_rect.bottom + viewport_rect.bottom * res_scale;
-    viewport.width = viewport_rect.GetWidth() * res_scale;
-    viewport.height = viewport_rect.GetHeight() * res_scale;
+    viewport.x = static_cast<f32>(surfaces_rect.left + viewport_rect.left * res_scale);
+    viewport.y = static_cast<f32>(surfaces_rect.bottom + viewport_rect.bottom * res_scale);
+    viewport.width = static_cast<f32>(viewport_rect.GetWidth() * res_scale);
+    viewport.height = static_cast<f32>(viewport_rect.GetHeight() * res_scale);
 
     // Scissor checks are window-, not viewport-relative, which means that if the cached texture
     // sub-rect changes, the scissor bounds also need to be updated.

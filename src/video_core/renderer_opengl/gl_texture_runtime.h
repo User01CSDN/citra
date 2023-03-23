@@ -104,9 +104,6 @@ public:
     /// Copies a rectangle of source to another rectange of dest
     bool CopyTextures(Surface& source, Surface& dest, const VideoCore::TextureCopy& copy);
 
-    /// Copies a rectangle of source to a face of dest cube
-    bool CopyTextures(Surface& source, CachedTextureCube& dest, const VideoCore::TextureCopy& copy);
-
     /// Blits a rectangle of source to another rectange of dest
     bool BlitTextures(Surface& source, Surface& dest, const VideoCore::TextureBlit& blit);
 

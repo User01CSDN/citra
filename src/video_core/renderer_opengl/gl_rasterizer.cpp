@@ -572,10 +572,10 @@ void RasterizerOpenGL::BindTextureCube(const Pica::TexturingRegs::FullTextureCon
         .format = texture.format,
     };
 
-    auto& surface = res_cache.GetTextureCube(config);
+    auto surface = res_cache.GetTextureCube(config);
     texture_cube_sampler.SyncWithConfig(texture.config);
 
-    state.texture_cube_unit.texture_cube = surface.texture.handle;
+    state.texture_cube_unit.texture_cube = surface->Handle();
     state.texture_units[0].texture_2d = 0;
 }
 

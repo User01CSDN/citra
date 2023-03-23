@@ -573,85 +573,54 @@ auto RasterizerCache::GetTextureSurface(const Pica::Texture::TextureInfo& info, 
     return surface;
 }
 
-const OpenGL::CachedTextureCube& RasterizerCache::GetTextureCube(const TextureCubeConfig& config) {
-    auto& cube = texture_cube_cache[config];
+auto RasterizerCache::GetTextureCube(const TextureCubeConfig& config) -> Surface {
+    auto [it, new_surface] = texture_cube_cache.try_emplace(config);
+    if (new_surface) {
+        SurfaceParams cube_params = {
+            .addr = config.px,
+            .width = config.width,
+            .height = config.width,
+            .stride = config.width,
+            .res_scale = runtime.IsNullFilter() ? 1 : resolution_scale_factor,
+            .texture_type = TextureType::CubeMap,
+            .pixel_format = PixelFormatFromTextureFormat(config.format),
+            .type = SurfaceType::Texture,
+        };
+        it->second = CreateSurface(cube_params);
+    }
 
-    struct Face {
-        Face(std::shared_ptr<SurfaceWatcher>& watcher, PAddr address)
-            : watcher(watcher), address(address) {}
-        std::shared_ptr<SurfaceWatcher>& watcher;
-        PAddr address;
+    Surface& cube = it->second;
+
+    const u32 scaled_size = cube->GetScaledWidth();
+    const std::array addresses = {
+        config.px, config.nx, config.py, config.ny, config.pz, config.nz,
     };
 
-    const std::array<Face, 6> faces{{
-        {cube.px, config.px},
-        {cube.nx, config.nx},
-        {cube.py, config.py},
-        {cube.ny, config.ny},
-        {cube.pz, config.pz},
-        {cube.nz, config.nz},
-    }};
+    for (std::size_t i = 0; i < addresses.size(); i++) {
+        Pica::Texture::TextureInfo info = {
+            .physical_address = addresses[i],
+            .width = config.width,
+            .height = config.width,
+            .format = config.format,
+        };
+        info.SetDefaultStride();
 
-    for (const Face& face : faces) {
-        if (!face.watcher || !face.watcher->Get()) {
-            Pica::Texture::TextureInfo info;
-            info.physical_address = face.address;
-            info.height = info.width = config.width;
-            info.format = config.format;
-            info.SetDefaultStride();
-            auto surface = GetTextureSurface(info);
-            if (surface) {
-                face.watcher = surface->CreateWatcher();
-            } else {
-                // Can occur when texture address is invalid. We mark the watcher with nullptr
-                // in this case and the content of the face wouldn't get updated. These are
-                // usually leftover setup in the texture unit and games are not supposed to draw
-                // using them.
-                face.watcher = nullptr;
-            }
-        }
-    }
-
-    if (cube.texture.handle == 0) {
-        for (const Face& face : faces) {
-            if (face.watcher) {
-                auto surface = face.watcher->Get();
-                cube.res_scale = std::max(cube.res_scale, surface->res_scale);
-            }
+        Surface face_surface = GetTextureSurface(info);
+        if (!face_surface) {
+            continue;
         }
 
-        const auto& tuple = runtime.GetFormatTuple(PixelFormatFromTextureFormat(config.format));
-        const u32 width = cube.res_scale * config.width;
-        const GLsizei levels = static_cast<GLsizei>(std::log2(width)) + 1;
-
-        // Allocate the cube texture
-        cube.texture.Create();
-        cube.texture.Allocate(GL_TEXTURE_CUBE_MAP, levels, tuple.internal_format, width, width);
-    }
-
-    u32 scaled_size = cube.res_scale * config.width;
-
-    for (std::size_t i = 0; i < faces.size(); i++) {
-        const Face& face = faces[i];
-        if (face.watcher && !face.watcher->IsValid()) {
-            auto surface = std::static_pointer_cast<OpenGL::Surface>(face.watcher->Get());
-            if (!surface->invalid_regions.empty()) {
-                ValidateSurface(surface, surface->addr, surface->size);
-            }
-
-            const TextureCopy copy = {
-                .src_level = 0,
-                .dst_level = 0,
-                .src_layer = 0,
-                .dst_layer = static_cast<u32>(i),
-                .src_offset = {0, 0},
-                .dst_offset = {0, 0},
-                .extent = {scaled_size, scaled_size},
-            };
-            runtime.CopyTextures(*surface, cube, copy);
-
-            face.watcher->Validate();
-        }
+        const u32 face = static_cast<u32>(i);
+        const TextureCopy texture_copy = {
+            .src_level = 0,
+            .dst_level = 0,
+            .src_layer = 0,
+            .dst_layer = face,
+            .src_offset = {0, 0},
+            .dst_offset = {0, 0},
+            .extent = {scaled_size, scaled_size},
+        };
+        runtime.CopyTextures(*face_surface, *cube, texture_copy);
     }
 
     return cube;

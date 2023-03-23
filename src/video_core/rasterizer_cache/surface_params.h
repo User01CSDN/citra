@@ -81,7 +81,7 @@ public:
     u32 height = 0;
     u32 stride = 0;
     u32 levels = 1;
-    u16 res_scale = 1;
+    u32 res_scale = 1;
 
     bool is_tiled = false;
     TextureType texture_type = TextureType::Texture2D;

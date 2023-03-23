@@ -85,7 +85,7 @@ public:
     Surface GetTextureSurface(const Pica::Texture::TextureInfo& info, u32 max_level = 0);
 
     /// Get a texture cube based on the texture configuration
-    const OpenGL::CachedTextureCube& GetTextureCube(const TextureCubeConfig& config);
+    Surface GetTextureCube(const TextureCubeConfig& config);
 
     /// Get the color and depth surfaces based on the framebuffer configuration
     OpenGL::Framebuffer GetFramebufferSurfaces(bool using_color_fb, bool using_depth_fb);
@@ -154,9 +154,9 @@ private:
     PageMap cached_pages;
     SurfaceMap dirty_regions;
     SurfaceSet remove_surfaces;
-    u16 resolution_scale_factor;
+    u32 resolution_scale_factor;
     RenderTargets render_targets;
-    std::unordered_map<TextureCubeConfig, OpenGL::CachedTextureCube> texture_cube_cache;
+    std::unordered_map<TextureCubeConfig, Surface> texture_cube_cache;
 };
 
 } // namespace VideoCore

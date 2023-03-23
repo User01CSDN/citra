@@ -271,19 +271,10 @@ bool TextureRuntime::CopyTextures(Surface& source, Surface& dest,
     const GLenum src_textarget = source.texture_type == VideoCore::TextureType::CubeMap
                                      ? GL_TEXTURE_CUBE_MAP
                                      : GL_TEXTURE_2D;
-    const GLenum dst_textarget =
+    const GLenum dest_textarget =
         dest.texture_type == VideoCore::TextureType::CubeMap ? GL_TEXTURE_CUBE_MAP : GL_TEXTURE_2D;
     glCopyImageSubData(source.Handle(), src_textarget, copy.src_level, copy.src_offset.x,
-                       copy.src_offset.y, copy.src_layer, dest.Handle(), dst_textarget,
-                       copy.dst_level, copy.dst_offset.x, copy.dst_offset.y, copy.dst_layer,
-                       copy.extent.width, copy.extent.height, 1);
-    return true;
-}
-
-bool TextureRuntime::CopyTextures(Surface& source, CachedTextureCube& dest,
-                                  const VideoCore::TextureCopy& copy) {
-    glCopyImageSubData(source.Handle(), GL_TEXTURE_2D, copy.src_level, copy.src_offset.x,
-                       copy.src_offset.y, copy.src_layer, dest.texture.handle, GL_TEXTURE_CUBE_MAP,
+                       copy.src_offset.y, copy.src_layer, dest.Handle(), dest_textarget,
                        copy.dst_level, copy.dst_offset.x, copy.dst_offset.y, copy.dst_layer,
                        copy.extent.width, copy.extent.height, 1);
     return true;

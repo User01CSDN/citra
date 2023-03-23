@@ -9,7 +9,6 @@
 #include <boost/icl/interval_set.hpp>
 #include "common/assert.h"
 #include "video_core/rasterizer_cache/surface_params.h"
-#include "video_core/renderer_opengl/gl_resource_manager.h"
 
 namespace VideoCore {
 
@@ -85,18 +84,3 @@ public:
 };
 
 } // namespace VideoCore
-
-namespace OpenGL {
-
-struct CachedTextureCube {
-    OpenGL::OGLTexture texture;
-    u16 res_scale = 1;
-    std::shared_ptr<VideoCore::SurfaceWatcher> px;
-    std::shared_ptr<VideoCore::SurfaceWatcher> nx;
-    std::shared_ptr<VideoCore::SurfaceWatcher> py;
-    std::shared_ptr<VideoCore::SurfaceWatcher> ny;
-    std::shared_ptr<VideoCore::SurfaceWatcher> pz;
-    std::shared_ptr<VideoCore::SurfaceWatcher> nz;
-};
-
-} // namespace OpenGL
