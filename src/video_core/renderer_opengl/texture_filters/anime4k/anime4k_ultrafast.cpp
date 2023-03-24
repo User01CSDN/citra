@@ -30,6 +30,7 @@
 // DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+#include "video_core/rasterizer_cache/utils.h"
 #include "video_core/renderer_opengl/texture_filters/anime4k/anime4k_ultrafast.h"
 
 #include "shaders/refine.frag"
@@ -71,8 +72,7 @@ Anime4kUltrafast::Anime4kUltrafast(u16 scale_factor) : TextureFilterBase(scale_f
     cur_state.Apply();
 }
 
-void Anime4kUltrafast::Filter(const GLuint src_tex, Common::Rectangle<u32> src_rect,
-                              const GLuint dst_tex, Common::Rectangle<u32> dst_rect) {
+void Anime4kUltrafast::Filter(GLuint src_tex, GLuint dst_tex, const VideoCore::TextureBlit& blit) {
     const OpenGLState cur_state = OpenGLState::GetCurState();
 
     // These will have handles from the previous texture that was filtered, reset them to avoid
@@ -81,7 +81,8 @@ void Anime4kUltrafast::Filter(const GLuint src_tex, Common::Rectangle<u32> src_r
     state.texture_units[1].texture_2d = 0;
     state.texture_units[2].texture_2d = 0;
 
-    const auto setup_temp_tex = [this, &src_rect](GLint internal_format, GLint format) {
+    const auto setup_temp_tex = [this, src_rect = blit.src_rect](GLint internal_format,
+                                                                 GLint format) {
         TempTex texture;
         texture.fbo.Create();
         texture.tex.Create();
@@ -100,10 +101,10 @@ void Anime4kUltrafast::Filter(const GLuint src_tex, Common::Rectangle<u32> src_r
     auto XY = setup_temp_tex(GL_RG16F, GL_RG);
     auto LUMAD = setup_temp_tex(GL_R16F, GL_RED);
 
-    state.viewport = {static_cast<GLint>(src_rect.left * internal_scale_factor),
-                      static_cast<GLint>(src_rect.bottom * internal_scale_factor),
-                      static_cast<GLsizei>(src_rect.GetWidth() * internal_scale_factor),
-                      static_cast<GLsizei>(src_rect.GetHeight() * internal_scale_factor)};
+    state.viewport.x = blit.src_rect.left * internal_scale_factor;
+    state.viewport.y = blit.src_rect.bottom * internal_scale_factor;
+    state.viewport.width = blit.src_rect.GetWidth() * internal_scale_factor;
+    state.viewport.height = blit.src_rect.GetHeight() * internal_scale_factor;
     state.texture_units[0].texture_2d = src_tex;
     state.texture_units[1].texture_2d = LUMAD.tex.handle;
     state.texture_units[2].texture_2d = XY.tex.handle;
@@ -120,14 +121,16 @@ void Anime4kUltrafast::Filter(const GLuint src_tex, Common::Rectangle<u32> src_r
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
     // refine pass
-    state.viewport = {static_cast<GLint>(dst_rect.left), static_cast<GLint>(dst_rect.bottom),
-                      static_cast<GLsizei>(dst_rect.GetWidth()),
-                      static_cast<GLsizei>(dst_rect.GetHeight())};
+    state.viewport.x = blit.dst_rect.left;
+    state.viewport.y = blit.dst_rect.bottom;
+    state.viewport.width = blit.dst_rect.GetWidth();
+    state.viewport.height = blit.dst_rect.GetHeight();
     state.draw.draw_framebuffer = draw_fbo.handle;
     state.draw.shader_program = refine_program.handle;
     state.Apply();
 
-    glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, dst_tex, 0);
+    glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, dst_tex,
+                           blit.dst_level);
     glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, 0, 0);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 

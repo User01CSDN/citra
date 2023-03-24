@@ -95,8 +95,8 @@ bool RasterizerCache::AccelerateTextureCopy(const GPU::Regs::DisplayTransferConf
     ASSERT(src_rect.GetWidth() == dst_rect.GetWidth());
 
     const TextureCopy texture_copy = {
-        .src_level = 0,
-        .dst_level = 0,
+        .src_level = src_surface->LevelOf(src_params.addr),
+        .dst_level = dst_surface->LevelOf(dst_params.addr),
         .src_offset = {src_rect.left, src_rect.bottom},
         .dst_offset = {dst_rect.left, dst_rect.bottom},
         .extent = {src_rect.GetWidth(), src_rect.GetHeight()},
@@ -150,8 +150,8 @@ bool RasterizerCache::AccelerateDisplayTransfer(const GPU::Regs::DisplayTransfer
     }
 
     const TextureBlit texture_blit = {
-        .src_level = 0,
-        .dst_level = 0,
+        .src_level = src_surface->LevelOf(src_params.addr),
+        .dst_level = dst_surface->LevelOf(dst_params.addr),
         .src_rect = src_rect,
         .dst_rect = dst_rect,
     };
@@ -191,7 +191,8 @@ void RasterizerCache::CopySurface(const Surface& src_surface, const Surface& dst
                                   SurfaceInterval copy_interval) {
     MICROPROFILE_SCOPE(RasterizerCache_CopySurface);
 
-    SurfaceParams subrect_params = dst_surface->FromInterval(copy_interval);
+    const PAddr copy_addr = copy_interval.lower();
+    const SurfaceParams subrect_params = dst_surface->FromInterval(copy_interval);
     ASSERT(subrect_params.GetInterval() == copy_interval);
     ASSERT(src_surface != dst_surface);
 
@@ -208,7 +209,7 @@ void RasterizerCache::CopySurface(const Surface& src_surface, const Surface& dst
         }
 
         const TextureClear clear = {
-            .texture_level = 0,
+            .texture_level = dst_surface->LevelOf(copy_addr),
             .texture_rect = dst_surface->GetScaledSubRect(subrect_params),
             .value =
                 MakeClearValue(dst_surface->type, dst_surface->pixel_format, fill_buffer.data()),
@@ -219,8 +220,8 @@ void RasterizerCache::CopySurface(const Surface& src_surface, const Surface& dst
 
     if (src_surface->CanSubRect(subrect_params)) {
         const TextureBlit blit = {
-            .src_level = 0,
-            .dst_level = 0,
+            .src_level = src_surface->LevelOf(copy_addr),
+            .dst_level = dst_surface->LevelOf(copy_addr),
             .src_rect = src_surface->GetScaledSubRect(subrect_params),
             .dst_rect = dst_surface->GetScaledSubRect(subrect_params),
         };
@@ -442,15 +443,12 @@ auto RasterizerCache::GetSurfaceSubRect(const SurfaceParams& params, ScaleMatch 
             new_params.size = new_params.end - new_params.addr;
             new_params.height =
                 new_params.size / aligned_params.BytesInPixels(aligned_params.stride);
+            new_params.UpdateParams();
             ASSERT(new_params.size % aligned_params.BytesInPixels(aligned_params.stride) == 0);
 
             Surface new_surface = CreateSurface(new_params);
             DuplicateSurface(surface, new_surface);
-
-            // Delete the expanded surface, this can't be done safely yet
-            // because it may still be in use
-            surface->UnlinkAllWatcher(); // unlink watchers as if this surface is already deleted
-            remove_surfaces.emplace(surface);
+            UnregisterSurface(surface);
 
             surface = new_surface;
             RegisterSurface(new_surface);
@@ -481,7 +479,7 @@ auto RasterizerCache::GetTextureSurface(const Pica::TexturingRegs::FullTextureCo
 
 auto RasterizerCache::GetTextureSurface(const Pica::Texture::TextureInfo& info, u32 max_level)
     -> Surface {
-    if (info.physical_address == 0) {
+    if (info.physical_address == 0) [[unlikely]] {
         return nullptr;
     }
 
@@ -498,105 +496,46 @@ auto RasterizerCache::GetTextureSurface(const Pica::Texture::TextureInfo& info, 
     u32 min_width = info.width >> max_level;
     u32 min_height = info.height >> max_level;
     if (min_width % 8 != 0 || min_height % 8 != 0) {
-        LOG_CRITICAL(Render_OpenGL, "Texture size ({}x{}) is not multiple of 8", min_width,
-                     min_height);
+        LOG_CRITICAL(HW_GPU, "Texture size ({}x{}) is not multiple of 8", min_width, min_height);
         return nullptr;
     }
     if (info.width != (min_width << max_level) || info.height != (min_height << max_level)) {
-        LOG_CRITICAL(Render_OpenGL,
-                     "Texture size ({}x{}) does not support required mipmap level ({})",
+        LOG_CRITICAL(HW_GPU, "Texture size ({}x{}) does not support required mipmap level ({})",
                      params.width, params.height, max_level);
         return nullptr;
     }
 
-    auto surface = GetSurface(params, ScaleMatch::Ignore, true);
-    if (!surface)
-        return nullptr;
-
-    // Update mipmap if necessary
-    if (max_level != 0) {
-        if (max_level >= 8) {
-            // since PICA only supports texture size between 8 and 1024, there are at most eight
-            // possible mipmap levels including the base.
-            LOG_CRITICAL(Render_OpenGL, "Unsupported mipmap level {}", max_level);
-            return nullptr;
-        }
-
-        // When texture filtering is enabled generate mipmaps
-        if (!runtime.IsNullFilter()) {
-            runtime.GenerateMipmaps(*surface, max_level);
-        }
-
-        // Blit mipmaps that have been invalidated
-        SurfaceParams surface_params = *surface;
-        for (u32 level = 1; level <= max_level; ++level) {
-            // In PICA all mipmap levels are stored next to each other
-            surface_params.addr +=
-                surface_params.width * surface_params.height * surface_params.GetFormatBpp() / 8;
-            surface_params.width /= 2;
-            surface_params.height /= 2;
-            surface_params.stride = 0; // reset stride and let UpdateParams re-initialize it
-            surface_params.levels = 1;
-            surface_params.UpdateParams();
-
-            auto& watcher = surface->level_watchers[level - 1];
-            if (!watcher || !watcher->Get()) {
-                auto level_surface = GetSurface(surface_params, ScaleMatch::Ignore, true);
-                if (level_surface) {
-                    watcher = level_surface->CreateWatcher();
-                } else {
-                    watcher = nullptr;
-                }
-            }
-
-            if (watcher && !watcher->IsValid()) {
-                auto level_surface = std::static_pointer_cast<OpenGL::Surface>(watcher->Get());
-                if (!level_surface->invalid_regions.empty()) {
-                    ValidateSurface(level_surface, level_surface->addr, level_surface->size);
-                }
-
-                if (runtime.IsNullFilter()) {
-                    const TextureBlit blit = {
-                        .src_level = 0,
-                        .dst_level = level,
-                        .src_rect = level_surface->GetScaledRect(),
-                        .dst_rect = surface_params.GetScaledRect(),
-                    };
-                    runtime.BlitTextures(*level_surface, *surface, blit);
-                }
-
-                watcher->Validate();
-            }
-        }
-    }
-
-    return surface;
+    return GetSurface(params, ScaleMatch::Ignore, true);
 }
 
 auto RasterizerCache::GetTextureCube(const TextureCubeConfig& config) -> Surface {
     auto [it, new_surface] = texture_cube_cache.try_emplace(config);
+    TextureCube& cube = it->second;
+
     if (new_surface) {
         SurfaceParams cube_params = {
             .addr = config.px,
             .width = config.width,
             .height = config.width,
             .stride = config.width,
+            .levels = config.levels,
             .res_scale = runtime.IsNullFilter() ? 1 : resolution_scale_factor,
             .texture_type = TextureType::CubeMap,
             .pixel_format = PixelFormatFromTextureFormat(config.format),
             .type = SurfaceType::Texture,
         };
-        it->second = CreateSurface(cube_params);
+        cube_params.UpdateParams();
+        cube.surface = CreateSurface(cube_params);
     }
 
-    Surface& cube = it->second;
+    const u32 scaled_size = cube.surface->GetScaledWidth();
+    const std::array addresses = {config.px, config.nx, config.py, config.ny, config.pz, config.nz};
 
-    const u32 scaled_size = cube->GetScaledWidth();
-    const std::array addresses = {
-        config.px, config.nx, config.py, config.ny, config.pz, config.nz,
-    };
+    for (u32 i = 0; i < addresses.size(); i++) {
+        if (!addresses[i]) {
+            continue;
+        }
 
-    for (std::size_t i = 0; i < addresses.size(); i++) {
         Pica::Texture::TextureInfo info = {
             .physical_address = addresses[i],
             .width = config.width,
@@ -605,25 +544,29 @@ auto RasterizerCache::GetTextureCube(const TextureCubeConfig& config) -> Surface
         };
         info.SetDefaultStride();
 
-        Surface face_surface = GetTextureSurface(info);
-        if (!face_surface) {
-            continue;
+        Surface& face_surface = cube.faces[i];
+        if (!face_surface || !face_surface->registered) {
+            face_surface = GetTextureSurface(info, config.levels - 1);
+            ASSERT(face_surface->levels == config.levels);
         }
-
-        const u32 face = static_cast<u32>(i);
-        const TextureCopy texture_copy = {
-            .src_level = 0,
-            .dst_level = 0,
-            .src_layer = 0,
-            .dst_layer = face,
-            .src_offset = {0, 0},
-            .dst_offset = {0, 0},
-            .extent = {scaled_size, scaled_size},
-        };
-        runtime.CopyTextures(*face_surface, *cube, texture_copy);
+        if (cube.ticks[i] != face_surface->ModificationTick()) {
+            for (u32 level = 0; level < face_surface->levels; level++) {
+                const TextureCopy texture_copy = {
+                    .src_level = level,
+                    .dst_level = level,
+                    .src_layer = 0,
+                    .dst_layer = i,
+                    .src_offset = {0, 0},
+                    .dst_offset = {0, 0},
+                    .extent = {scaled_size >> level, scaled_size >> level},
+                };
+                runtime.CopyTextures(*face_surface, *cube.surface, texture_copy);
+            }
+            cube.ticks[i] = face_surface->ModificationTick();
+        }
     }
 
-    return cube;
+    return cube.surface;
 }
 
 auto RasterizerCache::GetFramebufferSurfaces(bool using_color_fb, bool using_depth_fb)
@@ -676,19 +619,21 @@ auto RasterizerCache::GetFramebufferSurfaces(bool using_color_fb, bool using_dep
     // Make sure that framebuffers don't overlap if both color and depth are being used
     if (using_color_fb && using_depth_fb &&
         boost::icl::length(color_vp_interval & depth_vp_interval)) {
-        LOG_CRITICAL(Render_OpenGL, "Color and depth framebuffer memory regions overlap; "
-                                    "overlapping framebuffers not supported!");
+        LOG_CRITICAL(HW_GPU, "Color and depth framebuffer memory regions overlap; "
+                             "overlapping framebuffers not supported!");
         using_depth_fb = false;
     }
 
     Common::Rectangle<u32> color_rect{};
     Surface color_surface = nullptr;
+    u32 color_level{};
     if (using_color_fb)
         std::tie(color_surface, color_rect) =
             GetSurfaceSubRect(color_params, ScaleMatch::Exact, false);
 
     Common::Rectangle<u32> depth_rect{};
     Surface depth_surface = nullptr;
+    u32 depth_level{};
     if (using_depth_fb)
         std::tie(depth_surface, depth_rect) =
             GetSurfaceSubRect(depth_params, ScaleMatch::Exact, false);
@@ -710,14 +655,14 @@ auto RasterizerCache::GetFramebufferSurfaces(bool using_color_fb, bool using_dep
     }
 
     if (color_surface != nullptr) {
+        color_level = color_surface->LevelOf(color_params.addr);
         ValidateSurface(color_surface, boost::icl::first(color_vp_interval),
                         boost::icl::length(color_vp_interval));
-        color_surface->InvalidateAllWatcher();
     }
     if (depth_surface != nullptr) {
+        depth_level = depth_surface->LevelOf(depth_params.addr);
         ValidateSurface(depth_surface, boost::icl::first(depth_vp_interval),
                         boost::icl::length(depth_vp_interval));
-        depth_surface->InvalidateAllWatcher();
     }
 
     render_targets = RenderTargets{
@@ -725,7 +670,8 @@ auto RasterizerCache::GetFramebufferSurfaces(bool using_color_fb, bool using_dep
         .depth_surface = depth_surface,
     };
 
-    return OpenGL::Framebuffer{runtime, color_surface.get(), depth_surface.get(), regs, fb_rect};
+    return OpenGL::Framebuffer{
+        runtime, color_surface.get(), color_level, depth_surface.get(), depth_level, regs, fb_rect};
 }
 
 void RasterizerCache::InvalidateFramebuffer(const OpenGL::Framebuffer& framebuffer) {
@@ -799,36 +745,43 @@ void RasterizerCache::DuplicateSurface(const Surface& src_surface, const Surface
 }
 
 void RasterizerCache::ValidateSurface(const Surface& surface, PAddr addr, u32 size) {
-    if (size == 0)
+    if (size == 0) [[unlikely]] {
         return;
+    }
 
     const SurfaceInterval validate_interval(addr, addr + size);
-
     if (surface->type == SurfaceType::Fill) {
-        // Sanity check, fill surfaces will always be valid when used
         ASSERT(surface->IsRegionValid(validate_interval));
         return;
     }
 
-    auto validate_regions = surface->invalid_regions & validate_interval;
+    SurfaceRegions validate_regions = surface->invalid_regions & validate_interval;
+
     auto notify_validated = [&](SurfaceInterval interval) {
-        surface->invalid_regions.erase(interval);
+        surface->MarkValid(interval);
         validate_regions.erase(interval);
     };
 
-    while (true) {
-        const auto it = validate_regions.begin();
-        if (it == validate_regions.end())
-            break;
+    u32 level = surface->LevelOf(addr);
+    SurfaceInterval level_interval = surface->LevelInterval(level);
+    while (!validate_regions.empty()) {
+        // Take an invalid interval from the validation regions and clamp it
+        // to the current level interval since FromInterval cannot process
+        // intervals that span multiple levels. If the interval is empty
+        // then we have validated the entire level so move to the next.
+        const auto interval = *validate_regions.begin() & level_interval;
+        if (boost::icl::is_empty(interval)) {
+            level_interval = surface->LevelInterval(++level);
+            continue;
+        }
 
-        const auto interval = *it & validate_interval;
-        // Look for a valid surface to copy from
-        SurfaceParams params = surface->FromInterval(interval);
-
-        Surface copy_surface =
+        // Look for a valid surface to copy from.
+        const SurfaceParams params = surface->FromInterval(interval);
+        const Surface copy_surface =
             FindMatch<MatchFlags::Copy>(surface_cache, params, ScaleMatch::Ignore, interval);
-        if (copy_surface != nullptr) {
-            SurfaceInterval copy_interval = copy_surface->GetCopyableInterval(params);
+
+        if (copy_surface) {
+            const SurfaceInterval copy_interval = copy_surface->GetCopyableInterval(params);
             CopySurface(copy_surface, surface, copy_interval);
             notify_validated(copy_interval);
             continue;
@@ -848,8 +801,8 @@ void RasterizerCache::ValidateSurface(const Surface& surface, PAddr addr, u32 si
             // If the region was created entirely on the GPU,
             // assume it was a developer mistake and skip flushing.
             if (boost::icl::contains(dirty_regions, interval)) {
-                LOG_DEBUG(Render_OpenGL, "Region created fully on GPU and reinterpretation is "
-                                         "invalid. Skipping validation");
+                LOG_DEBUG(HW_GPU, "Region created fully on GPU and reinterpretation is "
+                                  "invalid. Skipping validation");
                 validate_regions.erase(interval);
                 continue;
             }
@@ -885,7 +838,7 @@ void RasterizerCache::UploadSurface(const Surface& surface, SurfaceInterval inte
         .buffer_offset = 0,
         .buffer_size = staging.size,
         .texture_rect = surface->GetSubRect(load_info),
-        .texture_level = 0,
+        .texture_level = surface->LevelOf(load_info.addr),
     };
     surface->Upload(upload, staging);
 }
@@ -903,7 +856,7 @@ void RasterizerCache::DownloadSurface(const Surface& surface, SurfaceInterval in
         .buffer_offset = 0,
         .buffer_size = staging.size,
         .texture_rect = surface->GetSubRect(flush_info),
-        .texture_level = 0,
+        .texture_level = surface->LevelOf(flush_start),
     };
     surface->Download(download, staging);
 
@@ -951,8 +904,7 @@ void RasterizerCache::DownloadFillSurface(const Surface& surface, SurfaceInterva
     }
 }
 
-bool RasterizerCache::NoUnimplementedReinterpretations(const Surface& surface,
-                                                       SurfaceParams& params,
+bool RasterizerCache::NoUnimplementedReinterpretations(const Surface& surface, SurfaceParams params,
                                                        const SurfaceInterval& interval) {
     static constexpr std::array<PixelFormat, 17> all_formats{
         PixelFormat::RGBA8, PixelFormat::RGB8,   PixelFormat::RGB5A1, PixelFormat::RGB565,
@@ -970,7 +922,7 @@ bool RasterizerCache::NoUnimplementedReinterpretations(const Surface& surface,
             Surface test_surface =
                 FindMatch<MatchFlags::Copy>(surface_cache, params, ScaleMatch::Ignore, interval);
             if (test_surface != nullptr) {
-                LOG_WARNING(Render_OpenGL, "Missing pixel_format reinterpreter: {} -> {}",
+                LOG_WARNING(HW_GPU, "Missing pixel_format reinterpreter: {} -> {}",
                             PixelFormatAsString(format),
                             PixelFormatAsString(surface->pixel_format));
                 implemented = false;
@@ -980,20 +932,20 @@ bool RasterizerCache::NoUnimplementedReinterpretations(const Surface& surface,
     return implemented;
 }
 
-bool RasterizerCache::IntervalHasInvalidPixelFormat(SurfaceParams& params,
+bool RasterizerCache::IntervalHasInvalidPixelFormat(const SurfaceParams& params,
                                                     const SurfaceInterval& interval) {
-    params.pixel_format = PixelFormat::Invalid;
-    for (const auto& set : RangeFromInterval(surface_cache, interval))
-        for (const auto& surface : set.second)
+    for (const auto& set : RangeFromInterval(surface_cache, interval)) {
+        for (const auto& surface : set.second) {
             if (surface->pixel_format == PixelFormat::Invalid) {
-                LOG_DEBUG(Render_OpenGL, "Surface {:#x} found with invalid pixel format",
-                          surface->addr);
+                LOG_DEBUG(HW_GPU, "Surface {:#x} found with invalid pixel format", surface->addr);
                 return true;
             }
+        }
+    }
     return false;
 }
 
-bool RasterizerCache::ValidateByReinterpretation(const Surface& surface, SurfaceParams& params,
+bool RasterizerCache::ValidateByReinterpretation(const Surface& surface, SurfaceParams params,
                                                  const SurfaceInterval& interval) {
     const PixelFormat dest_format = surface->pixel_format;
     for (const auto& reinterpreter : runtime.GetPossibleReinterpretations(dest_format)) {
@@ -1087,7 +1039,7 @@ void RasterizerCache::InvalidateRegion(PAddr addr, u32 size, const Surface& regi
         ASSERT(addr >= region_owner->addr && addr + size <= region_owner->end);
         // Surfaces can't have a gap
         ASSERT(region_owner->width == region_owner->stride);
-        region_owner->invalid_regions.erase(invalid_interval);
+        region_owner->MarkValid(invalid_interval);
     }
 
     for (const auto& pair : RangeFromInterval(surface_cache, invalid_interval)) {
@@ -1099,48 +1051,36 @@ void RasterizerCache::InvalidateRegion(PAddr addr, u32 size, const Surface& regi
             // to (likely) mark the memory pages as uncached
             if (region_owner == nullptr && size <= 8) {
                 FlushRegion(cached_surface->addr, cached_surface->size, cached_surface);
-                remove_surfaces.emplace(cached_surface);
+                remove_surfaces.push_back(cached_surface);
                 continue;
             }
 
             const auto interval = cached_surface->GetInterval() & invalid_interval;
-            cached_surface->invalid_regions.insert(interval);
-            cached_surface->InvalidateAllWatcher();
+            cached_surface->MarkInvalid(interval);
 
             // If the surface has no salvageable data it should be removed from the cache to avoid
             // clogging the data structure
-            if (cached_surface->IsSurfaceFullyInvalid()) {
-                remove_surfaces.emplace(cached_surface);
+            if (cached_surface->IsFullyInvalid()) {
+                remove_surfaces.push_back(cached_surface);
             }
         }
     }
 
-    if (region_owner != nullptr)
+    if (region_owner != nullptr) {
         dirty_regions.set({invalid_interval, region_owner});
-    else
+    } else {
         dirty_regions.erase(invalid_interval);
+    }
 
-    for (const auto& remove_surface : remove_surfaces) {
-        if (remove_surface == region_owner) {
-            Surface expanded_surface = FindMatch<MatchFlags::SubRect | MatchFlags::Invalid>(
-                surface_cache, *region_owner, ScaleMatch::Ignore);
-            ASSERT(expanded_surface);
-
-            if ((region_owner->invalid_regions - expanded_surface->invalid_regions).empty()) {
-                DuplicateSurface(region_owner, expanded_surface);
-            } else {
-                continue;
-            }
-        }
+    for (const Surface& remove_surface : remove_surfaces) {
         UnregisterSurface(remove_surface);
     }
-
     remove_surfaces.clear();
 }
 
 auto RasterizerCache::CreateSurface(const SurfaceParams& params) -> Surface {
     Surface surface = std::make_shared<OpenGL::Surface>(runtime, params);
-    surface->invalid_regions.insert(surface->GetInterval());
+    surface->MarkInvalid(surface->GetInterval());
     return surface;
 }
 

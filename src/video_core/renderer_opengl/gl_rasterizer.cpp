@@ -569,6 +569,7 @@ void RasterizerOpenGL::BindTextureCube(const Pica::TexturingRegs::FullTextureCon
         .pz = regs.texturing.GetCubePhysicalAddress(CubeFace::PositiveZ),
         .nz = regs.texturing.GetCubePhysicalAddress(CubeFace::NegativeZ),
         .width = texture.config.width,
+        .levels = texture.config.lod.max_level + 1,
         .format = texture.format,
     };
 
@@ -767,22 +768,11 @@ void RasterizerOpenGL::SamplerInfo::SyncWithConfig(
         glSamplerParameteri(s, GL_TEXTURE_MAG_FILTER, PicaToGL::TextureMagFilterMode(mag_filter));
     }
 
-    // TODO(wwylele): remove new_supress_mipmap_for_cube logic once mipmap for cube is implemented
-    bool new_supress_mipmap_for_cube =
-        config.type == Pica::TexturingRegs::TextureConfig::TextureCube;
-    if (min_filter != config.min_filter || mip_filter != config.mip_filter ||
-        supress_mipmap_for_cube != new_supress_mipmap_for_cube) {
+    if (min_filter != config.min_filter || mip_filter != config.mip_filter) {
         min_filter = config.min_filter;
         mip_filter = config.mip_filter;
-        supress_mipmap_for_cube = new_supress_mipmap_for_cube;
-        if (new_supress_mipmap_for_cube) {
-            // HACK: use mag filter converter for min filter because they are the same anyway
-            glSamplerParameteri(s, GL_TEXTURE_MIN_FILTER,
-                                PicaToGL::TextureMagFilterMode(min_filter));
-        } else {
-            glSamplerParameteri(s, GL_TEXTURE_MIN_FILTER,
-                                PicaToGL::TextureMinFilterMode(min_filter, mip_filter));
-        }
+        glSamplerParameteri(s, GL_TEXTURE_MIN_FILTER,
+                            PicaToGL::TextureMinFilterMode(min_filter, mip_filter));
     }
 
     if (wrap_s != config.wrap_s) {

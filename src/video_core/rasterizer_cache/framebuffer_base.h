@@ -29,8 +29,9 @@ struct ViewportInfo {
 class FramebufferBase {
 public:
     FramebufferBase();
-    FramebufferBase(const Pica::Regs& regs, SurfaceBase* const color,
-                    SurfaceBase* const depth_stencil, Common::Rectangle<u32> surfaces_rect);
+    FramebufferBase(const Pica::Regs& regs, SurfaceBase* const color, u32 color_level,
+                    SurfaceBase* const depth_stencil, u32 depth_level,
+                    Common::Rectangle<u32> surfaces_rect);
 
     SurfaceParams ColorParams() const noexcept {
         return color_params;

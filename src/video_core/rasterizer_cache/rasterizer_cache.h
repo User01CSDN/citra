@@ -53,6 +53,12 @@ public:
         Surface depth_surface;
     };
 
+    struct TextureCube {
+        Surface surface{};
+        std::array<Surface, 6> faces{};
+        std::array<u64, 6> ticks{};
+    };
+
 public:
     RasterizerCache(Memory::MemorySystem& memory, OpenGL::TextureRuntime& runtime,
                     Pica::Regs& regs);
@@ -109,6 +115,7 @@ public:
     void ClearAll(bool flush);
 
 private:
+    /// Transfers ownership of a memory region from src_surface to dest_surface
     void DuplicateSurface(const Surface& src_surface, const Surface& dest_surface);
 
     /// Update surface's texture for given region when necessary
@@ -124,14 +131,15 @@ private:
     void DownloadFillSurface(const Surface& surface, SurfaceInterval interval);
 
     /// Returns false if there is a surface in the cache at the interval with the same bit-width,
-    bool NoUnimplementedReinterpretations(const Surface& surface, SurfaceParams& params,
+    bool NoUnimplementedReinterpretations(const Surface& surface, SurfaceParams params,
                                           const SurfaceInterval& interval);
 
     /// Return true if a surface with an invalid pixel format exists at the interval
-    bool IntervalHasInvalidPixelFormat(SurfaceParams& params, const SurfaceInterval& interval);
+    bool IntervalHasInvalidPixelFormat(const SurfaceParams& params,
+                                       const SurfaceInterval& interval);
 
     /// Attempt to find a reinterpretable surface in the cache and use it to copy for validation
-    bool ValidateByReinterpretation(const Surface& surface, SurfaceParams& params,
+    bool ValidateByReinterpretation(const Surface& surface, SurfaceParams params,
                                     const SurfaceInterval& interval);
 
     /// Create a new surface
@@ -153,10 +161,10 @@ private:
     SurfaceCache surface_cache;
     PageMap cached_pages;
     SurfaceMap dirty_regions;
-    SurfaceSet remove_surfaces;
+    std::vector<Surface> remove_surfaces;
     u32 resolution_scale_factor;
     RenderTargets render_targets;
-    std::unordered_map<TextureCubeConfig, Surface> texture_cube_cache;
+    std::unordered_map<TextureCubeConfig, TextureCube> texture_cube_cache;
 };
 
 } // namespace VideoCore

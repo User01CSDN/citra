@@ -1,4 +1,4 @@
-/// Copyright 2020 Citra Emulator Project
+// Copyright 2020 Citra Emulator Project
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -6,6 +6,7 @@
 #include <functional>
 #include <unordered_map>
 #include "common/logging/log.h"
+#include "video_core/rasterizer_cache/pixel_format.h"
 #include "video_core/renderer_opengl/texture_filters/anime4k/anime4k_ultrafast.h"
 #include "video_core/renderer_opengl/texture_filters/bicubic/bicubic.h"
 #include "video_core/renderer_opengl/texture_filters/nearest_neighbor/nearest_neighbor.h"
@@ -60,8 +61,7 @@ bool TextureFilterer::IsNull() const {
     return !filter;
 }
 
-bool TextureFilterer::Filter(const GLuint src_tex, Common::Rectangle<u32> src_rect,
-                             const GLuint dst_tex, Common::Rectangle<u32> dst_rect,
+bool TextureFilterer::Filter(GLuint src_tex, GLuint dst_tex, const VideoCore::TextureBlit& blit,
                              VideoCore::SurfaceType type) const {
 
     // Depth/Stencil texture filtering is not supported for now
@@ -70,7 +70,7 @@ bool TextureFilterer::Filter(const GLuint src_tex, Common::Rectangle<u32> src_re
         return false;
     }
 
-    filter->Filter(src_tex, src_rect, dst_tex, dst_rect);
+    filter->Filter(src_tex, dst_tex, blit);
     return true;
 }
 
