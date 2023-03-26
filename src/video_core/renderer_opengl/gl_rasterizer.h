@@ -69,7 +69,6 @@ private:
         u32 border_color;
         u32 lod_min;
         u32 lod_max;
-        s32 lod_bias;
     };
 
     /// Syncs the clip enabled status to match the PICA register
