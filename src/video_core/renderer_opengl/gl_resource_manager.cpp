@@ -103,14 +103,14 @@ void OGLSampler::Release() {
     handle = 0;
 }
 
-void OGLShader::Create(const char* source, GLenum type) {
+void OGLShader::Create(std::string_view source, GLenum type) {
     if (handle != 0)
         return;
-    if (source == nullptr)
+    if (source.empty())
         return;
 
     MICROPROFILE_SCOPE(OpenGL_ResourceCreation);
-    handle = LoadShader(source, type);
+    handle = LoadShader(source.data(), type);
 }
 
 void OGLShader::Release() {
@@ -130,7 +130,7 @@ void OGLProgram::Create(bool separable_program, const std::vector<GLuint>& shade
     handle = LoadProgram(separable_program, shaders);
 }
 
-void OGLProgram::Create(const char* vert_shader, const char* frag_shader) {
+void OGLProgram::Create(std::string_view vert_shader, std::string_view frag_shader) {
     OGLShader vert, frag;
     vert.Create(vert_shader, GL_VERTEX_SHADER);
     frag.Create(frag_shader, GL_FRAGMENT_SHADER);

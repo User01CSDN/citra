@@ -7,52 +7,14 @@
 #include "video_core/renderer_opengl/gl_state.h"
 #include "video_core/renderer_opengl/gl_texture_runtime.h"
 
+#include "video_core/host_shaders/format_reinterpreter/d24s8_to_rgba8_frag.h"
+#include "video_core/host_shaders/format_reinterpreter/fullscreen_quad_vert.h"
+#include "video_core/host_shaders/format_reinterpreter/rgba4_to_rgb5a1_frag.h"
+
 namespace OpenGL {
 
 RGBA4toRGB5A1::RGBA4toRGB5A1() {
-    constexpr std::string_view vs_source = R"(
-out vec2 dst_coord;
-
-uniform mediump ivec2 dst_size;
-
-const vec2 vertices[4] =
-vec2[4](vec2(-1.0, -1.0), vec2(1.0, -1.0), vec2(-1.0, 1.0), vec2(1.0, 1.0));
-
-void main() {
-gl_Position = vec4(vertices[gl_VertexID], 0.0, 1.0);
-dst_coord = (vertices[gl_VertexID] / 2.0 + 0.5) * vec2(dst_size);
-}
-)";
-
-    constexpr std::string_view fs_source = R"(
-in mediump vec2 dst_coord;
-
-out lowp vec4 frag_color;
-
-uniform lowp sampler2D source;
-uniform mediump ivec2 dst_size;
-uniform mediump ivec2 src_size;
-uniform mediump ivec2 src_offset;
-
-void main() {
-mediump ivec2 tex_coord;
-if (src_size == dst_size) {
-    tex_coord = ivec2(dst_coord);
-} else {
-    highp int tex_index = int(dst_coord.y) * dst_size.x + int(dst_coord.x);
-    mediump int y = tex_index / src_size.x;
-    tex_coord = ivec2(tex_index - y * src_size.x, y);
-}
-tex_coord -= src_offset;
-
-lowp ivec4 rgba4 = ivec4(texelFetch(source, tex_coord, 0) * (exp2(4.0) - 1.0));
-lowp ivec3 rgb5 =
-    ((rgba4.rgb << ivec3(1, 2, 3)) | (rgba4.gba >> ivec3(3, 2, 1))) & 0x1F;
-frag_color = vec4(vec3(rgb5) / (exp2(5.0) - 1.0), rgba4.a & 0x01);
-}
-)";
-
-    program.Create(vs_source.data(), fs_source.data());
+    program.Create(HostShaders::FULLSCREEN_QUAD_VERT, HostShaders::RGBA4_TO_RGB5A1_FRAG);
     dst_size_loc = glGetUniformLocation(program.handle, "dst_size");
     src_size_loc = glGetUniformLocation(program.handle, "src_size");
     src_offset_loc = glGetUniformLocation(program.handle, "src_offset");
@@ -85,52 +47,7 @@ void RGBA4toRGB5A1::Reinterpret(Surface& source, Common::Rectangle<u32> src_rect
 }
 
 ShaderD24S8toRGBA8::ShaderD24S8toRGBA8() {
-    constexpr std::string_view vs_source = R"(
-out vec2 dst_coord;
-
-uniform mediump ivec2 dst_size;
-
-const vec2 vertices[4] =
-vec2[4](vec2(-1.0, -1.0), vec2(1.0, -1.0), vec2(-1.0, 1.0), vec2(1.0, 1.0));
-
-void main() {
-gl_Position = vec4(vertices[gl_VertexID], 0.0, 1.0);
-dst_coord = (vertices[gl_VertexID] / 2.0 + 0.5) * vec2(dst_size);
-}
-)";
-
-    constexpr std::string_view fs_source = R"(
-in mediump vec2 dst_coord;
-
-out lowp vec4 frag_color;
-
-uniform highp sampler2D depth;
-uniform lowp usampler2D stencil;
-uniform mediump ivec2 dst_size;
-uniform mediump ivec2 src_size;
-uniform mediump ivec2 src_offset;
-
-void main() {
-mediump ivec2 tex_coord;
-if (src_size == dst_size) {
-    tex_coord = ivec2(dst_coord);
-} else {
-    highp int tex_index = int(dst_coord.y) * dst_size.x + int(dst_coord.x);
-    mediump int y = tex_index / src_size.x;
-    tex_coord = ivec2(tex_index - y * src_size.x, y);
-}
-tex_coord -= src_offset;
-
-highp uint depth_val =
-    uint(texelFetch(depth, tex_coord, 0).x * (exp2(32.0) - 1.0));
-lowp uint stencil_val = texelFetch(stencil, tex_coord, 0).x;
-highp uvec4 components =
-    uvec4(stencil_val, (uvec3(depth_val) >> uvec3(24u, 16u, 8u)) & 0x000000FFu);
-frag_color = vec4(components) / (exp2(8.0) - 1.0);
-}
-)";
-
-    program.Create(vs_source.data(), fs_source.data());
+    program.Create(HostShaders::FULLSCREEN_QUAD_VERT, HostShaders::D24S8_TO_RGBA8_FRAG);
     dst_size_loc = glGetUniformLocation(program.handle, "dst_size");
     src_size_loc = glGetUniformLocation(program.handle, "src_size");
     src_offset_loc = glGetUniformLocation(program.handle, "src_offset");
