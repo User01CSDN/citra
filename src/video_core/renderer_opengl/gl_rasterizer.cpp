@@ -773,7 +773,6 @@ void RasterizerOpenGL::SamplerInfo::Create() {
     wrap_s = wrap_t = TextureConfig::Repeat;
     border_color = 0;
     lod_min = lod_max = 0;
-    lod_bias = 0;
 
     // default is 1000 and -1000
     // Other attributes have correct defaults
@@ -823,11 +822,6 @@ void RasterizerOpenGL::SamplerInfo::SyncWithConfig(
     if (lod_max != config.lod.max_level) {
         lod_max = config.lod.max_level;
         glSamplerParameterf(s, GL_TEXTURE_MAX_LOD, static_cast<float>(lod_max));
-    }
-
-    if (!GLES && lod_bias != config.lod.bias) {
-        lod_bias = config.lod.bias;
-        glSamplerParameterf(s, GL_TEXTURE_LOD_BIAS, lod_bias / 256.0f);
     }
 }
 
