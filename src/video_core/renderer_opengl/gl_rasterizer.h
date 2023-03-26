@@ -155,12 +155,11 @@ private:
     std::array<bool, 16> hw_vao_enabled_attributes{};
 
     std::array<SamplerInfo, 3> texture_samplers;
-    OGLStreamBuffer vertex_buffer;
-    OGLStreamBuffer uniform_buffer;
-    OGLStreamBuffer index_buffer;
-    OGLStreamBuffer texture_buffer;
-    OGLStreamBuffer texture_lf_buffer;
-    OGLFramebuffer framebuffer;
+    StreamBuffer vertex_buffer;
+    StreamBuffer uniform_buffer;
+    StreamBuffer index_buffer;
+    StreamBuffer texture_buffer;
+    StreamBuffer texture_lf_buffer;
     GLint uniform_buffer_alignment;
     std::size_t uniform_size_aligned_vs;
     std::size_t uniform_size_aligned_fs;

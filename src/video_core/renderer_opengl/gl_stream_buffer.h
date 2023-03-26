@@ -1,4 +1,4 @@
-// Copyright 2022 Citra Emulator Project
+// Copyright 2023 Citra Emulator Project
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -11,39 +11,51 @@ namespace OpenGL {
 
 class Driver;
 
-class OGLStreamBuffer : private NonCopyable {
+class StreamBuffer {
+    static constexpr std::size_t SYNC_POINTS = 16;
+
 public:
-    explicit OGLStreamBuffer(Driver& driver, GLenum target, GLsizeiptr size,
-                             bool prefer_coherent = false);
-    ~OGLStreamBuffer();
+    StreamBuffer(const Driver& driver, GLenum target, size_t size);
+    ~StreamBuffer();
 
-    GLuint GetHandle() const;
-    GLsizeiptr GetSize() const;
+    [[nodiscard]] GLuint Handle() const noexcept {
+        return gl_buffer.handle;
+    }
 
-    /*
-     * Allocates a linear chunk of memory in the GPU buffer with at least "size" bytes
-     * and the optional alignment requirement.
-     * If the buffer is full, the whole buffer is reallocated which invalidates old chunks.
-     * The return values are the pointer to the new chunk, the offset within the buffer,
-     * and the invalidation flag for previous chunks.
-     * The actual used size must be specified on unmapping the chunk.
+    [[nodiscard]] size_t Size() const noexcept {
+        return buffer_size;
+    }
+
+    /* This mapping function will return a pair of:
+     * - the pointer to the mapped buffer
+     * - the offset into the real GPU buffer (always multiple of stride)
+     * On mapping, the maximum of size for allocation has to be set.
+     * The size really pushed into this fifo only has to be known on Unmapping.
+     * Mapping invalidates the current buffer content,
+     * so it isn't allowed to access the old content any more.
      */
-    std::tuple<u8*, GLintptr, bool> Map(GLsizeiptr size, GLintptr alignment = 0);
-
-    void Unmap(GLsizeiptr size);
+    std::tuple<u8*, u64, bool> Map(u64 size, u64 alignment = 0);
+    void Unmap(u64 used_size);
 
 private:
-    OGLBuffer gl_buffer;
+    [[nodiscard]] u64 Slot(u64 offset) noexcept {
+        return offset / slot_size;
+    }
+
+    const Driver& driver;
     GLenum gl_target;
+    size_t buffer_size;
+    size_t slot_size;
+    bool buffer_storage{};
+    u8* mapped_ptr{};
+    u64 mapped_size;
 
-    bool coherent = false;
-    bool persistent = false;
+    u64 iterator = 0;
+    u64 used_iterator = 0;
+    u64 free_iterator = 0;
 
-    GLintptr buffer_pos = 0;
-    GLsizeiptr buffer_size = 0;
-    GLintptr mapped_offset = 0;
-    GLsizeiptr mapped_size = 0;
-    u8* mapped_ptr = nullptr;
+    OGLBuffer gl_buffer;
+    std::array<OGLSync, SYNC_POINTS> fences{};
 };
 
 } // namespace OpenGL
