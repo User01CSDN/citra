@@ -68,9 +68,9 @@ public:
         return is_suitable;
     }
 
-    /// Returns true if the implementation supports ARB_buffer_storage
-    bool HasArbBufferStorage() const {
-        return arb_buffer_storage;
+    /// Returns true if the implementation supports buffer storage
+    bool HasBufferStorage() const {
+        return arb_buffer_storage || ext_buffer_storage;
     }
 
     /// Returns true if the implementation supports EXT_buffer_storage

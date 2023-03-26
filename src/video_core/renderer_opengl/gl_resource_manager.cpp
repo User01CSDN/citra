@@ -149,6 +149,22 @@ void OGLProgram::Release() {
     handle = 0;
 }
 
+void OGLSync::Create() {
+    if (handle != 0)
+        return;
+
+    handle = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+}
+
+void OGLSync::Release() {
+    if (!handle) {
+        return;
+    }
+
+    glDeleteSync(handle);
+    handle = 0;
+}
+
 void OGLPipeline::Create() {
     if (handle != 0)
         return;

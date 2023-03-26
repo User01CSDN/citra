@@ -4,99 +4,104 @@
 
 #include "common/alignment.h"
 #include "common/assert.h"
-#include "common/microprofile.h"
 #include "video_core/renderer_opengl/gl_driver.h"
 #include "video_core/renderer_opengl/gl_stream_buffer.h"
 
-MICROPROFILE_DEFINE(OpenGL_StreamBuffer, "OpenGL", "Stream Buffer Orphaning",
-                    MP_RGB(128, 128, 192));
-
 namespace OpenGL {
 
-OGLStreamBuffer::OGLStreamBuffer(Driver& driver, GLenum target, GLsizeiptr size,
-                                 bool prefer_coherent)
-    : gl_target(target), buffer_size(size) {
+StreamBuffer::StreamBuffer(const Driver& driver_, GLenum target, size_t size_)
+    : driver{driver_}, gl_target{target}, buffer_size{size_}, slot_size{buffer_size / SYNC_POINTS},
+      buffer_storage{driver.HasBufferStorage()} {
+    for (size_t i = 0; i < SYNC_POINTS; i++) {
+        fences[i].Create();
+    }
+
     gl_buffer.Create();
     glBindBuffer(gl_target, gl_buffer.handle);
 
-    GLsizeiptr allocate_size = size;
-    if (driver.HasBug(DriverBug::VertexArrayOutOfBound) && target == GL_ARRAY_BUFFER) {
-        allocate_size *= 2;
-    }
+    if (buffer_storage) {
+        const GLbitfield flags = GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT;
+        if (driver.HasExtBufferStorage()) {
+            glBufferStorageEXT(gl_target, buffer_size, nullptr, flags);
+        } else {
+            glBufferStorage(gl_target, buffer_size, nullptr, flags);
+        }
 
-    if (GLAD_GL_ARB_buffer_storage) {
-        persistent = true;
-        coherent = prefer_coherent;
-        GLbitfield flags =
-            GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | (coherent ? GL_MAP_COHERENT_BIT : 0);
-        glBufferStorage(gl_target, allocate_size, nullptr, flags);
-        mapped_ptr = static_cast<u8*>(glMapBufferRange(
-            gl_target, 0, buffer_size, flags | (coherent ? 0 : GL_MAP_FLUSH_EXPLICIT_BIT)));
+        mapped_ptr =
+            (u8*)glMapBufferRange(gl_target, 0, buffer_size,
+                                  GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT);
     } else {
-        glBufferData(gl_target, allocate_size, nullptr, GL_STREAM_DRAW);
+        glBufferData(gl_target, buffer_size, nullptr, GL_STREAM_DRAW);
     }
 }
 
-OGLStreamBuffer::~OGLStreamBuffer() {
-    if (persistent) {
+StreamBuffer::~StreamBuffer() {
+    if (buffer_storage) {
         glBindBuffer(gl_target, gl_buffer.handle);
         glUnmapBuffer(gl_target);
     }
-    gl_buffer.Release();
 }
 
-GLuint OGLStreamBuffer::GetHandle() const {
-    return gl_buffer.handle;
-}
-
-GLsizeiptr OGLStreamBuffer::GetSize() const {
-    return buffer_size;
-}
-
-std::tuple<u8*, GLintptr, bool> OGLStreamBuffer::Map(GLsizeiptr size, GLintptr alignment) {
-    ASSERT(size <= buffer_size);
-    ASSERT(alignment <= buffer_size);
+std::tuple<u8*, size_t, bool> StreamBuffer::Map(size_t size, size_t alignment) {
     mapped_size = size;
 
     if (alignment > 0) {
-        buffer_pos = Common::AlignUp<std::size_t>(buffer_pos, alignment);
+        iterator = Common::AlignUp(iterator, alignment);
     }
 
-    bool invalidate = false;
-    if (buffer_pos + size > buffer_size) {
-        buffer_pos = 0;
-        invalidate = true;
+    for (std::size_t slot = Slot(used_iterator), slot_end = Slot(iterator); slot < slot_end;
+         ++slot) {
+        fences[slot].Create();
+    }
+    used_iterator = iterator;
 
-        if (persistent) {
-            glUnmapBuffer(gl_target);
+    for (std::size_t slot = Slot(free_iterator) + 1,
+                     slot_end = std::min(Slot(iterator + size) + 1, SYNC_POINTS);
+         slot < slot_end; ++slot) {
+        glClientWaitSync(fences[slot].handle, 0, GL_TIMEOUT_IGNORED);
+        fences[slot].Release();
+    }
+    if (iterator + size >= free_iterator) {
+        free_iterator = iterator + size;
+    }
+
+    bool invalidate{false};
+    if (iterator + size > buffer_size) {
+        for (std::size_t slot = Slot(used_iterator); slot < SYNC_POINTS; ++slot) {
+            fences[slot].Create();
+        }
+        invalidate = true;
+        used_iterator = 0;
+        iterator = 0;
+        free_iterator = size;
+
+        for (std::size_t slot = 0, slot_end = Slot(size); slot <= slot_end; ++slot) {
+            glClientWaitSync(fences[slot].handle, 0, GL_TIMEOUT_IGNORED);
+            fences[slot].Release();
         }
     }
 
-    if (invalidate || !persistent) {
-        MICROPROFILE_SCOPE(OpenGL_StreamBuffer);
-        GLbitfield flags = GL_MAP_WRITE_BIT | (persistent ? GL_MAP_PERSISTENT_BIT : 0) |
-                           (coherent ? GL_MAP_COHERENT_BIT : GL_MAP_FLUSH_EXPLICIT_BIT) |
-                           (invalidate ? GL_MAP_INVALIDATE_BUFFER_BIT : GL_MAP_UNSYNCHRONIZED_BIT);
-        mapped_ptr = static_cast<u8*>(
-            glMapBufferRange(gl_target, buffer_pos, buffer_size - buffer_pos, flags));
-        mapped_offset = buffer_pos;
+    u8* pointer{};
+    if (buffer_storage) {
+        pointer = mapped_ptr + iterator;
+    } else {
+        pointer = (u8*)glMapBufferRange(gl_target, iterator, size,
+                                        GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT |
+                                            GL_MAP_UNSYNCHRONIZED_BIT);
     }
 
-    return std::make_tuple(mapped_ptr + buffer_pos - mapped_offset, buffer_pos, invalidate);
+    return std::make_tuple(pointer, iterator, invalidate);
 }
 
-void OGLStreamBuffer::Unmap(GLsizeiptr size) {
-    ASSERT(size <= mapped_size);
+void StreamBuffer::Unmap(size_t used_size) {
+    ASSERT_MSG(used_size <= mapped_size, "Reserved size {} is too small compared to {}",
+               mapped_size, used_size);
 
-    if (!coherent && size > 0) {
-        glFlushMappedBufferRange(gl_target, buffer_pos - mapped_offset, size);
-    }
-
-    if (!persistent) {
+    if (!buffer_storage) {
+        glFlushMappedBufferRange(gl_target, 0, used_size);
         glUnmapBuffer(gl_target);
     }
-
-    buffer_pos += size;
+    iterator += used_size;
 }
 
 } // namespace OpenGL

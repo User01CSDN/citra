@@ -140,6 +140,35 @@ public:
     GLuint handle = 0;
 };
 
+class OGLSync final : private NonCopyable {
+public:
+    OGLSync() = default;
+
+    OGLSync(OGLSync&& o) noexcept : handle(std::exchange(o.handle, nullptr)) {}
+
+    ~OGLSync() {
+        Release();
+    }
+
+    OGLSync& operator=(OGLSync&& o) noexcept {
+        Release();
+        handle = std::exchange(o.handle, nullptr);
+        return *this;
+    }
+
+    explicit operator bool() const noexcept {
+        return handle != 0;
+    }
+
+    /// Creates a new internal OpenGL resource and stores the handle
+    void Create();
+
+    /// Deletes the internal OpenGL resource
+    void Release();
+
+    GLsync handle = 0;
+};
+
 class OGLPipeline : private NonCopyable {
 public:
     OGLPipeline() = default;
