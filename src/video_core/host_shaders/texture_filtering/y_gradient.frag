@@ -1,9 +1,12 @@
-//? #version 330
+// Copyright 2023 Citra Emulator Project
+// Licensed under GPLv2 or any later version
+// Refer to the license.txt file included.
+
+//? #version 430 core
 precision mediump float;
 
-in vec2 tex_coord;
-
-out float frag_color;
+layout(location = 0) in vec2 tex_coord;
+layout(location = 0) out float frag_color;
 
 uniform sampler2D tex_input;
 
