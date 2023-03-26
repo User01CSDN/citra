@@ -63,6 +63,14 @@ GLenum MakeAttributeType(Pica::PipelineRegs::VertexAttributeFormat format) {
     return GL_UNSIGNED_BYTE;
 }
 
+[[nodiscard]] std::size_t TextureBufferSize() {
+    // Use the smallest texel size from the texel views
+    // which corresponds to GL_RG32F
+    GLint max_texel_buffer_size;
+    glGetIntegerv(GL_MAX_TEXTURE_BUFFER_SIZE, &max_texel_buffer_size);
+    return std::min<std::size_t>(max_texel_buffer_size * 8, TEXTURE_BUFFER_SIZE);
+}
+
 } // Anonymous namespace
 
 RasterizerOpenGL::RasterizerOpenGL(Memory::MemorySystem& memory, Frontend::EmuWindow& emu_window,
@@ -71,9 +79,9 @@ RasterizerOpenGL::RasterizerOpenGL(Memory::MemorySystem& memory, Frontend::EmuWi
       res_cache{memory, runtime, regs}, vertex_buffer{driver, GL_ARRAY_BUFFER, VERTEX_BUFFER_SIZE},
       uniform_buffer{driver, GL_UNIFORM_BUFFER, UNIFORM_BUFFER_SIZE},
       index_buffer{driver, GL_ELEMENT_ARRAY_BUFFER, INDEX_BUFFER_SIZE},
-      texture_buffer{driver, GL_TEXTURE_BUFFER, TEXTURE_BUFFER_SIZE}, texture_lf_buffer{
+      texture_buffer{driver, GL_TEXTURE_BUFFER, TextureBufferSize()}, texture_lf_buffer{
                                                                           driver, GL_TEXTURE_BUFFER,
-                                                                          TEXTURE_BUFFER_SIZE} {
+                                                                          TextureBufferSize()} {
 
     // Clipping plane 0 is always enabled for PICA fixed clip plane z <= 0
     state.clip_distance[0] = true;
