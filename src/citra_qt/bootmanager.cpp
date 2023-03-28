@@ -176,7 +176,7 @@ public:
     }
 
     ~OpenGLSharedContext() {
-        context->doneCurrent();
+        OpenGLSharedContext::DoneCurrent();
     }
 
     void SwapBuffers() override {
@@ -196,7 +196,9 @@ public:
     }
 
     void DoneCurrent() override {
-        context->doneCurrent();
+        if (QOpenGLContext::currentContext() == context.get()) {
+            context->doneCurrent();
+        }
     }
 
     QOpenGLContext* GetShareContext() const {
