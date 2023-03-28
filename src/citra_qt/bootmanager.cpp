@@ -257,7 +257,9 @@ public:
         }
         context->MakeCurrent();
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-        VideoCore::g_renderer->TryPresent(100, is_secondary);
+        if (VideoCore::g_renderer) {
+            VideoCore::g_renderer->TryPresent(100, is_secondary);
+        }
         context->SwapBuffers();
         glFinish();
     }
