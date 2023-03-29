@@ -448,8 +448,8 @@ int main(int argc, char** argv) {
         Core::Movie::GetInstance().StartRecording(movie_record, movie_record_author);
     }
     if (!dump_video.empty()) {
-        Layout::FramebufferLayout layout{
-            Layout::FrameLayoutFromResolutionScale(VideoCore::GetResolutionScaleFactor())};
+        Layout::FramebufferLayout layout{Layout::FrameLayoutFromResolutionScale(
+            VideoCore::g_renderer->GetResolutionScaleFactor())};
         system.VideoDumper().StartDumping(dump_video, layout);
     }
 

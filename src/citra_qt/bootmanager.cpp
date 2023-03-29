@@ -637,7 +637,7 @@ void GRenderWindow::ReleaseRenderTarget() {
 
 void GRenderWindow::CaptureScreenshot(u32 res_scale, const QString& screenshot_path) {
     if (res_scale == 0) {
-        res_scale = VideoCore::GetResolutionScaleFactor();
+        res_scale = VideoCore::g_renderer->GetResolutionScaleFactor();
     }
 
     const auto layout{Layout::FrameLayoutFromResolutionScale(res_scale, is_secondary)};

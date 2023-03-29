@@ -55,7 +55,6 @@ void Apply() {
     VideoCore::g_hw_shader_enabled = values.use_hw_shader.GetValue();
     VideoCore::g_separable_shader_enabled = values.separable_shader.GetValue();
     VideoCore::g_hw_shader_accurate_mul = values.shaders_accurate_mul.GetValue();
-    VideoCore::g_use_disk_shader_cache = values.use_disk_shader_cache.GetValue();
 
 #ifndef ANDROID
     if (VideoCore::g_renderer) {
@@ -63,10 +62,13 @@ void Apply() {
     }
 #endif
 
-    VideoCore::g_renderer_bg_color_update_requested = true;
-    VideoCore::g_renderer_sampler_update_requested = true;
-    VideoCore::g_renderer_shader_update_requested = true;
-    VideoCore::g_texture_filter_update_requested = true;
+    if (VideoCore::g_renderer) {
+        auto& settings = VideoCore::g_renderer->Settings();
+        settings.bg_color_update_requested = true;
+        settings.sampler_update_requested = true;
+        settings.shader_update_requested = true;
+        settings.texture_filter_update_requested = true;
+    }
 
     auto& system = Core::System::GetInstance();
     if (system.IsPoweredOn()) {

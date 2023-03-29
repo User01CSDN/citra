@@ -1169,8 +1169,8 @@ void GMainWindow::BootGame(const QString& filename) {
     }
 
     if (video_dumping_on_start) {
-        Layout::FramebufferLayout layout{
-            Layout::FrameLayoutFromResolutionScale(VideoCore::GetResolutionScaleFactor())};
+        Layout::FramebufferLayout layout{Layout::FrameLayoutFromResolutionScale(
+            VideoCore::g_renderer->GetResolutionScaleFactor())};
         if (!Core::System::GetInstance().VideoDumper().StartDumping(
                 video_dumping_path.toStdString(), layout)) {
 
@@ -2201,8 +2201,8 @@ void GMainWindow::OnStartVideoDumping() {
     }
     const auto path = dialog.GetFilePath();
     if (emulation_running) {
-        Layout::FramebufferLayout layout{
-            Layout::FrameLayoutFromResolutionScale(VideoCore::GetResolutionScaleFactor())};
+        Layout::FramebufferLayout layout{Layout::FrameLayoutFromResolutionScale(
+            VideoCore::g_renderer->GetResolutionScaleFactor())};
         if (!Core::System::GetInstance().VideoDumper().StartDumping(path.toStdString(), layout)) {
             QMessageBox::critical(
                 this, tr("Citra"),
