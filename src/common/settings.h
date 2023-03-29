@@ -490,6 +490,7 @@ struct Values {
     std::unordered_map<std::string, bool> lle_modules;
     Setting<bool> use_gdbstub{false, "use_gdbstub"};
     Setting<u16> gdbstub_port{24689, "gdbstub_port"};
+    SwitchableSetting<u32, true> refresh_rate{60, 30, 360, "refresh_rate"};
 
     // Miscellaneous
     Setting<std::string> log_filter{"*:Info", "log_filter"};

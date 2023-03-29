@@ -27,6 +27,11 @@
 
 namespace GPU {
 
+// Measured on hardware to be 2240568 timer cycles or 4481136 ARM11 cycles
+u64 frame_ticks = 4481136ull;
+
+double SCREEN_REFRESH_RATE = BASE_CLOCK_RATE_ARM11 / static_cast<double>(frame_ticks);
+
 Regs g_regs;
 Memory::MemorySystem* g_memory;
 
@@ -559,6 +564,11 @@ void Init(Memory::MemorySystem& memory) {
 /// Shutdown hardware
 void Shutdown() {
     LOG_DEBUG(HW_GPU, "shutdown OK");
+}
+
+void SetRefreshRate(u32 refresh) {
+    frame_ticks = (4481136ull * 60) / refresh;
+    SCREEN_REFRESH_RATE = BASE_CLOCK_RATE_ARM11 / static_cast<double>(frame_ticks);
 }
 
 } // namespace GPU

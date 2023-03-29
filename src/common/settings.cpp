@@ -51,6 +51,8 @@ void Apply() {
     GDBStub::SetServerPort(values.gdbstub_port.GetValue());
     GDBStub::ToggleServer(values.use_gdbstub.GetValue());
 
+    GPU::SetRefreshRate(values.refresh_rate.GetValue());
+
     VideoCore::g_shader_jit_enabled = values.use_shader_jit.GetValue();
     VideoCore::g_hw_shader_enabled = values.use_hw_shader.GetValue();
     VideoCore::g_separable_shader_enabled = values.separable_shader.GetValue();
@@ -112,6 +114,7 @@ void LogSettings() {
     LOG_INFO(Config, "Citra Configuration:");
     log_setting("Core_UseCpuJit", values.use_cpu_jit.GetValue());
     log_setting("Core_CPUClockPercentage", values.cpu_clock_percentage.GetValue());
+    log_setting("Core_RefreshRate", values.refresh_rate.GetValue());
     log_setting("Renderer_UseGLES", values.use_gles.GetValue());
     log_setting("Renderer_GraphicsAPI", GetGraphicsAPIName(values.graphics_api.GetValue()));
     log_setting("Renderer_UseHwShader", values.use_hw_shader.GetValue());
@@ -195,6 +198,7 @@ void RestoreGlobalState(bool is_powered_on) {
 
     // Core
     values.cpu_clock_percentage.SetGlobal(true);
+    values.refresh_rate.SetGlobal(true);
     values.is_new_3ds.SetGlobal(true);
 
     // Renderer

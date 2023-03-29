@@ -21,11 +21,11 @@ class MemorySystem;
 namespace GPU {
 
 // Measured on hardware to be 2240568 timer cycles or 4481136 ARM11 cycles
-constexpr u64 frame_ticks = 4481136ull;
+extern u64 frame_ticks;
 
 // Refresh rate defined by ratio of ARM11 frequency to ARM11 ticks per frame
 // (268,111,856) / (4,481,136) = 59.83122493939037Hz
-constexpr double SCREEN_REFRESH_RATE = BASE_CLOCK_RATE_ARM11 / static_cast<double>(frame_ticks);
+extern double SCREEN_REFRESH_RATE;
 
 // Returns index corresponding to the Regs member labeled by field_name
 #define GPU_REG_INDEX(field_name) (offsetof(GPU::Regs, field_name) / sizeof(u32))
@@ -327,5 +327,8 @@ void Init(Memory::MemorySystem& memory);
 
 /// Shutdown hardware
 void Shutdown();
+
+/// Sets the screen refresh rate
+void SetRefreshRate(u32 refresh);
 
 } // namespace GPU
