@@ -3,9 +3,8 @@
 # Setup RC file for tx
 cat << EOF > ~/.transifexrc
 [https://www.transifex.com]
-hostname = https://www.transifex.com
-username = api
-password = $TRANSIFEX_API_TOKEN
+rest_hostname = https://rest.api.transifex.com
+token         = $TRANSIFEX_API_TOKEN
 EOF
 
 
