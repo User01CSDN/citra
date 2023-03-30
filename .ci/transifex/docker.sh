@@ -1,13 +1,5 @@
 #!/bin/bash -e
 
-# Setup RC file for tx
-cat << EOF > ~/.transifexrc
-[https://www.transifex.com]
-rest_hostname = https://rest.api.transifex.com
-token         = $TRANSIFEX_API_TOKEN
-EOF
-
-
 set -x
 
 cat << 'EOF' > /usr/bin/tx
