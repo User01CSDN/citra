@@ -102,8 +102,6 @@ struct TextureCubeConfig {
 
 class SurfaceParams;
 
-[[nodiscard]] ClearValue MakeClearValue(SurfaceType type, PixelFormat format, const u8* fill_data);
-
 u32 MipLevels(u32 width, u32 height, u32 max_level);
 
 /**

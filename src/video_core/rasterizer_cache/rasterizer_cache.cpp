@@ -200,43 +200,26 @@ void RasterizerCache::CopySurface(const Surface& src_surface, const Surface& dst
 
     const PAddr copy_addr = copy_interval.lower();
     const SurfaceParams subrect_params = dst_surface->FromInterval(copy_interval);
-    ASSERT(subrect_params.GetInterval() == copy_interval);
-    ASSERT(src_surface != dst_surface);
+    const auto dst_rect = dst_surface->GetScaledSubRect(subrect_params);
+    ASSERT(subrect_params.GetInterval() == copy_interval && src_surface != dst_surface);
 
-    // This is only called when CanCopy is true, no need to run checks here
     if (src_surface->type == SurfaceType::Fill) {
-        // FillSurface needs a 4 bytes buffer
-        const u32 fill_offset =
-            (boost::icl::first(copy_interval) - src_surface->addr) % src_surface->fill_size;
-        std::array<u8, 4> fill_buffer;
-
-        u32 fill_buff_pos = fill_offset;
-        for (std::size_t i = 0; i < fill_buffer.size(); i++) {
-            fill_buffer[i] = src_surface->fill_data[fill_buff_pos++ % src_surface->fill_size];
-        }
-
         const TextureClear clear = {
             .texture_level = dst_surface->LevelOf(copy_addr),
-            .texture_rect = dst_surface->GetScaledSubRect(subrect_params),
-            .value =
-                MakeClearValue(dst_surface->type, dst_surface->pixel_format, fill_buffer.data()),
+            .texture_rect = dst_rect,
+            .value = src_surface->MakeClearValue(copy_addr, dst_surface->pixel_format),
         };
         runtime.ClearTexture(*dst_surface, clear);
         return;
     }
 
-    if (src_surface->CanSubRect(subrect_params)) {
-        const TextureBlit blit = {
-            .src_level = src_surface->LevelOf(copy_addr),
-            .dst_level = dst_surface->LevelOf(copy_addr),
-            .src_rect = src_surface->GetScaledSubRect(subrect_params),
-            .dst_rect = dst_surface->GetScaledSubRect(subrect_params),
-        };
-        runtime.BlitTextures(*src_surface, *dst_surface, blit);
-        return;
-    }
-
-    UNREACHABLE();
+    const TextureBlit blit = {
+        .src_level = src_surface->LevelOf(copy_addr),
+        .dst_level = dst_surface->LevelOf(copy_addr),
+        .src_rect = src_surface->GetScaledSubRect(subrect_params),
+        .dst_rect = dst_rect,
+    };
+    runtime.BlitTextures(*src_surface, *dst_surface, blit);
 }
 
 enum MatchFlags {
