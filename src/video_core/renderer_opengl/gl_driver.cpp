@@ -91,6 +91,18 @@ bool Driver::HasBug(DriverBug bug) const {
     return True(bugs & bug);
 }
 
+bool Driver::HasDebugTool() {
+    GLint num_extensions;
+    glGetIntegerv(GL_NUM_EXTENSIONS, &num_extensions);
+    for (GLuint index = 0; index < static_cast<GLuint>(num_extensions); ++index) {
+        const auto name = reinterpret_cast<const char*>(glGetStringi(GL_EXTENSIONS, index));
+        if (!std::strcmp(name, "GL_EXT_debug_tool")) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void Driver::ReportDriverInfo() {
     // Report the context version and the vendor string
     gl_version = std::string_view{reinterpret_cast<const char*>(glGetString(GL_VERSION))};

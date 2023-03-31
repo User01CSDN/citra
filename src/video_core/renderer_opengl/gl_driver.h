@@ -48,6 +48,9 @@ public:
     /// Returns true of the driver has a particular bug stated in the DriverBug enum
     bool HasBug(DriverBug bug) const;
 
+    /// Returns true if any debug tool is attached
+    bool HasDebugTool();
+
     /// Returns the vendor of the currently selected physical device
     Vendor GetVendor() const {
         return vendor;
