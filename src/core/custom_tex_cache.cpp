@@ -77,8 +77,13 @@ void CustomTexCache::PreloadTextures(Frontend::ImageInterface& image_interface) 
     for (const auto& path : custom_texture_paths) {
         const auto& path_info = path.second;
         Core::CustomTexInfo tex_info;
-        if (image_interface.DecodePNG(tex_info.tex, tex_info.width, tex_info.height,
-                                      path_info.path)) {
+        FileUtil::IOFile file(path_info.path, "rb");
+        size_t read_size = file.GetSize();
+        std::vector<u8> in(read_size);
+        if (file.ReadBytes(&in[0], read_size) != read_size) {
+            LOG_CRITICAL(Frontend, "Failed to decode {}", path_info.path);
+        }
+        if (image_interface.DecodePNG(in, tex_info.tex, tex_info.width, tex_info.height)) {
             // Make sure the texture size is a power of 2
             std::bitset<32> width_bits(tex_info.width);
             std::bitset<32> height_bits(tex_info.height);

@@ -7,12 +7,13 @@
 #include "citra_qt/qt_image_interface.h"
 #include "common/logging/log.h"
 
-bool QtImageInterface::DecodePNG(std::vector<u8>& dst, u32& width, u32& height,
-                                 const std::string& path) {
-    QImage image(QString::fromStdString(path));
+bool QtImageInterface::DecodePNG(std::span<const u8> src, std::vector<u8>& dst, u32& width,
+                                 u32& height) {
+    const int size = static_cast<int>(src.size());
+    QImage image(QImage::fromData(src.data(), size));
 
     if (image.isNull()) {
-        LOG_ERROR(Frontend, "Failed to open {} for decoding", path);
+        LOG_ERROR(Frontend, "Failed to decode png");
         return false;
     }
     width = image.width();
@@ -21,12 +22,14 @@ bool QtImageInterface::DecodePNG(std::vector<u8>& dst, u32& width, u32& height,
     image = image.convertToFormat(QImage::Format_RGBA8888);
 
     // Write RGBA8 to vector
-    dst = std::vector<u8>(image.constBits(), image.constBits() + (width * height * 4));
+    const size_t image_size = width * height * 4;
+    dst.resize(image_size);
+    std::memcpy(dst.data(), image.constBits(), image_size);
 
     return true;
 }
 
-bool QtImageInterface::EncodePNG(const std::string& path, const std::vector<u8>& src, u32 width,
+bool QtImageInterface::EncodePNG(const std::string& path, std::span<const u8> src, u32 width,
                                  u32 height) {
     QImage image(src.data(), width, height, QImage::Format_RGBA8888);
 
