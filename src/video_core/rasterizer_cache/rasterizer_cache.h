@@ -32,11 +32,11 @@ class RendererBase;
 
 class RasterizerCache : NonCopyable {
 public:
-    using Surface = std::shared_ptr<OpenGL::Surface>;
+    using SurfaceRef = std::shared_ptr<OpenGL::Surface>;
 
     // Declare rasterizer interval types
-    using SurfaceSet = std::set<Surface>;
-    using SurfaceMap = boost::icl::interval_map<PAddr, Surface, boost::icl::partial_absorber,
+    using SurfaceSet = std::set<SurfaceRef>;
+    using SurfaceMap = boost::icl::interval_map<PAddr, SurfaceRef, boost::icl::partial_absorber,
                                                 std::less, boost::icl::inplace_plus,
                                                 boost::icl::inter_section, SurfaceInterval>;
     using SurfaceCache = boost::icl::interval_map<PAddr, SurfaceSet, boost::icl::partial_absorber,
@@ -47,17 +47,17 @@ public:
                       std::is_same<SurfaceMap::interval_type, SurfaceCache::interval_type>(),
                   "Incorrect interval types");
 
-    using SurfaceRect_Tuple = std::tuple<Surface, Common::Rectangle<u32>>;
+    using SurfaceRect_Tuple = std::tuple<SurfaceRef, Common::Rectangle<u32>>;
     using PageMap = boost::icl::interval_map<u32, int>;
 
     struct RenderTargets {
-        Surface color_surface;
-        Surface depth_surface;
+        SurfaceRef color_surface;
+        SurfaceRef depth_surface;
     };
 
     struct TextureCube {
-        Surface surface{};
-        std::array<Surface, 6> faces{};
+        SurfaceRef surface{};
+        std::array<SurfaceRef, 6> faces{};
         std::array<u64, 6> ticks{};
     };
 
@@ -76,12 +76,12 @@ public:
     bool AccelerateFill(const GPU::Regs::MemoryFillConfig& config);
 
     /// Copy one surface's region to another
-    void CopySurface(const Surface& src_surface, const Surface& dst_surface,
+    void CopySurface(const SurfaceRef& src_surface, const SurfaceRef& dst_surface,
                      SurfaceInterval copy_interval);
 
     /// Load a texture from 3DS memory to OpenGL and cache it (if not already cached)
-    Surface GetSurface(const SurfaceParams& params, ScaleMatch match_res_scale,
-                       bool load_if_create);
+    SurfaceRef GetSurface(const SurfaceParams& params, ScaleMatch match_res_scale,
+                          bool load_if_create);
 
     /// Attempt to find a subrect (resolution scaled) of a surface, otherwise loads a texture from
     /// 3DS memory to OpenGL and caches it (if not already cached)
@@ -89,11 +89,11 @@ public:
                                         bool load_if_create);
 
     /// Get a surface based on the texture configuration
-    Surface GetTextureSurface(const Pica::TexturingRegs::FullTextureConfig& config);
-    Surface GetTextureSurface(const Pica::Texture::TextureInfo& info, u32 max_level = 0);
+    SurfaceRef GetTextureSurface(const Pica::TexturingRegs::FullTextureConfig& config);
+    SurfaceRef GetTextureSurface(const Pica::Texture::TextureInfo& info, u32 max_level = 0);
 
     /// Get a texture cube based on the texture configuration
-    Surface GetTextureCube(const TextureCubeConfig& config);
+    SurfaceRef GetTextureCube(const TextureCubeConfig& config);
 
     /// Get the color and depth surfaces based on the framebuffer configuration
     OpenGL::Framebuffer GetFramebufferSurfaces(bool using_color_fb, bool using_depth_fb);
@@ -105,10 +105,10 @@ public:
     SurfaceRect_Tuple GetTexCopySurface(const SurfaceParams& params);
 
     /// Write any cached resources overlapping the region back to memory (if dirty)
-    void FlushRegion(PAddr addr, u32 size, Surface flush_surface = nullptr);
+    void FlushRegion(PAddr addr, u32 size, SurfaceRef flush_surface = nullptr);
 
     /// Mark region as being invalidated by region_owner (nullptr if 3DS memory)
-    void InvalidateRegion(PAddr addr, u32 size, const Surface& region_owner);
+    void InvalidateRegion(PAddr addr, u32 size, const SurfaceRef& region_owner);
 
     /// Flush all cached resources tracked by this cache manager
     void FlushAll();
@@ -118,22 +118,22 @@ public:
 
 private:
     /// Transfers ownership of a memory region from src_surface to dest_surface
-    void DuplicateSurface(const Surface& src_surface, const Surface& dest_surface);
+    void DuplicateSurface(const SurfaceRef& src_surface, const SurfaceRef& dest_surface);
 
     /// Update surface's texture for given region when necessary
-    void ValidateSurface(const Surface& surface, PAddr addr, u32 size);
+    void ValidateSurface(const SurfaceRef& surface, PAddr addr, u32 size);
 
     /// Copies pixel data in interval from the guest VRAM to the host GPU surface
-    void UploadSurface(const Surface& surface, SurfaceInterval interval);
+    void UploadSurface(const SurfaceRef& surface, SurfaceInterval interval);
 
     /// Copies pixel data in interval from the host GPU surface to the guest VRAM
-    void DownloadSurface(const Surface& surface, SurfaceInterval interval);
+    void DownloadSurface(const SurfaceRef& surface, SurfaceInterval interval);
 
     /// Downloads a fill surface to guest VRAM
-    void DownloadFillSurface(const Surface& surface, SurfaceInterval interval);
+    void DownloadFillSurface(const SurfaceRef& surface, SurfaceInterval interval);
 
     /// Returns false if there is a surface in the cache at the interval with the same bit-width,
-    bool NoUnimplementedReinterpretations(const Surface& surface, SurfaceParams params,
+    bool NoUnimplementedReinterpretations(const SurfaceRef& surface, SurfaceParams params,
                                           const SurfaceInterval& interval);
 
     /// Return true if a surface with an invalid pixel format exists at the interval
@@ -141,17 +141,17 @@ private:
                                        const SurfaceInterval& interval);
 
     /// Attempt to find a reinterpretable surface in the cache and use it to copy for validation
-    bool ValidateByReinterpretation(const Surface& surface, SurfaceParams params,
+    bool ValidateByReinterpretation(const SurfaceRef& surface, SurfaceParams params,
                                     const SurfaceInterval& interval);
 
     /// Create a new surface
-    Surface CreateSurface(const SurfaceParams& params);
+    SurfaceRef CreateSurface(const SurfaceParams& params);
 
     /// Register surface into the cache
-    void RegisterSurface(const Surface& surface);
+    void RegisterSurface(const SurfaceRef& surface);
 
     /// Remove surface from the cache
-    void UnregisterSurface(const Surface& surface);
+    void UnregisterSurface(const SurfaceRef& surface);
 
     /// Increase/decrease the number of surface in pages touching the specified region
     void UpdatePagesCachedCount(PAddr addr, u32 size, int delta);
@@ -164,7 +164,7 @@ private:
     SurfaceCache surface_cache;
     PageMap cached_pages;
     SurfaceMap dirty_regions;
-    std::vector<Surface> remove_surfaces;
+    std::vector<SurfaceRef> remove_surfaces;
     u32 resolution_scale_factor;
     RenderTargets render_targets;
     std::unordered_map<TextureCubeConfig, TextureCube> texture_cube_cache;
