@@ -176,7 +176,7 @@ bool RasterizerCache::AccelerateFill(const GPU::Regs::MemoryFillConfig& config) 
     params.type = SurfaceType::Fill;
     params.res_scale = std::numeric_limits<u16>::max();
 
-    Surface fill_surface = std::make_shared<OpenGL::Surface>(runtime, params);
+    SurfaceRef fill_surface = std::make_shared<OpenGL::Surface>(runtime, params);
 
     std::memcpy(&fill_surface->fill_data[0], &config.value_32bit, sizeof(u32));
     if (config.fill_32bit) {
@@ -194,7 +194,7 @@ bool RasterizerCache::AccelerateFill(const GPU::Regs::MemoryFillConfig& config) 
 
 MICROPROFILE_DEFINE(RasterizerCache_CopySurface, "RasterizerCache", "CopySurface",
                     MP_RGB(128, 192, 64));
-void RasterizerCache::CopySurface(const Surface& src_surface, const Surface& dst_surface,
+void RasterizerCache::CopySurface(const SurfaceRef& src_surface, const SurfaceRef& dst_surface,
                                   SurfaceInterval copy_interval) {
     MICROPROFILE_SCOPE(RasterizerCache_CopySurface);
 
@@ -241,7 +241,7 @@ template <MatchFlags find_flags>
 static auto FindMatch(const auto& surface_cache, const SurfaceParams& params,
                       ScaleMatch match_scale_type,
                       std::optional<SurfaceInterval> validate_interval = std::nullopt) {
-    RasterizerCache::Surface match_surface = nullptr;
+    RasterizerCache::SurfaceRef match_surface = nullptr;
     bool match_valid = false;
     u32 match_scale = 0;
     SurfaceInterval match_interval{};
@@ -338,7 +338,7 @@ RasterizerCache::~RasterizerCache() {
 }
 
 auto RasterizerCache::GetSurface(const SurfaceParams& params, ScaleMatch match_res_scale,
-                                 bool load_if_create) -> Surface {
+                                 bool load_if_create) -> SurfaceRef {
     if (params.addr == 0 || params.height * params.width == 0) {
         return nullptr;
     }
@@ -348,7 +348,7 @@ auto RasterizerCache::GetSurface(const SurfaceParams& params, ScaleMatch match_r
     ASSERT(!params.is_tiled || (params.width % 8 == 0 && params.height % 8 == 0));
 
     // Check for an exact match in existing surfaces
-    Surface surface =
+    SurfaceRef surface =
         FindMatch<MatchFlags::Exact | MatchFlags::Invalid>(surface_cache, params, match_res_scale);
 
     if (surface == nullptr) {
@@ -357,7 +357,7 @@ auto RasterizerCache::GetSurface(const SurfaceParams& params, ScaleMatch match_r
             // This surface may have a subrect of another surface with a higher res_scale, find
             // it to adjust our params
             SurfaceParams find_params = params;
-            Surface expandable = FindMatch<MatchFlags::Expand | MatchFlags::Invalid>(
+            SurfaceRef expandable = FindMatch<MatchFlags::Expand | MatchFlags::Invalid>(
                 surface_cache, find_params, match_res_scale);
             if (expandable != nullptr && expandable->res_scale > target_res_scale) {
                 target_res_scale = expandable->res_scale;
@@ -392,8 +392,8 @@ auto RasterizerCache::GetSurfaceSubRect(const SurfaceParams& params, ScaleMatch 
     }
 
     // Attempt to find encompassing surface
-    Surface surface = FindMatch<MatchFlags::SubRect | MatchFlags::Invalid>(surface_cache, params,
-                                                                           match_res_scale);
+    SurfaceRef surface = FindMatch<MatchFlags::SubRect | MatchFlags::Invalid>(surface_cache, params,
+                                                                              match_res_scale);
 
     // Check if FindMatch failed because of res scaling
     // If that's the case create a new surface with
@@ -436,7 +436,7 @@ auto RasterizerCache::GetSurfaceSubRect(const SurfaceParams& params, ScaleMatch 
             new_params.UpdateParams();
             ASSERT(new_params.size % aligned_params.BytesInPixels(aligned_params.stride) == 0);
 
-            Surface new_surface = CreateSurface(new_params);
+            SurfaceRef new_surface = CreateSurface(new_params);
             DuplicateSurface(surface, new_surface);
             UnregisterSurface(surface);
 
@@ -461,14 +461,14 @@ auto RasterizerCache::GetSurfaceSubRect(const SurfaceParams& params, ScaleMatch 
 }
 
 auto RasterizerCache::GetTextureSurface(const Pica::TexturingRegs::FullTextureConfig& config)
-    -> Surface {
+    -> SurfaceRef {
     const auto info = Pica::Texture::TextureInfo::FromPicaRegister(config.config, config.format);
     const u32 max_level = MipLevels(info.width, info.height, config.config.lod.max_level) - 1;
     return GetTextureSurface(info, max_level);
 }
 
 auto RasterizerCache::GetTextureSurface(const Pica::Texture::TextureInfo& info, u32 max_level)
-    -> Surface {
+    -> SurfaceRef {
     if (info.physical_address == 0) [[unlikely]] {
         return nullptr;
     }
@@ -491,7 +491,7 @@ auto RasterizerCache::GetTextureSurface(const Pica::Texture::TextureInfo& info, 
         if (min_width % 4 == 0 && min_height % 4 == 0 && min_width * min_height <= 32) {
             const auto [src_surface, rect] = GetSurfaceSubRect(params, ScaleMatch::Ignore, true);
             params.res_scale = src_surface->res_scale;
-            Surface tmp_surface = CreateSurface(params);
+            SurfaceRef tmp_surface = CreateSurface(params);
 
             const TextureBlit blit = {
                 .src_level = src_surface->LevelOf(params.addr),
@@ -515,7 +515,7 @@ auto RasterizerCache::GetTextureSurface(const Pica::Texture::TextureInfo& info, 
     return GetSurface(params, ScaleMatch::Ignore, true);
 }
 
-auto RasterizerCache::GetTextureCube(const TextureCubeConfig& config) -> Surface {
+auto RasterizerCache::GetTextureCube(const TextureCubeConfig& config) -> SurfaceRef {
     auto [it, new_surface] = texture_cube_cache.try_emplace(config);
     TextureCube& cube = it->second;
 
@@ -551,7 +551,7 @@ auto RasterizerCache::GetTextureCube(const TextureCubeConfig& config) -> Surface
         };
         info.SetDefaultStride();
 
-        Surface& face_surface = cube.faces[i];
+        SurfaceRef& face_surface = cube.faces[i];
         if (!face_surface || !face_surface->registered) {
             face_surface = GetTextureSurface(info, config.levels - 1);
             ASSERT(face_surface->levels == config.levels);
@@ -633,14 +633,14 @@ auto RasterizerCache::GetFramebufferSurfaces(bool using_color_fb, bool using_dep
     }
 
     Common::Rectangle<u32> color_rect{};
-    Surface color_surface = nullptr;
+    SurfaceRef color_surface = nullptr;
     u32 color_level{};
     if (using_color_fb)
         std::tie(color_surface, color_rect) =
             GetSurfaceSubRect(color_params, ScaleMatch::Exact, false);
 
     Common::Rectangle<u32> depth_rect{};
-    Surface depth_surface = nullptr;
+    SurfaceRef depth_surface = nullptr;
     u32 depth_level{};
     if (using_depth_fb)
         std::tie(depth_surface, depth_rect) =
@@ -698,7 +698,7 @@ void RasterizerCache::InvalidateFramebuffer(const OpenGL::Framebuffer& framebuff
 auto RasterizerCache::GetTexCopySurface(const SurfaceParams& params) -> SurfaceRect_Tuple {
     Common::Rectangle<u32> rect{};
 
-    Surface match_surface = FindMatch<MatchFlags::TexCopy | MatchFlags::Invalid>(
+    SurfaceRef match_surface = FindMatch<MatchFlags::TexCopy | MatchFlags::Invalid>(
         surface_cache, params, ScaleMatch::Ignore);
 
     if (match_surface != nullptr) {
@@ -722,7 +722,8 @@ auto RasterizerCache::GetTexCopySurface(const SurfaceParams& params) -> SurfaceR
     return std::make_tuple(match_surface, rect);
 }
 
-void RasterizerCache::DuplicateSurface(const Surface& src_surface, const Surface& dest_surface) {
+void RasterizerCache::DuplicateSurface(const SurfaceRef& src_surface,
+                                       const SurfaceRef& dest_surface) {
     ASSERT(dest_surface->addr <= src_surface->addr && dest_surface->end >= src_surface->end);
 
     const auto src_rect = src_surface->GetScaledRect();
@@ -752,7 +753,7 @@ void RasterizerCache::DuplicateSurface(const Surface& src_surface, const Surface
     }
 }
 
-void RasterizerCache::ValidateSurface(const Surface& surface, PAddr addr, u32 size) {
+void RasterizerCache::ValidateSurface(const SurfaceRef& surface, PAddr addr, u32 size) {
     if (size == 0) [[unlikely]] {
         return;
     }
@@ -785,7 +786,7 @@ void RasterizerCache::ValidateSurface(const Surface& surface, PAddr addr, u32 si
 
         // Look for a valid surface to copy from.
         const SurfaceParams params = surface->FromInterval(interval);
-        const Surface copy_surface =
+        const SurfaceRef copy_surface =
             FindMatch<MatchFlags::Copy>(surface_cache, params, ScaleMatch::Ignore, interval);
 
         if (copy_surface) {
@@ -823,7 +824,7 @@ void RasterizerCache::ValidateSurface(const Surface& surface, PAddr addr, u32 si
     }
 }
 
-void RasterizerCache::UploadSurface(const Surface& surface, SurfaceInterval interval) {
+void RasterizerCache::UploadSurface(const SurfaceRef& surface, SurfaceInterval interval) {
     const SurfaceParams load_info = surface->FromInterval(interval);
     ASSERT(load_info.addr >= surface->addr && load_info.end <= surface->end);
 
@@ -851,7 +852,7 @@ void RasterizerCache::UploadSurface(const Surface& surface, SurfaceInterval inte
     surface->Upload(upload, staging);
 }
 
-void RasterizerCache::DownloadSurface(const Surface& surface, SurfaceInterval interval) {
+void RasterizerCache::DownloadSurface(const SurfaceRef& surface, SurfaceInterval interval) {
     const SurfaceParams flush_info = surface->FromInterval(interval);
     const u32 flush_start = boost::icl::first(interval);
     const u32 flush_end = boost::icl::last_next(interval);
@@ -881,7 +882,7 @@ void RasterizerCache::DownloadSurface(const Surface& surface, SurfaceInterval in
                   needs_convertion);
 }
 
-void RasterizerCache::DownloadFillSurface(const Surface& surface, SurfaceInterval interval) {
+void RasterizerCache::DownloadFillSurface(const SurfaceRef& surface, SurfaceInterval interval) {
     const u32 flush_start = boost::icl::first(interval);
     const u32 flush_end = boost::icl::last_next(interval);
     ASSERT(flush_start >= surface->addr && flush_end <= surface->end);
@@ -912,7 +913,8 @@ void RasterizerCache::DownloadFillSurface(const Surface& surface, SurfaceInterva
     }
 }
 
-bool RasterizerCache::NoUnimplementedReinterpretations(const Surface& surface, SurfaceParams params,
+bool RasterizerCache::NoUnimplementedReinterpretations(const SurfaceRef& surface,
+                                                       SurfaceParams params,
                                                        const SurfaceInterval& interval) {
     static constexpr std::array<PixelFormat, 17> all_formats{
         PixelFormat::RGBA8, PixelFormat::RGB8,   PixelFormat::RGB5A1, PixelFormat::RGB565,
@@ -927,7 +929,7 @@ bool RasterizerCache::NoUnimplementedReinterpretations(const Surface& surface, S
             params.pixel_format = format;
             // This could potentially be expensive,
             // although experimentally it hasn't been too bad
-            Surface test_surface =
+            SurfaceRef test_surface =
                 FindMatch<MatchFlags::Copy>(surface_cache, params, ScaleMatch::Ignore, interval);
             if (test_surface != nullptr) {
                 LOG_WARNING(HW_GPU, "Missing pixel_format reinterpreter: {} -> {}",
@@ -953,12 +955,12 @@ bool RasterizerCache::IntervalHasInvalidPixelFormat(const SurfaceParams& params,
     return false;
 }
 
-bool RasterizerCache::ValidateByReinterpretation(const Surface& surface, SurfaceParams params,
+bool RasterizerCache::ValidateByReinterpretation(const SurfaceRef& surface, SurfaceParams params,
                                                  const SurfaceInterval& interval) {
     const PixelFormat dest_format = surface->pixel_format;
     for (const auto& reinterpreter : runtime.GetPossibleReinterpretations(dest_format)) {
         params.pixel_format = reinterpreter->GetSourceFormat();
-        Surface reinterpret_surface =
+        SurfaceRef reinterpret_surface =
             FindMatch<MatchFlags::Copy>(surface_cache, params, ScaleMatch::Ignore, interval);
 
         if (reinterpret_surface != nullptr) {
@@ -999,7 +1001,7 @@ void RasterizerCache::ClearAll(bool flush) {
     remove_surfaces.clear();
 }
 
-void RasterizerCache::FlushRegion(PAddr addr, u32 size, Surface flush_surface) {
+void RasterizerCache::FlushRegion(PAddr addr, u32 size, SurfaceRef flush_surface) {
     if (size == 0)
         return;
 
@@ -1036,7 +1038,7 @@ void RasterizerCache::FlushAll() {
     FlushRegion(0, 0xFFFFFFFF);
 }
 
-void RasterizerCache::InvalidateRegion(PAddr addr, u32 size, const Surface& region_owner) {
+void RasterizerCache::InvalidateRegion(PAddr addr, u32 size, const SurfaceRef& region_owner) {
     if (size == 0)
         return;
 
@@ -1080,19 +1082,19 @@ void RasterizerCache::InvalidateRegion(PAddr addr, u32 size, const Surface& regi
         dirty_regions.erase(invalid_interval);
     }
 
-    for (const Surface& remove_surface : remove_surfaces) {
+    for (const SurfaceRef& remove_surface : remove_surfaces) {
         UnregisterSurface(remove_surface);
     }
     remove_surfaces.clear();
 }
 
-auto RasterizerCache::CreateSurface(const SurfaceParams& params) -> Surface {
-    Surface surface = std::make_shared<OpenGL::Surface>(runtime, params);
+auto RasterizerCache::CreateSurface(const SurfaceParams& params) -> SurfaceRef {
+    SurfaceRef surface = std::make_shared<OpenGL::Surface>(runtime, params);
     surface->MarkInvalid(surface->GetInterval());
     return surface;
 }
 
-void RasterizerCache::RegisterSurface(const Surface& surface) {
+void RasterizerCache::RegisterSurface(const SurfaceRef& surface) {
     if (surface->registered) {
         return;
     }
@@ -1101,7 +1103,7 @@ void RasterizerCache::RegisterSurface(const Surface& surface) {
     UpdatePagesCachedCount(surface->addr, surface->size, 1);
 }
 
-void RasterizerCache::UnregisterSurface(const Surface& surface) {
+void RasterizerCache::UnregisterSurface(const SurfaceRef& surface) {
     if (!surface->registered) {
         return;
     }
