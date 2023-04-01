@@ -214,7 +214,7 @@ std::string SurfaceParams::DebugName(bool scaled) const noexcept {
     const u32 scaled_width = GetScaledWidth();
     const u32 scaled_height = GetScaledHeight();
     return fmt::format("Surface: {}x{} {} {} levels from {:#x} to {:#x} ({})", scaled_width,
-                       scaled_height, GetFormatName(pixel_format), levels, addr, end,
+                       scaled_height, PixelFormatAsString(pixel_format), levels, addr, end,
                        scaled ? "scaled" : "unscaled");
 }
 

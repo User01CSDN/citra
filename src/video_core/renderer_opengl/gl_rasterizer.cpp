@@ -73,11 +73,12 @@ GLenum MakeAttributeType(Pica::PipelineRegs::VertexAttributeFormat format) {
 
 } // Anonymous namespace
 
-RasterizerOpenGL::RasterizerOpenGL(Memory::MemorySystem& memory, VideoCore::RendererBase& renderer,
-                                   Driver& driver_)
+RasterizerOpenGL::RasterizerOpenGL(Memory::MemorySystem& memory,
+                                   VideoCore::CustomTexManager& custom_tex_manager,
+                                   VideoCore::RendererBase& renderer, Driver& driver_)
     : VideoCore::RasterizerAccelerated{memory}, driver{driver_}, runtime{driver, renderer},
-      res_cache{memory, runtime, regs, renderer}, vertex_buffer{driver, GL_ARRAY_BUFFER,
-                                                                VERTEX_BUFFER_SIZE},
+      res_cache{memory, custom_tex_manager, runtime, regs, renderer},
+      vertex_buffer{driver, GL_ARRAY_BUFFER, VERTEX_BUFFER_SIZE},
       uniform_buffer{driver, GL_UNIFORM_BUFFER, UNIFORM_BUFFER_SIZE},
       index_buffer{driver, GL_ELEMENT_ARRAY_BUFFER, INDEX_BUFFER_SIZE},
       texture_buffer{driver, GL_TEXTURE_BUFFER, TextureBufferSize()}, texture_lf_buffer{
@@ -189,6 +190,10 @@ RasterizerOpenGL::RasterizerOpenGL(Memory::MemorySystem& memory, VideoCore::Rend
 }
 
 RasterizerOpenGL::~RasterizerOpenGL() = default;
+
+void RasterizerOpenGL::TickFrame() {
+    res_cache.TickFrame();
+}
 
 void RasterizerOpenGL::LoadDiskResources(const std::atomic_bool& stop_loading,
                                          const VideoCore::DiskResourceLoadCallback& callback) {
@@ -427,7 +432,6 @@ bool RasterizerOpenGL::Draw(bool accelerate, bool is_indexed) {
     state.scissor.y = draw_rect.bottom;
     state.scissor.width = draw_rect.GetWidth();
     state.scissor.height = draw_rect.GetHeight();
-    state.Apply();
 
     const u32 res_scale = framebuffer.ResolutionScale();
     if (uniform_block_data.data.framebuffer_scale != res_scale) {
@@ -451,6 +455,7 @@ bool RasterizerOpenGL::Draw(bool accelerate, bool is_indexed) {
 
     // Sync and bind the texture surfaces
     SyncTextureUnits(framebuffer);
+    state.Apply();
 
     // Sync and bind the shader
     if (shader_dirty) {
@@ -629,7 +634,6 @@ void RasterizerOpenGL::UnbindSpecial() {
     state.image_shadow_texture_pz = 0;
     state.image_shadow_texture_nz = 0;
     state.image_shadow_buffer = 0;
-    state.Apply();
 }
 
 void RasterizerOpenGL::NotifyFixedFunctionPicaRegisterChanged(u32 id) {

@@ -4,7 +4,9 @@
 
 #pragma once
 
+#include <functional>
 #include <unordered_map>
+#include <vector>
 #include <boost/icl/interval_map.hpp>
 #include <boost/icl/interval_set.hpp>
 #include "video_core/rasterizer_cache/surface_base.h"
@@ -28,6 +30,8 @@ enum class ScaleMatch {
     Ignore   // accept every scaled res
 };
 
+class CustomTexManager;
+struct CustomTexture;
 class RendererBase;
 
 class RasterizerCache : NonCopyable {
@@ -61,10 +65,18 @@ public:
         std::array<u64, 6> ticks{};
     };
 
+    struct AsyncUpload {
+        CustomTexture* texture;
+        std::function<bool()> func;
+    };
+
 public:
-    RasterizerCache(Memory::MemorySystem& memory, OpenGL::TextureRuntime& runtime, Pica::Regs& regs,
-                    RendererBase& renderer);
+    RasterizerCache(Memory::MemorySystem& memory, CustomTexManager& custom_tex_manager,
+                    OpenGL::TextureRuntime& runtime, Pica::Regs& regs, RendererBase& renderer);
     ~RasterizerCache();
+
+    /// Notify the cache that a new frame has been queued
+    void TickFrame();
 
     /// Perform hardware accelerated texture copy according to the provided configuration
     bool AccelerateTextureCopy(const GPU::Regs::DisplayTransferConfig& config);
@@ -126,6 +138,10 @@ private:
     /// Copies pixel data in interval from the guest VRAM to the host GPU surface
     void UploadSurface(const SurfaceRef& surface, SurfaceInterval interval);
 
+    /// Uploads a custom texture associated with upload_data to the target surface
+    bool UploadCustomSurface(const SurfaceRef& surface, const SurfaceParams& load_info,
+                             std::span<u8> upload_data);
+
     /// Copies pixel data in interval from the host GPU surface to the guest VRAM
     void DownloadSurface(const SurfaceRef& surface, SurfaceInterval interval);
 
@@ -158,6 +174,7 @@ private:
 
 private:
     Memory::MemorySystem& memory;
+    CustomTexManager& custom_tex_manager;
     OpenGL::TextureRuntime& runtime;
     Pica::Regs& regs;
     RendererBase& renderer;
@@ -168,6 +185,9 @@ private:
     u32 resolution_scale_factor;
     RenderTargets render_targets;
     std::unordered_map<TextureCubeConfig, TextureCube> texture_cube_cache;
+    std::vector<AsyncUpload> async_uploads;
+    bool dump_textures;
+    bool use_custom_textures;
 };
 
 } // namespace VideoCore

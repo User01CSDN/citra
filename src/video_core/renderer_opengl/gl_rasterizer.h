@@ -18,6 +18,10 @@ namespace VideoCore {
 class RendererBase;
 }
 
+namespace VideoCore {
+class CustomTexManager;
+}
+
 namespace OpenGL {
 
 class Driver;
@@ -25,10 +29,12 @@ class ShaderProgramManager;
 
 class RasterizerOpenGL : public VideoCore::RasterizerAccelerated {
 public:
-    explicit RasterizerOpenGL(Memory::MemorySystem& memory, VideoCore::RendererBase& renderer,
-                              Driver& driver);
+    explicit RasterizerOpenGL(Memory::MemorySystem& memory,
+                              VideoCore::CustomTexManager& custom_tex_manager,
+                              VideoCore::RendererBase& renderer, Driver& driver);
     ~RasterizerOpenGL() override;
 
+    void TickFrame();
     void LoadDiskResources(const std::atomic_bool& stop_loading,
                            const VideoCore::DiskResourceLoadCallback& callback) override;
 

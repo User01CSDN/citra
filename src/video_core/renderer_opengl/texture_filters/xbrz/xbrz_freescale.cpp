@@ -84,6 +84,7 @@ void XbrzFreescale::Filter(GLuint src_tex, GLuint dst_tex, const VideoCore::Text
     state.viewport.height = blit.dst_rect.GetHeight();
     state.Apply();
 
+    glSamplerParameterf(src_sampler.handle, GL_TEXTURE_MIN_LOD, blit.src_level);
     glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, dst_tex,
                            blit.dst_level);
     glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, 0, 0);

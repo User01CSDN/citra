@@ -6,6 +6,74 @@
 
 namespace VideoCore {
 
+std::string_view PixelFormatAsString(PixelFormat format) {
+    switch (format) {
+    case PixelFormat::RGBA8:
+        return "RGBA8";
+    case PixelFormat::RGB8:
+        return "RGB8";
+    case PixelFormat::RGB5A1:
+        return "RGB5A1";
+    case PixelFormat::RGB565:
+        return "RGB565";
+    case PixelFormat::RGBA4:
+        return "RGBA4";
+    case PixelFormat::IA8:
+        return "IA8";
+    case PixelFormat::RG8:
+        return "RG8";
+    case PixelFormat::I8:
+        return "I8";
+    case PixelFormat::A8:
+        return "A8";
+    case PixelFormat::IA4:
+        return "IA4";
+    case PixelFormat::I4:
+        return "I4";
+    case PixelFormat::A4:
+        return "A4";
+    case PixelFormat::ETC1:
+        return "ETC1";
+    case PixelFormat::ETC1A4:
+        return "ETC1A4";
+    case PixelFormat::D16:
+        return "D16";
+    case PixelFormat::D24:
+        return "D24";
+    case PixelFormat::D24S8:
+        return "D24S8";
+    default:
+        return "NotReal";
+    }
+}
+
+std::string_view CustomPixelFormatAsString(CustomPixelFormat format) {
+    switch (format) {
+    case CustomPixelFormat::RGBA8:
+        return "RGBA8";
+    case CustomPixelFormat::BC1:
+        return "BC1";
+    case CustomPixelFormat::BC3:
+        return "BC3";
+    case CustomPixelFormat::BC5:
+        return "BC5";
+    case CustomPixelFormat::BC7:
+        return "BC7";
+    case CustomPixelFormat::ASTC4:
+        return "ASTC4";
+    case CustomPixelFormat::ASTC6:
+        return "ASTC6";
+    case CustomPixelFormat::ASTC8:
+        return "ASTC8";
+    default:
+        return "NotReal";
+    }
+}
+
+bool IsCustomFormatCompressed(CustomPixelFormat format) {
+    return format != CustomPixelFormat::RGBA8 && format != CustomPixelFormat::Invalid;
+}
+
 bool CheckFormatsBlittable(PixelFormat source_format, PixelFormat dest_format) {
     SurfaceType source_type = GetFormatType(source_format);
     SurfaceType dest_type = GetFormatType(dest_format);
@@ -23,8 +91,8 @@ bool CheckFormatsBlittable(PixelFormat source_format, PixelFormat dest_format) {
         return true;
     }
 
-    LOG_WARNING(HW_GPU, "Unblittable format pair detected {} and {}", GetFormatName(source_format),
-                GetFormatName(dest_format));
+    LOG_WARNING(HW_GPU, "Unblittable format pair detected {} and {}",
+                PixelFormatAsString(source_format), PixelFormatAsString(dest_format));
     return false;
 }
 

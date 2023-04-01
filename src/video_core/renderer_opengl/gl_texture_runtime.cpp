@@ -16,6 +16,7 @@ namespace {
 
 using VideoCore::PixelFormat;
 using VideoCore::SurfaceType;
+using VideoCore::TextureType;
 
 constexpr FormatTuple DEFAULT_TUPLE = {GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE};
 
@@ -40,6 +41,17 @@ static constexpr std::array<FormatTuple, 5> COLOR_TUPLES_OES = {{
     {GL_RGB5_A1, GL_RGBA, GL_UNSIGNED_SHORT_5_5_5_1}, // RGB5A1
     {GL_RGB565, GL_RGB, GL_UNSIGNED_SHORT_5_6_5},     // RGB565
     {GL_RGBA4, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4},   // RGBA4
+}};
+
+static constexpr std::array<FormatTuple, 8> CUSTOM_TUPLES = {{
+    DEFAULT_TUPLE,
+    {GL_COMPRESSED_RGBA_S3TC_DXT1_EXT, GL_COMPRESSED_RGBA_S3TC_DXT1_EXT, GL_UNSIGNED_BYTE},
+    {GL_COMPRESSED_RGBA_S3TC_DXT5_EXT, GL_COMPRESSED_RGBA_S3TC_DXT5_EXT, GL_UNSIGNED_BYTE},
+    {GL_COMPRESSED_RG_RGTC2, GL_COMPRESSED_RG_RGTC2, GL_UNSIGNED_BYTE},
+    {GL_COMPRESSED_RGBA_BPTC_UNORM_ARB, GL_COMPRESSED_RGBA_BPTC_UNORM_ARB, GL_UNSIGNED_BYTE},
+    {GL_COMPRESSED_RGBA_ASTC_4x4, GL_COMPRESSED_RGBA_ASTC_4x4, GL_UNSIGNED_BYTE},
+    {GL_COMPRESSED_RGBA_ASTC_6x6, GL_COMPRESSED_RGBA_ASTC_6x6, GL_UNSIGNED_BYTE},
+    {GL_COMPRESSED_RGBA_ASTC_8x6, GL_COMPRESSED_RGBA_ASTC_8x6, GL_UNSIGNED_BYTE},
 }};
 
 struct FramebufferInfo {
@@ -100,6 +112,28 @@ struct FramebufferInfo {
     return texture;
 }
 
+void AttachHandle(GLenum target, u32 level, u32 layer, GLuint handle, SurfaceType type,
+                  TextureType texture_type) {
+    const GLenum textarget = texture_type == TextureType::CubeMap
+                                 ? GL_TEXTURE_CUBE_MAP_POSITIVE_X + layer
+                                 : GL_TEXTURE_2D;
+
+    switch (type) {
+    case SurfaceType::Color:
+    case SurfaceType::Texture:
+        glFramebufferTexture2D(target, GL_COLOR_ATTACHMENT0, textarget, handle, level);
+        break;
+    case SurfaceType::Depth:
+        glFramebufferTexture2D(target, GL_DEPTH_ATTACHMENT, textarget, handle, level);
+        break;
+    case SurfaceType::DepthStencil:
+        glFramebufferTexture2D(target, GL_DEPTH_STENCIL_ATTACHMENT, textarget, handle, level);
+        break;
+    default:
+        UNREACHABLE_MSG("Invalid surface type!");
+    }
+}
+
 } // Anonymous namespace
 
 TextureRuntime::TextureRuntime(Driver& driver_, VideoCore::RendererBase& renderer)
@@ -153,19 +187,28 @@ const FormatTuple& TextureRuntime::GetFormatTuple(PixelFormat pixel_format) cons
     return DEFAULT_TUPLE;
 }
 
+const FormatTuple& TextureRuntime::GetFormatTuple(VideoCore::CustomPixelFormat pixel_format) {
+    const std::size_t format_index = static_cast<std::size_t>(pixel_format);
+    return CUSTOM_TUPLES[format_index];
+}
+
 void TextureRuntime::Recycle(const HostTextureTag tag, Allocation&& alloc) {
     texture_recycler.emplace(tag, std::move(alloc));
 }
 
-Allocation TextureRuntime::Allocate(const VideoCore::SurfaceParams& params) {
+Allocation TextureRuntime::Allocate(const VideoCore::SurfaceParams& params, bool is_custom) {
     const u32 width = params.width;
     const u32 height = params.height;
     const u32 levels = params.levels;
     const GLenum target = params.texture_type == VideoCore::TextureType::CubeMap
                               ? GL_TEXTURE_CUBE_MAP
                               : GL_TEXTURE_2D;
-    const auto& tuple = GetFormatTuple(params.pixel_format);
+    const auto& tuple =
+        is_custom ? GetFormatTuple(params.custom_format) : GetFormatTuple(params.pixel_format);
 
+    // The format tuple isn't enough of a guarantee of allocation uniqueness. For example
+    // an RGBA8 scaled custom allocation is different from a normal RGBA8 scaled one, this
+    // is why we also hash the is_custom boolean.
     const HostTextureTag key = {
         .tuple = tuple,
         .type = params.texture_type,
@@ -173,11 +216,12 @@ Allocation TextureRuntime::Allocate(const VideoCore::SurfaceParams& params) {
         .height = height,
         .levels = levels,
         .res_scale = params.res_scale,
+        .is_custom = is_custom,
     };
 
     if (auto it = texture_recycler.find(key); it != texture_recycler.end()) {
         Allocation alloc = std::move(it->second);
-        ASSERT(alloc.res_scale == params.res_scale);
+        ASSERT(alloc.res_scale == params.res_scale && alloc.is_custom == is_custom);
         texture_recycler.erase(it);
         return alloc;
     }
@@ -192,10 +236,15 @@ Allocation TextureRuntime::Allocate(const VideoCore::SurfaceParams& params) {
     handles.fill(textures[0].handle);
 
     if (params.res_scale != 1) {
-        const u32 scaled_width = params.GetScaledWidth();
-        const u32 scaled_height = params.GetScaledHeight();
-        textures[1] =
-            MakeHandle(target, scaled_width, scaled_height, levels, tuple, params.DebugName(true));
+        // When custom textures are used with texture filtering do not further
+        // scale up the texture since it's probably already quite high resolution.
+        // In addition force usage of RGBA8 because rendering to compressed formats
+        // isn't something any modern GPU supports.
+        const u32 scaled_width = is_custom ? width : params.GetScaledWidth();
+        const u32 scaled_height = is_custom ? height : params.GetScaledHeight();
+        const auto& scaled_tuple = is_custom ? GetFormatTuple(PixelFormat::RGBA8) : tuple;
+        textures[1] = MakeHandle(target, scaled_width, scaled_height, levels, scaled_tuple,
+                                 params.DebugName(true));
         handles[1] = textures[1].handle;
     }
 
@@ -209,6 +258,7 @@ Allocation TextureRuntime::Allocate(const VideoCore::SurfaceParams& params) {
         .height = params.height,
         .levels = params.levels,
         .res_scale = params.res_scale,
+        .is_custom = is_custom,
     };
 }
 
@@ -353,6 +403,7 @@ Surface::~Surface() {
         .height = alloc.height,
         .levels = alloc.levels,
         .res_scale = alloc.res_scale,
+        .is_custom = alloc.is_custom,
     };
     runtime->Recycle(tag, std::move(alloc));
 }
@@ -363,28 +414,37 @@ void Surface::Upload(const VideoCore::BufferTextureCopy& upload,
     ASSERT(stride * GetBytesPerPixel(pixel_format) % 4 == 0);
 
     const GLuint old_tex = OpenGLState::GetCurState().texture_units[0].texture_2d;
-    const GLint stride_lod = stride >> upload.texture_level;
+    const GLint stride_lod = upload.texture_rect.GetWidth() >> upload.texture_level;
     glPixelStorei(GL_UNPACK_ROW_LENGTH, stride_lod);
 
     // Bind the unscaled texture
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, Handle(false));
 
-    // Upload the requested rectangle of pixels
-    const auto& tuple = runtime->GetFormatTuple(pixel_format);
-    glTexSubImage2D(GL_TEXTURE_2D, upload.texture_level, upload.texture_rect.left,
-                    upload.texture_rect.bottom, upload.texture_rect.GetWidth(),
-                    upload.texture_rect.GetHeight(), tuple.format, tuple.type,
-                    staging.mapped.data());
+    // Upload the requested rectangle of pixels. Compressed formats are required to provide
+    // correct mipmaps and do not need the special upload path in UploadMismatch.
+    const auto& tuple = alloc.tuple;
+    if (VideoCore::IsCustomFormatCompressed(custom_format)) {
+        glCompressedTexSubImage2D(GL_TEXTURE_2D, upload.texture_level, upload.texture_rect.left,
+                                  upload.texture_rect.bottom, upload.texture_rect.GetWidth(),
+                                  upload.texture_rect.GetHeight(), tuple.format, staging.size,
+                                  staging.mapped.data());
+    } else if (!UploadMismatch(upload, staging)) {
+        glTexSubImage2D(GL_TEXTURE_2D, upload.texture_level, upload.texture_rect.left,
+                        upload.texture_rect.bottom, upload.texture_rect.GetWidth(),
+                        upload.texture_rect.GetHeight(), tuple.format, tuple.type,
+                        staging.mapped.data());
+    }
 
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
     glBindTexture(GL_TEXTURE_2D, old_tex);
 
+    // For custom allocations the scaled handle has the same dimentions as the non-scale one.
     const VideoCore::TextureBlit blit = {
         .src_level = upload.texture_level,
         .dst_level = upload.texture_level,
         .src_rect = upload.texture_rect,
-        .dst_rect = upload.texture_rect * res_scale,
+        .dst_rect = upload.texture_rect * (alloc.is_custom ? 1 : res_scale),
     };
 
     // If texture filtering is enabled attempt to upscale with that, otherwise fallback
@@ -439,6 +499,61 @@ void Surface::Download(const VideoCore::BufferTextureCopy& download,
     prev_state.Apply();
 }
 
+bool Surface::UploadMismatch(const VideoCore::BufferTextureCopy& upload,
+                             const VideoCore::StagingData& staging) {
+    const u32 target_width = alloc.width >> upload.texture_level;
+    const u32 target_height = alloc.height >> upload.texture_level;
+    const bool dim_mismatch = upload.texture_rect.GetWidth() != target_width ||
+                              upload.texture_rect.GetHeight() != target_height;
+    // Exit early if no mismatch is detected.
+    if (!IsCustom() || !dim_mismatch) {
+        return false;
+    }
+
+    SurfaceParams params = *this;
+    params.width = upload.texture_rect.GetWidth();
+    params.height = upload.texture_rect.GetHeight();
+    params.levels = 1;
+    params.res_scale = 1;
+    const Allocation temp_alloc = runtime->Allocate(params, true);
+
+    LOG_WARNING(Render_OpenGL,
+                "Attempted to upload {}x{} custom texture to level {} "
+                "of {}x{} custom surface, adjusting upload!",
+                params.width, params.height, upload.texture_level, alloc.width, alloc.height);
+
+    // Upload to the temporary texture
+    glBindTexture(GL_TEXTURE_2D, temp_alloc.handles[0]);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, upload.texture_rect.GetWidth(),
+                    upload.texture_rect.GetHeight(), alloc.tuple.format, alloc.tuple.type,
+                    staging.mapped.data());
+
+    const u32 fbo_index = FboIndex(type);
+    const auto prev_state = OpenGLState::GetCurState();
+    SCOPE_EXIT({ prev_state.Apply(); });
+
+    OpenGLState state{};
+    state.draw.read_framebuffer = runtime->read_fbos[fbo_index].handle;
+    state.draw.draw_framebuffer = runtime->draw_fbos[fbo_index].handle;
+    state.Apply();
+
+    AttachHandle(GL_READ_FRAMEBUFFER, 0, 0, temp_alloc.handles[0], type, texture_type);
+    AttachHandle(GL_DRAW_FRAMEBUFFER, upload.texture_level, 0, Handle(false), type, texture_type);
+
+    // Blit to the unscaled handle.
+    const GLenum buffer_mask = MakeBufferMask(type);
+    const GLenum filter = buffer_mask == GL_COLOR_BUFFER_BIT ? GL_LINEAR : GL_NEAREST;
+    glBlitFramebuffer(0, 0, upload.texture_rect.GetWidth(), upload.texture_rect.GetHeight(),
+                      upload.texture_rect.left, upload.texture_rect.bottom,
+                      upload.texture_rect.GetWidth(), upload.texture_rect.GetHeight(), buffer_mask,
+                      filter);
+
+    // Remove temp handle from FBO because we are about to delete it
+    AttachHandle(GL_READ_FRAMEBUFFER, 0, 0, 0, type, texture_type);
+
+    return true;
+}
+
 bool Surface::DownloadWithoutFbo(const VideoCore::BufferTextureCopy& download,
                                  const VideoCore::StagingData& staging) {
     // If a partial download is requested and ARB_get_texture_sub_image (core in 4.5)
@@ -477,30 +592,39 @@ bool Surface::DownloadWithoutFbo(const VideoCore::BufferTextureCopy& download,
 }
 
 void Surface::Attach(GLenum target, u32 level, u32 layer, bool scaled) {
-    const GLuint handle = Handle(scaled);
-    const GLenum textarget = texture_type == VideoCore::TextureType::CubeMap
-                                 ? GL_TEXTURE_CUBE_MAP_POSITIVE_X + layer
-                                 : GL_TEXTURE_2D;
+    AttachHandle(target, level, layer, Handle(scaled), type, texture_type);
+}
 
-    switch (type) {
-    case VideoCore::SurfaceType::Color:
-    case VideoCore::SurfaceType::Texture:
-        glFramebufferTexture2D(target, GL_COLOR_ATTACHMENT0, textarget, handle, level);
-        break;
-    case VideoCore::SurfaceType::Depth:
-        glFramebufferTexture2D(target, GL_DEPTH_ATTACHMENT, textarget, handle, level);
-        break;
-    case VideoCore::SurfaceType::DepthStencil:
-        glFramebufferTexture2D(target, GL_DEPTH_STENCIL_ATTACHMENT, textarget, handle, level);
-        break;
-    default:
-        UNREACHABLE_MSG("Invalid surface type!");
+bool Surface::Swap(u32 width, u32 height, VideoCore::CustomPixelFormat format) {
+    if (!driver->IsCustomFormatSupported(format)) {
+        return false;
     }
+
+    const auto& tuple = runtime->GetFormatTuple(format);
+    if (alloc.Matches(width, height, levels, tuple)) {
+        return true;
+    }
+
+    SurfaceParams params = *this;
+    params.width = width;
+    params.height = height;
+    params.custom_format = format;
+    alloc = runtime->Allocate(params, true);
+
+    LOG_DEBUG(Render_OpenGL, "Swapped {}x{} {} surface at address {:#x} to {}x{} {}",
+              GetScaledWidth(), GetScaledHeight(), VideoCore::PixelFormatAsString(pixel_format),
+              addr, width, height, VideoCore::CustomPixelFormatAsString(format));
+
+    is_custom = true;
+    custom_format = format;
+
+    return true;
 }
 
 void Surface::BlitScale(const VideoCore::TextureBlit& blit, bool up_scale) {
     const u32 fbo_index = FboIndex(type);
     const auto prev_state = OpenGLState::GetCurState();
+    SCOPE_EXIT({ prev_state.Apply(); });
 
     OpenGLState state{};
     state.draw.read_framebuffer = runtime->read_fbos[fbo_index].handle;
@@ -515,8 +639,6 @@ void Surface::BlitScale(const VideoCore::TextureBlit& blit, bool up_scale) {
     glBlitFramebuffer(blit.src_rect.left, blit.src_rect.bottom, blit.src_rect.right,
                       blit.src_rect.top, blit.dst_rect.left, blit.dst_rect.bottom,
                       blit.dst_rect.right, blit.dst_rect.top, buffer_mask, filter);
-
-    prev_state.Apply();
 }
 
 Framebuffer::Framebuffer(TextureRuntime& runtime, Surface* const color, u32 color_level,

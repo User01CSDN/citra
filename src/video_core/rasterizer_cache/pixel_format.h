@@ -35,6 +35,18 @@ enum class PixelFormat : u32 {
 };
 constexpr std::size_t PIXEL_FORMAT_COUNT = static_cast<std::size_t>(PixelFormat::MaxPixelFormat);
 
+enum class CustomPixelFormat : u32 {
+    RGBA8 = 0,
+    BC1 = 1,
+    BC3 = 2,
+    BC5 = 3,
+    BC7 = 4,
+    ASTC4 = 5,
+    ASTC6 = 6,
+    ASTC8 = 7,
+    Invalid = std::numeric_limits<u32>::max(),
+};
+
 enum class SurfaceType : u32 {
     Color = 0,
     Texture = 1,
@@ -51,7 +63,6 @@ enum class TextureType : u32 {
 
 struct PixelFormatInfo {
     SurfaceType type;
-    std::string_view name;
     u32 bits_per_block;
     u32 bytes_per_pixel;
 };
@@ -62,24 +73,24 @@ struct PixelFormatInfo {
  * @note Texture formats are automatically converted to RGBA8
  **/
 constexpr std::array<PixelFormatInfo, PIXEL_FORMAT_COUNT> FORMAT_MAP = {{
-    {SurfaceType::Color, "RGBA8", 32, 4},  // RGBA8
-    {SurfaceType::Color, "RGB8", 24, 3},   // RGB8
-    {SurfaceType::Color, "RGB5A1", 16, 2}, // RGB5A1
-    {SurfaceType::Color, "RGB565", 16, 2}, // RGB565
-    {SurfaceType::Color, "RGBA4", 16, 2},  // RGBA4
-    {SurfaceType::Texture, "IA8", 16, 4},  // IA8
-    {SurfaceType::Texture, "RG8", 16, 4},  // RG8
-    {SurfaceType::Texture, "I8", 8, 4},    // I8
-    {SurfaceType::Texture, "A8", 8, 4},    // A8
-    {SurfaceType::Texture, "IA4", 8, 4},   // IA4
-    {SurfaceType::Texture, "I4", 4, 4},    // I4
-    {SurfaceType::Texture, "A4", 4, 4},    // A4
-    {SurfaceType::Texture, "ΕTC1", 4, 4},  // ETC1
-    {SurfaceType::Texture, "A4", 8, 4},    // ETC1A4
-    {SurfaceType::Depth, "D16", 16, 2},    // D16
-    {SurfaceType::Invalid, "Invalid", 0},
-    {SurfaceType::Depth, "D24", 24, 4},          // D24
-    {SurfaceType::DepthStencil, "D24S8", 32, 4}, // D24S8
+    {SurfaceType::Color, 32, 4},
+    {SurfaceType::Color, 24, 3},
+    {SurfaceType::Color, 16, 2},
+    {SurfaceType::Color, 16, 2},
+    {SurfaceType::Color, 16, 2},
+    {SurfaceType::Texture, 16, 4},
+    {SurfaceType::Texture, 16, 4},
+    {SurfaceType::Texture, 8, 4},
+    {SurfaceType::Texture, 8, 4},
+    {SurfaceType::Texture, 8, 4},
+    {SurfaceType::Texture, 4, 4},
+    {SurfaceType::Texture, 4, 4},
+    {SurfaceType::Texture, 4, 4},
+    {SurfaceType::Texture, 8, 4},
+    {SurfaceType::Depth, 16, 2},
+    {SurfaceType::Invalid, 0, 0},
+    {SurfaceType::Depth, 24, 4},
+    {SurfaceType::DepthStencil, 32, 4},
 }};
 
 constexpr u32 GetFormatBpp(PixelFormat format) {
@@ -100,13 +111,13 @@ constexpr SurfaceType GetFormatType(PixelFormat format) {
     return FORMAT_MAP[index].type;
 }
 
-constexpr std::string_view GetFormatName(PixelFormat format) {
-    const std::size_t index = static_cast<std::size_t>(format);
-    ASSERT(index < FORMAT_MAP.size());
-    return FORMAT_MAP[index].name;
-}
-
 bool CheckFormatsBlittable(PixelFormat source_format, PixelFormat dest_format);
+
+bool IsCustomFormatCompressed(CustomPixelFormat format);
+
+std::string_view PixelFormatAsString(PixelFormat format);
+
+std::string_view CustomPixelFormatAsString(CustomPixelFormat format);
 
 PixelFormat PixelFormatFromTextureFormat(Pica::TexturingRegs::TextureFormat format);
 

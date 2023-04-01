@@ -8,6 +8,7 @@
 #include "common/logging/log.h"
 #include "common/microprofile.h"
 #include "core/memory.h"
+#include "video_core/rasterizer_cache/custom_tex_manager.h"
 #include "video_core/rasterizer_cache/rasterizer_cache.h"
 #include "video_core/regs.h"
 #include "video_core/renderer_base.h"
@@ -21,6 +22,13 @@ namespace {
 
 MICROPROFILE_DEFINE(RasterizerCache_CopySurface, "RasterizerCache", "CopySurface",
                     MP_RGB(128, 192, 64));
+MICROPROFILE_DEFINE(RasterizerCache_UploadSurface, "RasterizerCache", "UploadSurface",
+                    MP_RGB(128, 192, 64));
+MICROPROFILE_DEFINE(RasterizerCache_DownloadSurface, "RasterizerCache", "DownloadSurface",
+                    MP_RGB(128, 192, 64));
+MICROPROFILE_DEFINE(RasterizerCache_Invalidation, "RasterizerCache", "Invalidation",
+                    MP_RGB(128, 64, 192));
+MICROPROFILE_DEFINE(RasterizerCache_Flush, "RasterizerCache", "Flush", MP_RGB(128, 64, 192));
 
 constexpr auto RangeFromInterval(const auto& map, const auto& interval) {
     return boost::make_iterator_range(map.equal_range(interval));
@@ -121,16 +129,30 @@ auto FindMatch(const auto& surface_cache, const SurfaceParams& params, ScaleMatc
 
 } // Anonymous namespace
 
-RasterizerCache::RasterizerCache(Memory::MemorySystem& memory_, OpenGL::TextureRuntime& runtime_,
-                                 Pica::Regs& regs_, RendererBase& renderer_)
-    : memory{memory_}, runtime{runtime_}, regs{regs_}, renderer{renderer_},
-      resolution_scale_factor{renderer.GetResolutionScaleFactor()} {}
+RasterizerCache::RasterizerCache(Memory::MemorySystem& memory_,
+                                 CustomTexManager& custom_tex_manager_,
+                                 OpenGL::TextureRuntime& runtime_, Pica::Regs& regs_,
+                                 RendererBase& renderer_)
+    : memory{memory_}, custom_tex_manager{custom_tex_manager_}, runtime{runtime_}, regs{regs_},
+      renderer{renderer_}, resolution_scale_factor{renderer.GetResolutionScaleFactor()},
+      dump_textures{Settings::values.dump_textures.GetValue()},
+      use_custom_textures{Settings::values.custom_textures.GetValue()} {}
 
 RasterizerCache::~RasterizerCache() {
 #ifndef ANDROID
     // This is for switching renderers, which is unsupported on Android, and costly on shutdown
     ClearAll(false);
 #endif
+}
+
+void RasterizerCache::TickFrame() {
+    std::erase_if(async_uploads, [](const AsyncUpload& upload) {
+        if (upload.texture->IsDecoded()) {
+            upload.func();
+            return true;
+        }
+        return false;
+    });
 }
 
 bool RasterizerCache::AccelerateTextureCopy(const GPU::Regs::DisplayTransferConfig& config) {
@@ -799,6 +821,8 @@ void RasterizerCache::ValidateSurface(const SurfaceRef& surface, PAddr addr, u32
 }
 
 void RasterizerCache::UploadSurface(const SurfaceRef& surface, SurfaceInterval interval) {
+    MICROPROFILE_SCOPE(RasterizerCache_UploadSurface);
+
     const SurfaceParams load_info = surface->FromInterval(interval);
     ASSERT(load_info.addr >= surface->addr && load_info.end <= surface->end);
 
@@ -817,6 +841,16 @@ void RasterizerCache::UploadSurface(const SurfaceRef& surface, SurfaceInterval i
     DecodeTexture(load_info, load_info.addr, load_info.end, upload_data, staging.mapped,
                   needs_convertion);
 
+    // Check if we need to dump the texture
+    if (dump_textures) {
+        custom_tex_manager.DumpTexture(load_info, surface->LevelOf(load_info.addr), upload_data);
+    }
+
+    // Check if we need to replace the texture
+    if (use_custom_textures && UploadCustomSurface(surface, load_info, upload_data)) {
+        return;
+    }
+
     const BufferTextureCopy upload = {
         .buffer_offset = 0,
         .buffer_size = staging.size,
@@ -826,7 +860,74 @@ void RasterizerCache::UploadSurface(const SurfaceRef& surface, SurfaceInterval i
     surface->Upload(upload, staging);
 }
 
+bool RasterizerCache::UploadCustomSurface(const SurfaceRef& surface, const SurfaceParams& load_info,
+                                          std::span<u8> upload_data) {
+    const u32 level = surface->LevelOf(load_info.addr);
+    const bool is_base_level = level == 0;
+    const u64 hash = custom_tex_manager.ComputeHash(load_info, upload_data);
+    CustomTexture* texture = custom_tex_manager.GetTexture(hash);
+
+    // Some packs provide the base level but not any mipmaps and
+    // we shouldn't fallback to normal upload if the surface is already custom.
+    if (!texture) {
+        return surface->IsCustom();
+    }
+
+    const auto upload = [this, level, is_base_level, surface, texture]() -> bool {
+        // Swap the internal surface allocation to the desired dimentions and format.
+        // Mipmap uploads might happen out of order so use the base dimentions.
+        const u32 base_width = texture->width << level;
+        const u32 base_height = texture->height << level;
+        if (!surface->IsCustom() && !surface->Swap(base_width, base_height, texture->format)) {
+            // This means the backend doesn't support the custom compression format.
+            // We could implement a CPU/GPU decoder but it's always better for packs to
+            // have compatible compression formats.
+            LOG_ERROR(HW_GPU, "Custom compressed format {} unsupported by host GPU",
+                      texture->format);
+            return false;
+        }
+
+        // Copy and decode the custom texture to the staging buffer
+        const u32 custom_size = static_cast<u32>(texture->data.size());
+        StagingData staging = runtime.FindStaging(custom_size, true);
+        std::memcpy(staging.mapped.data(), texture->data.data(), custom_size);
+
+        // Upload surface
+        const BufferTextureCopy upload = {
+            .buffer_offset = 0,
+            .buffer_size = custom_size,
+            .texture_rect = {0, texture->height, texture->width, 0},
+            .texture_level = level,
+        };
+        surface->Upload(upload, staging);
+
+        // For old packs we can't rely on mipmaps existing so generate them
+        if (is_base_level && surface->levels != 1 && custom_tex_manager.GenerateMipmaps()) {
+            runtime.GenerateMipmaps(*surface, surface->levels - 1);
+        }
+
+        return true;
+    };
+
+    // If the texture is already decoded, upload immediately and we are done.
+    if (texture->IsDecoded()) {
+        return upload();
+    }
+
+    // Otherwise queue the upload and fallback to a normal upload so the user
+    // won't have to look at a black texture while the custom one is being decoded.
+    custom_tex_manager.QueueDecode(texture);
+    async_uploads.push_back({
+        .texture = texture,
+        .func = std::move(upload),
+    });
+
+    return false;
+}
+
 void RasterizerCache::DownloadSurface(const SurfaceRef& surface, SurfaceInterval interval) {
+    MICROPROFILE_SCOPE(RasterizerCache_DownloadSurface);
+
     const SurfaceParams flush_info = surface->FromInterval(interval);
     const u32 flush_start = boost::icl::first(interval);
     const u32 flush_end = boost::icl::last_next(interval);
@@ -907,7 +1008,8 @@ bool RasterizerCache::NoUnimplementedReinterpretations(const SurfaceRef& surface
                 FindMatch<MatchFlags::Copy>(surface_cache, params, ScaleMatch::Ignore, interval);
             if (test_surface != nullptr) {
                 LOG_WARNING(HW_GPU, "Missing pixel_format reinterpreter: {} -> {}",
-                            GetFormatName(format), GetFormatName(surface->pixel_format));
+                            PixelFormatAsString(format),
+                            PixelFormatAsString(surface->pixel_format));
                 implemented = false;
             }
         }

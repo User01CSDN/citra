@@ -1,7 +1,7 @@
 // Copyright 2015 Citra Emulator Project
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
-
+#pragma optimize("", off)
 #include <glad/glad.h>
 #include "common/common_funcs.h"
 #include "common/logging/log.h"

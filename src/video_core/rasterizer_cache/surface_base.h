@@ -32,6 +32,10 @@ public:
         return modification_tick;
     }
 
+    bool IsCustom() const noexcept {
+        return is_custom && custom_format != CustomPixelFormat::Invalid;
+    }
+
     bool IsRegionValid(SurfaceInterval interval) const {
         return (invalid_regions.find(interval) == invalid_regions.end());
     }
@@ -57,6 +61,7 @@ private:
 
 public:
     bool registered = false;
+    bool is_custom = false;
     SurfaceRegions invalid_regions;
     u32 fill_size = 0;
     std::array<u8, 4> fill_data;

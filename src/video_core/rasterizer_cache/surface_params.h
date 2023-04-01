@@ -101,6 +101,7 @@ public:
     bool is_tiled = false;
     TextureType texture_type = TextureType::Texture2D;
     PixelFormat pixel_format = PixelFormat::Invalid;
+    CustomPixelFormat custom_format = CustomPixelFormat::Invalid;
     SurfaceType type = SurfaceType::Invalid;
 
     std::array<u32, MAX_PICA_LEVELS> mipmap_offsets{};
