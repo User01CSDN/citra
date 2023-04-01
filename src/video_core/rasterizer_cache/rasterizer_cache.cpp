@@ -14,233 +14,30 @@
 #include "video_core/renderer_opengl/gl_format_reinterpreter.h"
 #include "video_core/renderer_opengl/gl_texture_runtime.h"
 #include "video_core/renderer_opengl/gl_vars.h"
-#include "video_core/video_core.h"
 
 namespace VideoCore {
 
-template <typename Map, typename Interval>
-static constexpr auto RangeFromInterval(Map& map, const Interval& interval) {
-    return boost::make_iterator_range(map.equal_range(interval));
-}
-
-bool RasterizerCache::AccelerateTextureCopy(const GPU::Regs::DisplayTransferConfig& config) {
-    u32 copy_size = Common::AlignDown(config.texture_copy.size, 16);
-    if (copy_size == 0) {
-        return false;
-    }
-
-    u32 input_gap = config.texture_copy.input_gap * 16;
-    u32 input_width = config.texture_copy.input_width * 16;
-    if (input_width == 0 && input_gap != 0) {
-        return false;
-    }
-    if (input_gap == 0 || input_width >= copy_size) {
-        input_width = copy_size;
-        input_gap = 0;
-    }
-    if (copy_size % input_width != 0) {
-        return false;
-    }
-
-    u32 output_gap = config.texture_copy.output_gap * 16;
-    u32 output_width = config.texture_copy.output_width * 16;
-    if (output_width == 0 && output_gap != 0) {
-        return false;
-    }
-    if (output_gap == 0 || output_width >= copy_size) {
-        output_width = copy_size;
-        output_gap = 0;
-    }
-    if (copy_size % output_width != 0) {
-        return false;
-    }
-
-    SurfaceParams src_params;
-    src_params.addr = config.GetPhysicalInputAddress();
-    src_params.stride = input_width + input_gap; // stride in bytes
-    src_params.width = input_width;              // width in bytes
-    src_params.height = copy_size / input_width;
-    src_params.size = ((src_params.height - 1) * src_params.stride) + src_params.width;
-    src_params.end = src_params.addr + src_params.size;
-
-    auto [src_surface, src_rect] = GetTexCopySurface(src_params);
-    if (!src_surface) {
-        return false;
-    }
-
-    // If the output gap is nonzero ensure the output width matches the source rectangle width,
-    // otherwise we cannot use hardware accelerated texture copy. The former is in terms of bytes
-    // not pixels so first get the unscaled copy width and calculate the bytes this corresponds to.
-    // Note that tiled textures are laid out sequentially in memory, so we multiply that by eight
-    // to get the correct byte count.
-    if (output_gap != 0 &&
-        (output_width != src_surface->BytesInPixels(src_rect.GetWidth() / src_surface->res_scale) *
-                             (src_surface->is_tiled ? 8 : 1) ||
-         output_gap % src_surface->BytesInPixels(src_surface->is_tiled ? 64 : 1) != 0)) {
-        return false;
-    }
-
-    SurfaceParams dst_params = *src_surface;
-    dst_params.addr = config.GetPhysicalOutputAddress();
-    dst_params.width = src_rect.GetWidth() / src_surface->res_scale;
-    dst_params.stride = dst_params.width + src_surface->PixelsInBytes(
-                                               src_surface->is_tiled ? output_gap / 8 : output_gap);
-    dst_params.height = src_rect.GetHeight() / src_surface->res_scale;
-    dst_params.res_scale = src_surface->res_scale;
-    dst_params.UpdateParams();
-
-    // Since we are going to invalidate the gap if there is one, we will have to load it first
-    const bool load_gap = output_gap != 0;
-    auto [dst_surface, dst_rect] = GetSurfaceSubRect(dst_params, ScaleMatch::Upscale, load_gap);
-
-    if (!dst_surface || dst_surface->type == SurfaceType::Texture ||
-        !CheckFormatsBlittable(src_surface->pixel_format, dst_surface->pixel_format)) {
-        return false;
-    }
-
-    ASSERT(src_rect.GetWidth() == dst_rect.GetWidth());
-
-    const TextureCopy texture_copy = {
-        .src_level = src_surface->LevelOf(src_params.addr),
-        .dst_level = dst_surface->LevelOf(dst_params.addr),
-        .src_offset = {src_rect.left, src_rect.bottom},
-        .dst_offset = {dst_rect.left, dst_rect.bottom},
-        .extent = {src_rect.GetWidth(), src_rect.GetHeight()},
-    };
-    runtime.CopyTextures(*src_surface, *dst_surface, texture_copy);
-
-    InvalidateRegion(dst_params.addr, dst_params.size, dst_surface);
-    return true;
-}
-
-bool RasterizerCache::AccelerateDisplayTransfer(const GPU::Regs::DisplayTransferConfig& config) {
-    SurfaceParams src_params;
-    src_params.addr = config.GetPhysicalInputAddress();
-    src_params.width = config.output_width;
-    src_params.stride = config.input_width;
-    src_params.height = config.output_height;
-    src_params.is_tiled = !config.input_linear;
-    src_params.pixel_format = PixelFormatFromGPUPixelFormat(config.input_format);
-    src_params.UpdateParams();
-
-    SurfaceParams dst_params;
-    dst_params.addr = config.GetPhysicalOutputAddress();
-    dst_params.width = config.scaling != config.NoScale ? config.output_width.Value() / 2
-                                                        : config.output_width.Value();
-    dst_params.height = config.scaling == config.ScaleXY ? config.output_height.Value() / 2
-                                                         : config.output_height.Value();
-    dst_params.is_tiled = config.input_linear != config.dont_swizzle;
-    dst_params.pixel_format = PixelFormatFromGPUPixelFormat(config.output_format);
-    dst_params.UpdateParams();
-
-    auto [src_surface, src_rect] = GetSurfaceSubRect(src_params, ScaleMatch::Ignore, true);
-    if (!src_surface) {
-        return false;
-    }
-
-    dst_params.res_scale = src_surface->res_scale;
-
-    auto [dst_surface, dst_rect] = GetSurfaceSubRect(dst_params, ScaleMatch::Upscale, false);
-    if (!dst_surface) {
-        return false;
-    }
-
-    if (src_surface->is_tiled != dst_surface->is_tiled) {
-        std::swap(src_rect.top, src_rect.bottom);
-    }
-    if (config.flip_vertically) {
-        std::swap(src_rect.top, src_rect.bottom);
-    }
-
-    if (!CheckFormatsBlittable(src_surface->pixel_format, dst_surface->pixel_format)) {
-        return false;
-    }
-
-    const TextureBlit texture_blit = {
-        .src_level = src_surface->LevelOf(src_params.addr),
-        .dst_level = dst_surface->LevelOf(dst_params.addr),
-        .src_rect = src_rect,
-        .dst_rect = dst_rect,
-    };
-    runtime.BlitTextures(*src_surface, *dst_surface, texture_blit);
-
-    InvalidateRegion(dst_params.addr, dst_params.size, dst_surface);
-    return true;
-}
-
-bool RasterizerCache::AccelerateFill(const GPU::Regs::MemoryFillConfig& config) {
-    SurfaceParams params;
-    params.addr = config.GetStartAddress();
-    params.end = config.GetEndAddress();
-    params.size = params.end - params.addr;
-    params.type = SurfaceType::Fill;
-    params.res_scale = std::numeric_limits<u16>::max();
-
-    SurfaceRef fill_surface = std::make_shared<OpenGL::Surface>(runtime, params);
-
-    std::memcpy(&fill_surface->fill_data[0], &config.value_32bit, sizeof(u32));
-    if (config.fill_32bit) {
-        fill_surface->fill_size = 4;
-    } else if (config.fill_24bit) {
-        fill_surface->fill_size = 3;
-    } else {
-        fill_surface->fill_size = 2;
-    }
-
-    RegisterSurface(fill_surface);
-    InvalidateRegion(fill_surface->addr, fill_surface->size, fill_surface);
-    return true;
-}
+namespace {
 
 MICROPROFILE_DEFINE(RasterizerCache_CopySurface, "RasterizerCache", "CopySurface",
                     MP_RGB(128, 192, 64));
-void RasterizerCache::CopySurface(const SurfaceRef& src_surface, const SurfaceRef& dst_surface,
-                                  SurfaceInterval copy_interval) {
-    MICROPROFILE_SCOPE(RasterizerCache_CopySurface);
 
-    const PAddr copy_addr = copy_interval.lower();
-    const SurfaceParams subrect_params = dst_surface->FromInterval(copy_interval);
-    const auto dst_rect = dst_surface->GetScaledSubRect(subrect_params);
-    ASSERT(subrect_params.GetInterval() == copy_interval && src_surface != dst_surface);
-
-    if (src_surface->type == SurfaceType::Fill) {
-        const TextureClear clear = {
-            .texture_level = dst_surface->LevelOf(copy_addr),
-            .texture_rect = dst_rect,
-            .value = src_surface->MakeClearValue(copy_addr, dst_surface->pixel_format),
-        };
-        runtime.ClearTexture(*dst_surface, clear);
-        return;
-    }
-
-    const TextureBlit blit = {
-        .src_level = src_surface->LevelOf(copy_addr),
-        .dst_level = dst_surface->LevelOf(copy_addr),
-        .src_rect = src_surface->GetScaledSubRect(subrect_params),
-        .dst_rect = dst_rect,
-    };
-    runtime.BlitTextures(*src_surface, *dst_surface, blit);
+constexpr auto RangeFromInterval(const auto& map, const auto& interval) {
+    return boost::make_iterator_range(map.equal_range(interval));
 }
 
 enum MatchFlags {
-    Invalid = 1,      // Flag that can be applied to other match types, invalid matches require
-                      // validation before they can be used
-    Exact = 1 << 1,   // Surfaces perfectly match
-    SubRect = 1 << 2, // Surface encompasses params
-    Copy = 1 << 3,    // Surface we can copy from
-    Expand = 1 << 4,  // Surface that can expand params
-    TexCopy = 1 << 5  // Surface that will match a display transfer "texture copy" parameters
+    Exact = 1 << 0,   ///< Surfaces perfectly match
+    SubRect = 1 << 1, ///< Surface encompasses params
+    Copy = 1 << 2,    ///< Surface we can copy from
+    Expand = 1 << 3,  ///< Surface that can expand params
+    TexCopy = 1 << 4, ///< Surface that will match a display transfer "texture copy" parameters
 };
-
-static constexpr MatchFlags operator|(MatchFlags lhs, MatchFlags rhs) {
-    return static_cast<MatchFlags>(static_cast<int>(lhs) | static_cast<int>(rhs));
-}
 
 /// Get the best surface match (and its match type) for the given flags
 template <MatchFlags find_flags>
-static auto FindMatch(const auto& surface_cache, const SurfaceParams& params,
-                      ScaleMatch match_scale_type,
-                      std::optional<SurfaceInterval> validate_interval = std::nullopt) {
+auto FindMatch(const auto& surface_cache, const SurfaceParams& params, ScaleMatch match_scale_type,
+               std::optional<SurfaceInterval> validate_interval = std::nullopt) {
     RasterizerCache::SurfaceRef match_surface = nullptr;
     bool match_valid = false;
     u32 match_scale = 0;
@@ -251,14 +48,11 @@ static auto FindMatch(const auto& surface_cache, const SurfaceParams& params,
             const bool res_scale_matched = match_scale_type == ScaleMatch::Exact
                                                ? (params.res_scale == surface->res_scale)
                                                : (params.res_scale <= surface->res_scale);
-            // validity will be checked in GetCopyableInterval
-            bool is_valid =
+            // Validity will be checked in GetCopyableInterval
+            const bool is_valid =
                 find_flags & MatchFlags::Copy
                     ? true
                     : surface->IsRegionValid(validate_interval.value_or(params.GetInterval()));
-
-            if (!(find_flags & MatchFlags::Invalid) && !is_valid)
-                continue;
 
             auto IsMatch_Helper = [&](auto check_type, auto match_fn) {
                 if (!(find_flags & check_type))
@@ -325,6 +119,8 @@ static auto FindMatch(const auto& surface_cache, const SurfaceParams& params,
     return match_surface;
 }
 
+} // Anonymous namespace
+
 RasterizerCache::RasterizerCache(Memory::MemorySystem& memory_, OpenGL::TextureRuntime& runtime_,
                                  Pica::Regs& regs_, RendererBase& renderer_)
     : memory{memory_}, runtime{runtime_}, regs{regs_}, renderer{renderer_},
@@ -335,6 +131,205 @@ RasterizerCache::~RasterizerCache() {
     // This is for switching renderers, which is unsupported on Android, and costly on shutdown
     ClearAll(false);
 #endif
+}
+
+bool RasterizerCache::AccelerateTextureCopy(const GPU::Regs::DisplayTransferConfig& config) {
+    // Texture copy size is aligned to 16 byte units
+    const u32 copy_size = Common::AlignDown(config.texture_copy.size, 16);
+    if (copy_size == 0) {
+        return false;
+    }
+
+    u32 input_gap = config.texture_copy.input_gap * 16;
+    u32 input_width = config.texture_copy.input_width * 16;
+    if (input_width == 0 && input_gap != 0) {
+        return false;
+    }
+    if (input_gap == 0 || input_width >= copy_size) {
+        input_width = copy_size;
+        input_gap = 0;
+    }
+    if (copy_size % input_width != 0) {
+        return false;
+    }
+
+    u32 output_gap = config.texture_copy.output_gap * 16;
+    u32 output_width = config.texture_copy.output_width * 16;
+    if (output_width == 0 && output_gap != 0) {
+        return false;
+    }
+    if (output_gap == 0 || output_width >= copy_size) {
+        output_width = copy_size;
+        output_gap = 0;
+    }
+    if (copy_size % output_width != 0) {
+        return false;
+    }
+
+    SurfaceParams src_params;
+    src_params.addr = config.GetPhysicalInputAddress();
+    src_params.stride = input_width + input_gap; // stride in bytes
+    src_params.width = input_width;              // width in bytes
+    src_params.height = copy_size / input_width;
+    src_params.size = ((src_params.height - 1) * src_params.stride) + src_params.width;
+    src_params.end = src_params.addr + src_params.size;
+
+    const auto [src_surface, src_rect] = GetTexCopySurface(src_params);
+    if (!src_surface) {
+        return false;
+    }
+
+    // If the output gap is nonzero ensure the output width matches the source rectangle width,
+    // otherwise we cannot use hardware accelerated texture copy. The former is in terms of bytes
+    // not pixels so first get the unscaled copy width and calculate the bytes this corresponds to.
+    // Note that tiled textures are laid out sequentially in memory, so we multiply that by eight
+    // to get the correct byte count.
+    if (output_gap != 0 &&
+        (output_width != src_surface->BytesInPixels(src_rect.GetWidth() / src_surface->res_scale) *
+                             (src_surface->is_tiled ? 8 : 1) ||
+         output_gap % src_surface->BytesInPixels(src_surface->is_tiled ? 64 : 1) != 0)) {
+        return false;
+    }
+
+    SurfaceParams dst_params = *src_surface;
+    dst_params.addr = config.GetPhysicalOutputAddress();
+    dst_params.width = src_rect.GetWidth() / src_surface->res_scale;
+    dst_params.stride = dst_params.width + src_surface->PixelsInBytes(
+                                               src_surface->is_tiled ? output_gap / 8 : output_gap);
+    dst_params.height = src_rect.GetHeight() / src_surface->res_scale;
+    dst_params.res_scale = src_surface->res_scale;
+    dst_params.UpdateParams();
+
+    // Since we are going to invalidate the gap if there is one, we will have to load it first
+    const bool load_gap = output_gap != 0;
+    const auto [dst_surface, dst_rect] =
+        GetSurfaceSubRect(dst_params, ScaleMatch::Upscale, load_gap);
+
+    if (!dst_surface || dst_surface->type == SurfaceType::Texture ||
+        !CheckFormatsBlittable(src_surface->pixel_format, dst_surface->pixel_format)) {
+        return false;
+    }
+
+    ASSERT(src_rect.GetWidth() == dst_rect.GetWidth());
+
+    const TextureCopy texture_copy = {
+        .src_level = src_surface->LevelOf(src_params.addr),
+        .dst_level = dst_surface->LevelOf(dst_params.addr),
+        .src_offset = {src_rect.left, src_rect.bottom},
+        .dst_offset = {dst_rect.left, dst_rect.bottom},
+        .extent = {src_rect.GetWidth(), src_rect.GetHeight()},
+    };
+    runtime.CopyTextures(*src_surface, *dst_surface, texture_copy);
+
+    InvalidateRegion(dst_params.addr, dst_params.size, dst_surface);
+    return true;
+}
+
+bool RasterizerCache::AccelerateDisplayTransfer(const GPU::Regs::DisplayTransferConfig& config) {
+    SurfaceParams src_params;
+    src_params.addr = config.GetPhysicalInputAddress();
+    src_params.width = config.output_width;
+    src_params.stride = config.input_width;
+    src_params.height = config.output_height;
+    src_params.is_tiled = !config.input_linear;
+    src_params.pixel_format = PixelFormatFromGPUPixelFormat(config.input_format);
+    src_params.UpdateParams();
+
+    SurfaceParams dst_params;
+    dst_params.addr = config.GetPhysicalOutputAddress();
+    dst_params.width = config.scaling != config.NoScale ? config.output_width.Value() / 2
+                                                        : config.output_width.Value();
+    dst_params.height = config.scaling == config.ScaleXY ? config.output_height.Value() / 2
+                                                         : config.output_height.Value();
+    dst_params.is_tiled = config.input_linear != config.dont_swizzle;
+    dst_params.pixel_format = PixelFormatFromGPUPixelFormat(config.output_format);
+    dst_params.UpdateParams();
+
+    auto [src_surface, src_rect] = GetSurfaceSubRect(src_params, ScaleMatch::Ignore, true);
+    if (!src_surface) {
+        return false;
+    }
+
+    dst_params.res_scale = src_surface->res_scale;
+
+    const auto [dst_surface, dst_rect] = GetSurfaceSubRect(dst_params, ScaleMatch::Upscale, false);
+    if (!dst_surface) {
+        return false;
+    }
+
+    if (src_surface->is_tiled != dst_surface->is_tiled) {
+        std::swap(src_rect.top, src_rect.bottom);
+    }
+    if (config.flip_vertically) {
+        std::swap(src_rect.top, src_rect.bottom);
+    }
+
+    if (!CheckFormatsBlittable(src_surface->pixel_format, dst_surface->pixel_format)) {
+        return false;
+    }
+
+    const TextureBlit texture_blit = {
+        .src_level = src_surface->LevelOf(src_params.addr),
+        .dst_level = dst_surface->LevelOf(dst_params.addr),
+        .src_rect = src_rect,
+        .dst_rect = dst_rect,
+    };
+    runtime.BlitTextures(*src_surface, *dst_surface, texture_blit);
+
+    InvalidateRegion(dst_params.addr, dst_params.size, dst_surface);
+    return true;
+}
+
+bool RasterizerCache::AccelerateFill(const GPU::Regs::MemoryFillConfig& config) {
+    SurfaceParams params;
+    params.addr = config.GetStartAddress();
+    params.end = config.GetEndAddress();
+    params.size = params.end - params.addr;
+    params.type = SurfaceType::Fill;
+    params.res_scale = std::numeric_limits<u16>::max();
+
+    SurfaceRef fill_surface = std::make_shared<OpenGL::Surface>(runtime, params);
+
+    std::memcpy(&fill_surface->fill_data[0], &config.value_32bit, sizeof(u32));
+    if (config.fill_32bit) {
+        fill_surface->fill_size = 4;
+    } else if (config.fill_24bit) {
+        fill_surface->fill_size = 3;
+    } else {
+        fill_surface->fill_size = 2;
+    }
+
+    RegisterSurface(fill_surface);
+    InvalidateRegion(fill_surface->addr, fill_surface->size, fill_surface);
+    return true;
+}
+
+void RasterizerCache::CopySurface(const SurfaceRef& src_surface, const SurfaceRef& dst_surface,
+                                  SurfaceInterval copy_interval) {
+    MICROPROFILE_SCOPE(RasterizerCache_CopySurface);
+
+    const PAddr copy_addr = copy_interval.lower();
+    const SurfaceParams subrect_params = dst_surface->FromInterval(copy_interval);
+    const auto dst_rect = dst_surface->GetScaledSubRect(subrect_params);
+    ASSERT(subrect_params.GetInterval() == copy_interval && src_surface != dst_surface);
+
+    if (src_surface->type == SurfaceType::Fill) {
+        const TextureClear clear = {
+            .texture_level = dst_surface->LevelOf(copy_addr),
+            .texture_rect = dst_rect,
+            .value = src_surface->MakeClearValue(copy_addr, dst_surface->pixel_format),
+        };
+        runtime.ClearTexture(*dst_surface, clear);
+        return;
+    }
+
+    const TextureBlit blit = {
+        .src_level = src_surface->LevelOf(copy_addr),
+        .dst_level = dst_surface->LevelOf(copy_addr),
+        .src_rect = src_surface->GetScaledSubRect(subrect_params),
+        .dst_rect = dst_rect,
+    };
+    runtime.BlitTextures(*src_surface, *dst_surface, blit);
 }
 
 auto RasterizerCache::GetSurface(const SurfaceParams& params, ScaleMatch match_res_scale,
@@ -348,8 +343,7 @@ auto RasterizerCache::GetSurface(const SurfaceParams& params, ScaleMatch match_r
     ASSERT(!params.is_tiled || (params.width % 8 == 0 && params.height % 8 == 0));
 
     // Check for an exact match in existing surfaces
-    SurfaceRef surface =
-        FindMatch<MatchFlags::Exact | MatchFlags::Invalid>(surface_cache, params, match_res_scale);
+    SurfaceRef surface = FindMatch<MatchFlags::Exact>(surface_cache, params, match_res_scale);
 
     if (surface == nullptr) {
         u16 target_res_scale = params.res_scale;
@@ -357,16 +351,16 @@ auto RasterizerCache::GetSurface(const SurfaceParams& params, ScaleMatch match_r
             // This surface may have a subrect of another surface with a higher res_scale, find
             // it to adjust our params
             SurfaceParams find_params = params;
-            SurfaceRef expandable = FindMatch<MatchFlags::Expand | MatchFlags::Invalid>(
-                surface_cache, find_params, match_res_scale);
+            SurfaceRef expandable =
+                FindMatch<MatchFlags::Expand>(surface_cache, find_params, match_res_scale);
             if (expandable != nullptr && expandable->res_scale > target_res_scale) {
                 target_res_scale = expandable->res_scale;
             }
             // Keep res_scale when reinterpreting d24s8 -> rgba8
             if (params.pixel_format == PixelFormat::RGBA8) {
                 find_params.pixel_format = PixelFormat::D24S8;
-                expandable = FindMatch<MatchFlags::Expand | MatchFlags::Invalid>(
-                    surface_cache, find_params, match_res_scale);
+                expandable =
+                    FindMatch<MatchFlags::Expand>(surface_cache, find_params, match_res_scale);
                 if (expandable != nullptr && expandable->res_scale > target_res_scale) {
                     target_res_scale = expandable->res_scale;
                 }
@@ -392,16 +386,14 @@ auto RasterizerCache::GetSurfaceSubRect(const SurfaceParams& params, ScaleMatch 
     }
 
     // Attempt to find encompassing surface
-    SurfaceRef surface = FindMatch<MatchFlags::SubRect | MatchFlags::Invalid>(surface_cache, params,
-                                                                              match_res_scale);
+    SurfaceRef surface = FindMatch<MatchFlags::SubRect>(surface_cache, params, match_res_scale);
 
     // Check if FindMatch failed because of res scaling
     // If that's the case create a new surface with
     // the dimensions of the lower res_scale surface
     // to suggest it should not be used again
     if (surface == nullptr && match_res_scale != ScaleMatch::Ignore) {
-        surface = FindMatch<MatchFlags::SubRect | MatchFlags::Invalid>(surface_cache, params,
-                                                                       ScaleMatch::Ignore);
+        surface = FindMatch<MatchFlags::SubRect>(surface_cache, params, ScaleMatch::Ignore);
         if (surface != nullptr) {
             SurfaceParams new_params = *surface;
             new_params.res_scale = params.res_scale;
@@ -421,8 +413,7 @@ auto RasterizerCache::GetSurfaceSubRect(const SurfaceParams& params, ScaleMatch 
 
     // Check for a surface we can expand before creating a new one
     if (surface == nullptr) {
-        surface = FindMatch<MatchFlags::Expand | MatchFlags::Invalid>(surface_cache, aligned_params,
-                                                                      match_res_scale);
+        surface = FindMatch<MatchFlags::Expand>(surface_cache, aligned_params, match_res_scale);
         if (surface != nullptr) {
             aligned_params.width = aligned_params.stride;
             aligned_params.UpdateParams();
@@ -698,8 +689,8 @@ void RasterizerCache::InvalidateFramebuffer(const OpenGL::Framebuffer& framebuff
 auto RasterizerCache::GetTexCopySurface(const SurfaceParams& params) -> SurfaceRect_Tuple {
     Common::Rectangle<u32> rect{};
 
-    SurfaceRef match_surface = FindMatch<MatchFlags::TexCopy | MatchFlags::Invalid>(
-        surface_cache, params, ScaleMatch::Ignore);
+    SurfaceRef match_surface =
+        FindMatch<MatchFlags::TexCopy>(surface_cache, params, ScaleMatch::Ignore);
 
     if (match_surface != nullptr) {
         ValidateSurface(match_surface, params.addr, params.size);
