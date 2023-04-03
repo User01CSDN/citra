@@ -78,7 +78,7 @@ class TextureRuntime {
     friend class Framebuffer;
 
 public:
-    explicit TextureRuntime(Driver& driver, VideoCore::RendererBase& renderer);
+    explicit TextureRuntime(const Driver& driver, VideoCore::RendererBase& renderer);
     ~TextureRuntime();
 
     /// Returns true if no texture filter is in use
@@ -128,7 +128,7 @@ private:
     }
 
 private:
-    Driver& driver;
+    const Driver& driver;
     TextureFilterer filterer;
     std::vector<u8> staging_buffer;
     std::array<ReinterpreterList, VideoCore::PIXEL_FORMAT_COUNT> reinterpreters;
@@ -178,8 +178,8 @@ private:
                             const VideoCore::StagingData& staging);
 
 private:
+    const Driver* driver;
     TextureRuntime* runtime;
-    Driver* driver;
     Allocation alloc{};
 };
 

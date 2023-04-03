@@ -102,7 +102,7 @@ struct FramebufferInfo {
 
 } // Anonymous namespace
 
-TextureRuntime::TextureRuntime(Driver& driver_, VideoCore::RendererBase& renderer)
+TextureRuntime::TextureRuntime(const Driver& driver_, VideoCore::RendererBase& renderer)
     : driver{driver_}, filterer{Settings::values.texture_filter_name.GetValue(),
                                 renderer.GetResolutionScaleFactor()} {
 
@@ -333,7 +333,7 @@ const ReinterpreterList& TextureRuntime::GetPossibleReinterpretations(
 }
 
 Surface::Surface(TextureRuntime& runtime_, const VideoCore::SurfaceParams& params)
-    : SurfaceBase{params}, runtime{&runtime_}, driver{&runtime_.driver} {
+    : SurfaceBase{params}, driver{&runtime_.GetDriver()}, runtime{&runtime_} {
     if (pixel_format == PixelFormat::Invalid) {
         return;
     }
