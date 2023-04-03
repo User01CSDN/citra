@@ -96,29 +96,4 @@ SurfaceInterval SurfaceBase::GetCopyableInterval(const SurfaceParams& params) co
     return result;
 }
 
-std::shared_ptr<SurfaceWatcher> SurfaceBase::SurfaceBase::CreateWatcher() {
-    auto watcher = std::make_shared<SurfaceWatcher>(weak_from_this());
-    watchers.push_front(watcher);
-    return watcher;
-}
-
-void SurfaceBase::InvalidateAllWatcher() {
-    for (const auto& watcher : watchers) {
-        if (auto locked = watcher.lock()) {
-            locked->valid = false;
-        }
-    }
-}
-
-void SurfaceBase::UnlinkAllWatcher() {
-    for (const auto& watcher : watchers) {
-        if (auto locked = watcher.lock()) {
-            locked->valid = false;
-            locked->surface.reset();
-        }
-    }
-
-    watchers.clear();
-}
-
 } // namespace VideoCore

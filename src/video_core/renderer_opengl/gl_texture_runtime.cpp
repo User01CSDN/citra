@@ -42,6 +42,13 @@ static constexpr std::array<FormatTuple, 5> COLOR_TUPLES_OES = {{
     {GL_RGBA4, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4},   // RGBA4
 }};
 
+struct FramebufferInfo {
+    GLuint color;
+    GLuint depth;
+    u32 color_level;
+    u32 depth_level;
+};
+
 [[nodiscard]] GLbitfield MakeBufferMask(SurfaceType type) {
     switch (type) {
     case SurfaceType::Color:
@@ -270,19 +277,10 @@ bool TextureRuntime::CopyTextures(Surface& source, Surface& dest,
     const GLenum src_textarget = source.texture_type == VideoCore::TextureType::CubeMap
                                      ? GL_TEXTURE_CUBE_MAP
                                      : GL_TEXTURE_2D;
-    const GLenum dst_textarget =
+    const GLenum dest_textarget =
         dest.texture_type == VideoCore::TextureType::CubeMap ? GL_TEXTURE_CUBE_MAP : GL_TEXTURE_2D;
     glCopyImageSubData(source.Handle(), src_textarget, copy.src_level, copy.src_offset.x,
-                       copy.src_offset.y, copy.src_layer, dest.Handle(), dst_textarget,
-                       copy.dst_level, copy.dst_offset.x, copy.dst_offset.y, copy.dst_layer,
-                       copy.extent.width, copy.extent.height, 1);
-    return true;
-}
-
-bool TextureRuntime::CopyTextures(Surface& source, CachedTextureCube& dest,
-                                  const VideoCore::TextureCopy& copy) {
-    glCopyImageSubData(source.Handle(), GL_TEXTURE_2D, copy.src_level, copy.src_offset.x,
-                       copy.src_offset.y, copy.src_layer, dest.texture.handle, GL_TEXTURE_CUBE_MAP,
+                       copy.src_offset.y, copy.src_layer, dest.Handle(), dest_textarget,
                        copy.dst_level, copy.dst_offset.x, copy.dst_offset.y, copy.dst_layer,
                        copy.extent.width, copy.extent.height, 1);
     return true;
@@ -365,7 +363,8 @@ void Surface::Upload(const VideoCore::BufferTextureCopy& upload,
     ASSERT(stride * GetFormatBytesPerPixel(pixel_format) % 4 == 0);
 
     const GLuint old_tex = OpenGLState::GetCurState().texture_units[0].texture_2d;
-    glPixelStorei(GL_UNPACK_ROW_LENGTH, static_cast<GLint>(stride));
+    const GLint stride_lod = stride >> upload.texture_level;
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, stride_lod);
 
     // Bind the unscaled texture
     glActiveTexture(GL_TEXTURE0);
@@ -381,29 +380,28 @@ void Surface::Upload(const VideoCore::BufferTextureCopy& upload,
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
     glBindTexture(GL_TEXTURE_2D, old_tex);
 
+    const VideoCore::TextureBlit blit = {
+        .src_level = upload.texture_level,
+        .dst_level = upload.texture_level,
+        .src_rect = upload.texture_rect,
+        .dst_rect = upload.texture_rect * res_scale,
+    };
+
     // If texture filtering is enabled attempt to upscale with that, otherwise fallback
-    // to normal blit
+    // to normal blit.
     const auto& filterer = runtime->GetFilterer();
-    const auto unscaled_rect = upload.texture_rect;
-    const auto scaled_rect = upload.texture_rect * res_scale;
-    if (res_scale != 1 &&
-        !filterer.Filter(Handle(false), unscaled_rect, Handle(true), scaled_rect, type)) {
-        const VideoCore::TextureBlit blit = {
-            .src_level = upload.texture_level,
-            .dst_level = upload.texture_level,
-            .src_rect = unscaled_rect,
-            .dst_rect = scaled_rect,
-        };
+    if (res_scale != 1 && !filterer.Filter(Handle(false), Handle(true), blit, type)) {
         BlitScale(blit, true);
     }
-
-    InvalidateAllWatcher();
 }
 
 void Surface::Download(const VideoCore::BufferTextureCopy& download,
                        const VideoCore::StagingData& staging) {
     // Ensure no bad interactions with GL_PACK_ALIGNMENT
     ASSERT(stride * GetFormatBytesPerPixel(pixel_format) % 4 == 0);
+
+    const GLint stride_lod = stride >> download.texture_level;
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, stride_lod);
 
     // Scale down upscaled data before downloading it
     if (res_scale != 1) {
@@ -488,15 +486,11 @@ void Surface::Attach(GLenum target, u32 level, u32 layer, bool scaled) {
     case VideoCore::SurfaceType::Color:
     case VideoCore::SurfaceType::Texture:
         glFramebufferTexture2D(target, GL_COLOR_ATTACHMENT0, textarget, handle, level);
-        glFramebufferTexture2D(target, GL_DEPTH_STENCIL_ATTACHMENT, textarget, 0, 0);
         break;
     case VideoCore::SurfaceType::Depth:
-        glFramebufferTexture2D(target, GL_COLOR_ATTACHMENT0, textarget, 0, 0);
         glFramebufferTexture2D(target, GL_DEPTH_ATTACHMENT, textarget, handle, level);
-        glFramebufferTexture2D(target, GL_STENCIL_ATTACHMENT, textarget, 0, 0);
         break;
     case VideoCore::SurfaceType::DepthStencil:
-        glFramebufferTexture2D(target, GL_COLOR_ATTACHMENT0, textarget, 0, 0);
         glFramebufferTexture2D(target, GL_DEPTH_STENCIL_ATTACHMENT, textarget, handle, level);
         break;
     default:
@@ -525,10 +519,11 @@ void Surface::BlitScale(const VideoCore::TextureBlit& blit, bool up_scale) {
     prev_state.Apply();
 }
 
-Framebuffer::Framebuffer(TextureRuntime& runtime, Surface* const color,
-                         Surface* const depth_stencil, const Pica::Regs& regs,
+Framebuffer::Framebuffer(TextureRuntime& runtime, Surface* const color, u32 color_level,
+                         Surface* const depth_stencil, u32 depth_level, const Pica::Regs& regs,
                          Common::Rectangle<u32> surfaces_rect)
-    : VideoCore::FramebufferBase{regs, color, depth_stencil, surfaces_rect} {
+    : VideoCore::FramebufferBase{regs,          color,       color_level,
+                                 depth_stencil, depth_level, surfaces_rect} {
 
     const bool shadow_rendering = regs.framebuffer.IsShadowRendering();
     const bool has_stencil = regs.framebuffer.HasStencil();
@@ -543,8 +538,16 @@ Framebuffer::Framebuffer(TextureRuntime& runtime, Surface* const color,
         attachments[1] = depth_stencil->Handle();
     }
 
-    const u64 hash = Common::ComputeStructHash64(attachments);
+    const FramebufferInfo info = {
+        .color = attachments[0],
+        .depth = attachments[1],
+        .color_level = color_level,
+        .depth_level = depth_level,
+    };
+
+    const u64 hash = Common::ComputeHash64(&info, sizeof(FramebufferInfo));
     auto [it, new_framebuffer] = runtime.framebuffer_cache.try_emplace(hash);
+
     if (!new_framebuffer) {
         handle = it->second.handle;
         return;
@@ -569,16 +572,16 @@ Framebuffer::Framebuffer(TextureRuntime& runtime, Surface* const color,
                                0);
     } else {
         glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
-                               color ? color->Handle() : 0, 0);
+                               color ? color->Handle() : 0, color_level);
         if (depth_stencil) {
             if (has_stencil) {
                 // Attach both depth and stencil
                 glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT,
-                                       GL_TEXTURE_2D, depth_stencil->Handle(), 0);
+                                       GL_TEXTURE_2D, depth_stencil->Handle(), depth_level);
             } else {
                 // Attach depth
                 glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D,
-                                       depth_stencil->Handle(), 0);
+                                       depth_stencil->Handle(), depth_level);
                 // Clear stencil attachment
                 glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_TEXTURE_2D, 0,
                                        0);

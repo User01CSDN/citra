@@ -107,9 +107,6 @@ public:
     /// Copies a rectangle of source to another rectange of dest
     bool CopyTextures(Surface& source, Surface& dest, const VideoCore::TextureCopy& copy);
 
-    /// Copies a rectangle of source to a face of dest cube
-    bool CopyTextures(Surface& source, CachedTextureCube& dest, const VideoCore::TextureCopy& copy);
-
     /// Blits a rectangle of source to another rectange of dest
     bool BlitTextures(Surface& source, Surface& dest, const VideoCore::TextureBlit& blit);
 
@@ -188,8 +185,8 @@ private:
 
 class Framebuffer : public VideoCore::FramebufferBase {
 public:
-    explicit Framebuffer(TextureRuntime& runtime, Surface* const color,
-                         Surface* const depth_stencil, const Pica::Regs& regs,
+    explicit Framebuffer(TextureRuntime& runtime, Surface* const color, u32 color_level,
+                         Surface* const depth_stencil, u32 depth_level, const Pica::Regs& regs,
                          Common::Rectangle<u32> surfaces_rect);
     ~Framebuffer();
 

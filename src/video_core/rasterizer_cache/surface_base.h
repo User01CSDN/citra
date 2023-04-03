@@ -4,51 +4,14 @@
 
 #pragma once
 
-#include <list>
-#include <memory>
 #include <boost/icl/interval_set.hpp>
-#include "common/assert.h"
 #include "video_core/rasterizer_cache/surface_params.h"
-#include "video_core/renderer_opengl/gl_resource_manager.h"
 
 namespace VideoCore {
 
-class SurfaceBase;
-
-/**
- * A watcher that notifies whether a cached surface has been changed. This is useful for caching
- * surface collection objects, including texture cube and mipmap.
- */
-class SurfaceWatcher {
-    friend class SurfaceBase;
-
-public:
-    explicit SurfaceWatcher(std::weak_ptr<SurfaceBase>&& surface) : surface(std::move(surface)) {}
-
-    /// Checks whether the surface has been changed.
-    bool IsValid() const {
-        return !surface.expired() && valid;
-    }
-
-    /// Marks that the content of the referencing surface has been updated to the watcher user.
-    void Validate() {
-        ASSERT(!surface.expired());
-        valid = true;
-    }
-
-    /// Gets the referencing surface. Returns null if the surface has been destroyed
-    std::shared_ptr<SurfaceBase> Get() const {
-        return surface.lock();
-    }
-
-private:
-    std::weak_ptr<SurfaceBase> surface;
-    bool valid = false;
-};
-
 using SurfaceRegions = boost::icl::interval_set<PAddr, std::less, SurfaceInterval>;
 
-class SurfaceBase : public SurfaceParams, public std::enable_shared_from_this<SurfaceBase> {
+class SurfaceBase : public SurfaceParams {
 public:
     SurfaceBase(const SurfaceParams& params);
     ~SurfaceBase();
@@ -62,15 +25,25 @@ public:
     /// Returns the region of the biggest valid rectange within interval
     SurfaceInterval GetCopyableInterval(const SurfaceParams& params) const;
 
-    std::shared_ptr<SurfaceWatcher> CreateWatcher();
-    void InvalidateAllWatcher();
-    void UnlinkAllWatcher();
+    u64 ModificationTick() const noexcept {
+        return modification_tick;
+    }
 
     bool IsRegionValid(SurfaceInterval interval) const {
         return (invalid_regions.find(interval) == invalid_regions.end());
     }
 
-    bool IsSurfaceFullyInvalid() const {
+    void MarkValid(SurfaceInterval interval) {
+        invalid_regions.erase(interval);
+        modification_tick++;
+    }
+
+    void MarkInvalid(SurfaceInterval interval) {
+        invalid_regions.insert(interval);
+        modification_tick++;
+    }
+
+    bool IsFullyInvalid() const {
         auto interval = GetInterval();
         return *invalid_regions.equal_range(interval).first == interval;
     }
@@ -80,23 +53,7 @@ public:
     SurfaceRegions invalid_regions;
     u32 fill_size = 0;
     std::array<u8, 4> fill_data;
-    std::array<std::shared_ptr<SurfaceWatcher>, 7> level_watchers;
-    std::list<std::weak_ptr<SurfaceWatcher>> watchers;
+    u64 modification_tick = 1;
 };
 
 } // namespace VideoCore
-
-namespace OpenGL {
-
-struct CachedTextureCube {
-    OpenGL::OGLTexture texture;
-    u16 res_scale = 1;
-    std::shared_ptr<VideoCore::SurfaceWatcher> px;
-    std::shared_ptr<VideoCore::SurfaceWatcher> nx;
-    std::shared_ptr<VideoCore::SurfaceWatcher> py;
-    std::shared_ptr<VideoCore::SurfaceWatcher> ny;
-    std::shared_ptr<VideoCore::SurfaceWatcher> pz;
-    std::shared_ptr<VideoCore::SurfaceWatcher> nz;
-};
-
-} // namespace OpenGL
