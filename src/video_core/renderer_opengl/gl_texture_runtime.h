@@ -89,6 +89,9 @@ public:
     /// Resets texture filtering settings to the global settings
     bool ResetFilter(u32 scale_factor);
 
+    /// Returns true if the provided pixel format cannot be used natively by the runtime.
+    bool NeedsConvertion(VideoCore::PixelFormat pixel_format) const;
+
     /// Maps an internal staging buffer of the provided size of pixel uploads/downloads
     VideoCore::StagingData FindStaging(u32 size, bool upload);
 
@@ -165,9 +168,7 @@ public:
     void Attach(GLenum target, u32 level, u32 layer, bool scaled = true);
 
     /// Returns the bpp of the internal surface format
-    u32 GetInternalBytesPerPixel() const {
-        return GetFormatBytesPerPixel(pixel_format);
-    }
+    u32 GetInternalBytesPerPixel() const;
 
 private:
     /// Performs blit between the scaled/unscaled images

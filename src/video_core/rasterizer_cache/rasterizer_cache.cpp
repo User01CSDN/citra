@@ -11,9 +11,7 @@
 #include "video_core/rasterizer_cache/rasterizer_cache.h"
 #include "video_core/regs.h"
 #include "video_core/renderer_base.h"
-#include "video_core/renderer_opengl/gl_format_reinterpreter.h"
 #include "video_core/renderer_opengl/gl_texture_runtime.h"
-#include "video_core/renderer_opengl/gl_vars.h"
 
 namespace VideoCore {
 
@@ -828,11 +826,8 @@ void RasterizerCache::UploadSurface(const SurfaceRef& surface, SurfaceInterval i
     }
 
     const auto upload_data = source_ptr.GetWriteBytes(load_info.end - load_info.addr);
-    const bool needs_convertion = OpenGL::GLES && (surface->pixel_format == PixelFormat::RGBA8 ||
-                                                   surface->pixel_format == PixelFormat::RGB8);
-
     DecodeTexture(load_info, load_info.addr, load_info.end, upload_data, staging.mapped,
-                  needs_convertion);
+                  runtime.NeedsConvertion(surface->pixel_format));
 
     const BufferTextureCopy upload = {
         .buffer_offset = 0,
@@ -866,11 +861,8 @@ void RasterizerCache::DownloadSurface(const SurfaceRef& surface, SurfaceInterval
     }
 
     const auto download_dest = dest_ptr.GetWriteBytes(flush_end - flush_start);
-    const bool needs_convertion = OpenGL::GLES && (surface->pixel_format == PixelFormat::RGBA8 ||
-                                                   surface->pixel_format == PixelFormat::RGB8);
-
     EncodeTexture(flush_info, flush_start, flush_end, staging.mapped, download_dest,
-                  needs_convertion);
+                  runtime.NeedsConvertion(surface->pixel_format));
 }
 
 void RasterizerCache::DownloadFillSurface(const SurfaceRef& surface, SurfaceInterval interval) {

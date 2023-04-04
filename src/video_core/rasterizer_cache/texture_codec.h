@@ -57,9 +57,6 @@ constexpr void DecodePixel(const u8* source, u8* dest) {
     } else if constexpr (format == PixelFormat::IA4) {
         const auto abgr = DecodeIA4(source);
         std::memcpy(dest, abgr.AsArray(), 4);
-    } else if constexpr (format == PixelFormat::D16 && converted) {
-        const auto d32 = DecodeD16(source) / 65535.f;
-        std::memcpy(dest, &d32, sizeof(d32));
     } else if constexpr (format == PixelFormat::D24 && converted) {
         const auto d32 = DecodeD24(source) / 16777215.f;
         std::memcpy(dest, &d32, sizeof(d32));
@@ -161,10 +158,6 @@ constexpr void EncodePixel(const u8* source, u8* dest) {
         Common::Vec4<u8> rgba;
         std::memcpy(rgba.AsArray(), source, 4);
         EncodeIA4(rgba, dest);
-    } else if constexpr (format == PixelFormat::D16 && converted) {
-        float d32;
-        std::memcpy(&d32, source, sizeof(d32));
-        EncodeD16(d32 * 0xFFFF, dest);
     } else if constexpr (format == PixelFormat::D24 && converted) {
         float d32;
         std::memcpy(&d32, source, sizeof(d32));

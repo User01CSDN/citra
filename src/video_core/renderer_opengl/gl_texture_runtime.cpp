@@ -36,7 +36,7 @@ static constexpr std::array<FormatTuple, 5> COLOR_TUPLES = {{
 
 static constexpr std::array<FormatTuple, 5> COLOR_TUPLES_OES = {{
     {GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE},            // RGBA8
-    {GL_RGB8, GL_RGB, GL_UNSIGNED_BYTE},              // RGB8
+    {GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE},            // RGB8
     {GL_RGB5_A1, GL_RGBA, GL_UNSIGNED_SHORT_5_5_5_1}, // RGB5A1
     {GL_RGB565, GL_RGB, GL_UNSIGNED_SHORT_5_6_5},     // RGB565
     {GL_RGBA4, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4},   // RGBA4
@@ -124,6 +124,12 @@ TextureRuntime::~TextureRuntime() = default;
 
 bool TextureRuntime::ResetFilter(u32 scale_factor) {
     return filterer.Reset(Settings::values.texture_filter_name.GetValue(), scale_factor);
+}
+
+bool TextureRuntime::NeedsConvertion(VideoCore::PixelFormat pixel_format) const {
+    const bool should_convert = pixel_format == PixelFormat::RGBA8 || // Needs byteswap
+                                pixel_format == PixelFormat::RGB8;    // Is converted to RGBA8
+    return driver.IsOpenGLES() && should_convert;
 }
 
 VideoCore::StagingData TextureRuntime::FindStaging(u32 size, bool upload) {
@@ -496,6 +502,14 @@ void Surface::Attach(GLenum target, u32 level, u32 layer, bool scaled) {
     default:
         UNREACHABLE_MSG("Invalid surface type!");
     }
+}
+
+u32 Surface::GetInternalBytesPerPixel() const {
+    // RGB8 is converted to RGBA8 on OpenGL ES since it doesn't support BGR8
+    if (driver->IsOpenGLES() && pixel_format == VideoCore::PixelFormat::RGB8) {
+        return 4;
+    }
+    return GetFormatBytesPerPixel(pixel_format);
 }
 
 void Surface::BlitScale(const VideoCore::TextureBlit& blit, bool up_scale) {
