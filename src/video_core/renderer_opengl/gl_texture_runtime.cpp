@@ -294,9 +294,8 @@ bool TextureRuntime::CopyTextures(Surface& source, Surface& dest,
 
 bool TextureRuntime::BlitTextures(Surface& source, Surface& dest,
                                   const VideoCore::TextureBlit& blit) {
-    const auto prev_state = OpenGLState::GetCurState();
-
-    OpenGLState state{};
+    OpenGLState state = OpenGLState::GetCurState();
+    state.scissor.enabled = false;
     state.draw.read_framebuffer = read_fbos[FboIndex(source.type)].handle;
     state.draw.draw_framebuffer = draw_fbos[FboIndex(dest.type)].handle;
     state.Apply();
@@ -315,7 +314,6 @@ bool TextureRuntime::BlitTextures(Surface& source, Surface& dest,
                       blit.src_rect.top, blit.dst_rect.left, blit.dst_rect.bottom,
                       blit.dst_rect.right, blit.dst_rect.top, buffer_mask, filter);
 
-    prev_state.Apply();
     return true;
 }
 
@@ -426,9 +424,9 @@ void Surface::Download(const VideoCore::BufferTextureCopy& download,
     }
 
     const u32 fbo_index = FboIndex(type);
-    const auto prev_state = OpenGLState::GetCurState();
 
-    OpenGLState state{};
+    OpenGLState state = OpenGLState::GetCurState();
+    state.scissor.enabled = false;
     state.draw.read_framebuffer = runtime->read_fbos[fbo_index].handle;
     state.Apply();
 
@@ -442,7 +440,6 @@ void Surface::Download(const VideoCore::BufferTextureCopy& download,
 
     // Restore previous state
     glPixelStorei(GL_PACK_ROW_LENGTH, 0);
-    prev_state.Apply();
 }
 
 bool Surface::DownloadWithoutFbo(const VideoCore::BufferTextureCopy& download,
@@ -514,9 +511,9 @@ u32 Surface::GetInternalBytesPerPixel() const {
 
 void Surface::BlitScale(const VideoCore::TextureBlit& blit, bool up_scale) {
     const u32 fbo_index = FboIndex(type);
-    const auto prev_state = OpenGLState::GetCurState();
 
-    OpenGLState state{};
+    OpenGLState state = OpenGLState::GetCurState();
+    state.scissor.enabled = false;
     state.draw.read_framebuffer = runtime->read_fbos[fbo_index].handle;
     state.draw.draw_framebuffer = runtime->draw_fbos[fbo_index].handle;
     state.Apply();
@@ -529,8 +526,6 @@ void Surface::BlitScale(const VideoCore::TextureBlit& blit, bool up_scale) {
     glBlitFramebuffer(blit.src_rect.left, blit.src_rect.bottom, blit.src_rect.right,
                       blit.src_rect.top, blit.dst_rect.left, blit.dst_rect.bottom,
                       blit.dst_rect.right, blit.dst_rect.top, buffer_mask, filter);
-
-    prev_state.Apply();
 }
 
 Framebuffer::Framebuffer(TextureRuntime& runtime, Surface* const color, u32 color_level,
