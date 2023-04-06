@@ -129,6 +129,7 @@ void ConfigureDebug::SetupPerGameUI() {
     if (Settings::IsConfiguringGlobal()) {
         ui->slider_clock_speed->setEnabled(Settings::values.cpu_clock_percentage.UsingGlobal());
         ui->slider_refresh_rate->setEnabled(Settings::values.refresh_rate.UsingGlobal());
+        ui->refresh_rate_widget->setVisible(false);
         return;
     }
 
@@ -145,6 +146,7 @@ void ConfigureDebug::SetupPerGameUI() {
     ui->gdb_group->setVisible(false);
     ui->logging_group->setVisible(false);
     ui->toggle_cpu_jit->setVisible(false);
+    ui->refresh_rate_widget->setVisible(true);
 }
 
 void ConfigureDebug::RetranslateUI() {
