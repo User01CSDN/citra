@@ -34,6 +34,7 @@ bool SurfaceParams::CanExpand(const SurfaceParams& expanded_surface) const {
 }
 
 bool SurfaceParams::CanTexCopy(const SurfaceParams& texcopy_params) const {
+    const SurfaceInterval copy_interval = texcopy_params.GetInterval();
     if (pixel_format == PixelFormat::Invalid || addr > texcopy_params.addr ||
         end < texcopy_params.end) {
         return false;
@@ -47,7 +48,12 @@ bool SurfaceParams::CanTexCopy(const SurfaceParams& texcopy_params) const {
                ((texcopy_params.addr - addr) % tile_stride) + texcopy_params.width <= tile_stride;
     }
 
-    return FromInterval(texcopy_params.GetInterval()).GetInterval() == texcopy_params.GetInterval();
+    const u32 target_level = LevelOf(texcopy_params.addr);
+    if ((LevelInterval(target_level) & copy_interval) != copy_interval) {
+        return false;
+    }
+
+    return FromInterval(copy_interval).GetInterval() == copy_interval;
 }
 
 void SurfaceParams::UpdateParams() {
