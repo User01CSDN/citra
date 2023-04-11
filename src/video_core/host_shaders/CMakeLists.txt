@@ -12,7 +12,6 @@ set(SHADER_FILES
     texture_filtering/scale_force.frag
     texture_filtering/tex_coord.vert
     texture_filtering/xbrz_freescale.frag
-    texture_filtering/xbrz_freescale.vert
     texture_filtering/x_gradient.frag
     texture_filtering/y_gradient.frag
     opengl_present.frag

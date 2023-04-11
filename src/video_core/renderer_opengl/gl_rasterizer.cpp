@@ -63,12 +63,12 @@ GLenum MakeAttributeType(Pica::PipelineRegs::VertexAttributeFormat format) {
     return GL_UNSIGNED_BYTE;
 }
 
-[[nodiscard]] std::size_t TextureBufferSize() {
+[[nodiscard]] GLsizeiptr TextureBufferSize() {
     // Use the smallest texel size from the texel views
     // which corresponds to GL_RG32F
     GLint max_texel_buffer_size;
     glGetIntegerv(GL_MAX_TEXTURE_BUFFER_SIZE, &max_texel_buffer_size);
-    return std::min<std::size_t>(max_texel_buffer_size * 8, TEXTURE_BUFFER_SIZE);
+    return std::min<GLsizeiptr>(max_texel_buffer_size * 8, TEXTURE_BUFFER_SIZE);
 }
 
 } // Anonymous namespace

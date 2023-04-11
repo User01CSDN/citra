@@ -43,8 +43,12 @@ add_library(video_core STATIC
     rasterizer_cache/utils.h
     renderer_opengl/frame_dumper_opengl.cpp
     renderer_opengl/frame_dumper_opengl.h
+    renderer_opengl/gl_blit_helper.cpp
+    renderer_opengl/gl_blit_helper.h
     renderer_opengl/gl_driver.cpp
     renderer_opengl/gl_driver.h
+    renderer_opengl/gl_format_reinterpreter.cpp
+    renderer_opengl/gl_format_reinterpreter.h
     renderer_opengl/gl_rasterizer.cpp
     renderer_opengl/gl_rasterizer.h
     renderer_opengl/gl_resource_manager.cpp
@@ -72,22 +76,6 @@ add_library(video_core STATIC
     renderer_opengl/post_processing_opengl.h
     renderer_opengl/renderer_opengl.cpp
     renderer_opengl/renderer_opengl.h
-    renderer_opengl/texture_filters/anime4k/anime4k_ultrafast.cpp
-    renderer_opengl/texture_filters/anime4k/anime4k_ultrafast.h
-    renderer_opengl/texture_filters/bicubic/bicubic.cpp
-    renderer_opengl/texture_filters/bicubic/bicubic.h
-    renderer_opengl/texture_filters/nearest_neighbor/nearest_neighbor.cpp
-    renderer_opengl/texture_filters/nearest_neighbor/nearest_neighbor.h
-    renderer_opengl/texture_filters/scale_force/scale_force.cpp
-    renderer_opengl/texture_filters/scale_force/scale_force.h
-    renderer_opengl/texture_filters/texture_filter_base.h
-    renderer_opengl/texture_filters/texture_filterer.cpp
-    renderer_opengl/texture_filters/texture_filterer.h
-    renderer_opengl/texture_filters/xbrz/xbrz_freescale.cpp
-    renderer_opengl/texture_filters/xbrz/xbrz_freescale.h
-    #temporary, move these back in alphabetical order before merging
-    renderer_opengl/gl_format_reinterpreter.cpp
-    renderer_opengl/gl_format_reinterpreter.h
     renderer_software/rasterizer.cpp
     renderer_software/rasterizer.h
     renderer_software/renderer_software.cpp

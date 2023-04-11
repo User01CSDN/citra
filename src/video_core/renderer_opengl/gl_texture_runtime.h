@@ -6,8 +6,8 @@
 
 #include "video_core/rasterizer_cache/framebuffer_base.h"
 #include "video_core/rasterizer_cache/surface_base.h"
+#include "video_core/renderer_opengl/gl_blit_helper.h"
 #include "video_core/renderer_opengl/gl_format_reinterpreter.h"
-#include "video_core/renderer_opengl/texture_filters/texture_filterer.h"
 
 namespace VideoCore {
 class RendererBase;
@@ -76,18 +76,11 @@ struct CachedTextureCube;
 class TextureRuntime {
     friend class Surface;
     friend class Framebuffer;
+    friend class BlitHelper;
 
 public:
     explicit TextureRuntime(const Driver& driver, VideoCore::RendererBase& renderer);
     ~TextureRuntime();
-
-    /// Returns true if no texture filter is in use
-    bool IsNullFilter() const noexcept {
-        return filterer.IsNull();
-    }
-
-    /// Resets texture filtering settings to the global settings
-    bool ResetFilter(u32 scale_factor);
 
     /// Returns true if the provided pixel format cannot be used natively by the runtime.
     bool NeedsConvertion(VideoCore::PixelFormat pixel_format) const;
@@ -125,17 +118,12 @@ private:
         return driver;
     }
 
-    /// Returns the class that handles texture filtering
-    const TextureFilterer& GetFilterer() const {
-        return filterer;
-    }
-
 private:
     const Driver& driver;
-    TextureFilterer filterer;
+    BlitHelper blit_helper;
     std::vector<u8> staging_buffer;
     std::array<ReinterpreterList, VideoCore::PIXEL_FORMAT_COUNT> reinterpreters;
-    std::unordered_multimap<HostTextureTag, Allocation, HostTextureTag::Hash> texture_recycler;
+    std::unordered_multimap<HostTextureTag, Allocation, HostTextureTag::Hash> recycler;
     std::unordered_map<u64, OGLFramebuffer, Common::IdentityHash<u64>> framebuffer_cache;
     std::array<OGLFramebuffer, 3> draw_fbos;
     std::array<OGLFramebuffer, 3> read_fbos;

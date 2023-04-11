@@ -8,8 +8,8 @@ precision mediump float;
 layout(location = 0) in vec2 tex_coord;
 layout(location = 0) out vec4 frag_color;
 
-uniform sampler2D HOOKED;
-uniform sampler2D LUMAD;
+layout(binding = 0) uniform sampler2D HOOKED;
+layout(binding = 1) uniform sampler2D LUMAD;
 
 const float LINE_DETECT_THRESHOLD = 0.4;
 const float STRENGTH = 0.6;

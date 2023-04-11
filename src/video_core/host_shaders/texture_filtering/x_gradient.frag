@@ -8,7 +8,7 @@ precision mediump float;
 layout(location = 0) in vec2 tex_coord;
 layout(location = 0) out vec2 frag_color;
 
-uniform sampler2D tex_input;
+layout(binding = 0) uniform sampler2D tex_input;
 
 const vec3 K = vec3(0.2627, 0.6780, 0.0593);
 // TODO: improve handling of alpha channel

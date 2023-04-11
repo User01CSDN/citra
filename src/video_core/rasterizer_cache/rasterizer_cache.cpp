@@ -122,7 +122,8 @@ auto FindMatch(const auto& surface_cache, const SurfaceParams& params, ScaleMatc
 RasterizerCache::RasterizerCache(Memory::MemorySystem& memory_, OpenGL::TextureRuntime& runtime_,
                                  Pica::Regs& regs_, RendererBase& renderer_)
     : memory{memory_}, runtime{runtime_}, regs{regs_}, renderer{renderer_},
-      resolution_scale_factor{renderer.GetResolutionScaleFactor()} {}
+      resolution_scale_factor{renderer.GetResolutionScaleFactor()},
+      use_filter{Settings::values.texture_filter.GetValue() != Settings::TextureFilter::None} {}
 
 RasterizerCache::~RasterizerCache() {
 #ifndef ANDROID
@@ -469,7 +470,7 @@ auto RasterizerCache::GetTextureSurface(const Pica::Texture::TextureInfo& info, 
     params.levels = max_level + 1;
     params.is_tiled = true;
     params.pixel_format = PixelFormatFromTextureFormat(info.format);
-    params.res_scale = runtime.IsNullFilter() ? 1 : resolution_scale_factor;
+    params.res_scale = use_filter ? resolution_scale_factor : 1;
     params.UpdateParams();
 
     u32 min_width = info.width >> max_level;
@@ -515,7 +516,7 @@ auto RasterizerCache::GetTextureCube(const TextureCubeConfig& config) -> Surface
             .height = config.width,
             .stride = config.width,
             .levels = config.levels,
-            .res_scale = runtime.IsNullFilter() ? 1 : resolution_scale_factor,
+            .res_scale = use_filter ? resolution_scale_factor : 1,
             .texture_type = TextureType::CubeMap,
             .pixel_format = PixelFormatFromTextureFormat(config.format),
             .type = SurfaceType::Texture,
@@ -573,11 +574,11 @@ auto RasterizerCache::GetFramebufferSurfaces(bool using_color_fb, bool using_dep
     const u32 scale_factor = renderer.GetResolutionScaleFactor();
     const bool resolution_scale_changed = resolution_scale_factor != scale_factor;
     const bool texture_filter_changed =
-        renderer.Settings().texture_filter_update_requested.exchange(false) &&
-        runtime.ResetFilter(scale_factor);
+        renderer.Settings().texture_filter_update_requested.exchange(false);
 
     if (resolution_scale_changed || texture_filter_changed) {
         resolution_scale_factor = scale_factor;
+        use_filter = Settings::values.texture_filter.GetValue() != Settings::TextureFilter::None;
         FlushAll();
         while (!surface_cache.empty())
             UnregisterSurface(*surface_cache.begin()->second.begin());

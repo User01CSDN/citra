@@ -29,7 +29,7 @@ precision mediump float;
 layout(location = 0) in vec2 tex_coord;
 layout(location = 0) out vec4 frag_color;
 
-uniform sampler2D input_texture;
+layout(binding = 0) uniform sampler2D input_texture;
 
 vec2 tex_size;
 vec2 inv_tex_size;

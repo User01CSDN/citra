@@ -7,8 +7,8 @@
 layout(location = 0) in mediump vec2 dst_coord;
 layout(location = 0) out lowp vec4 frag_color;
 
-uniform highp sampler2D depth;
-uniform lowp usampler2D stencil;
+layout(binding = 0) uniform highp sampler2D depth;
+layout(binding = 1) uniform lowp usampler2D stencil;
 uniform mediump ivec2 dst_size;
 uniform mediump ivec2 src_size;
 uniform mediump ivec2 src_offset;

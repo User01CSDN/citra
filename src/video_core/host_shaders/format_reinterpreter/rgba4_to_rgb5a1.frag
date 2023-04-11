@@ -7,7 +7,7 @@
 layout(location = 0) in mediump vec2 dst_coord;
 layout(location = 0) out lowp vec4 frag_color;
 
-uniform lowp sampler2D source;
+layout(binding = 0) uniform lowp sampler2D source;
 uniform mediump ivec2 dst_size;
 uniform mediump ivec2 src_size;
 uniform mediump ivec2 src_offset;

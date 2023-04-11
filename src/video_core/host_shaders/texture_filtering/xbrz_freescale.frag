@@ -6,13 +6,10 @@
 precision mediump float;
 
 layout(location = 0) in vec2 tex_coord;
-layout(location = 1) in vec2 source_size;
-layout(location = 2) in vec2 output_size;
-
 layout(location = 0) out vec4 frag_color;
 
-uniform sampler2D tex;
-uniform lowp float scale;
+layout(binding = 0) uniform sampler2D tex;
+layout(location = 2) uniform lowp float scale;
 
 const int BLEND_NONE = 0;
 const int BLEND_NORMAL = 1;
@@ -51,6 +48,7 @@ float GetLeftRatio(vec2 center, vec2 origin, vec2 direction) {
 #define P(x, y) textureOffset(tex, coord, ivec2(x, y))
 
 void main() {
+    vec2 source_size = vec2(textureSize(tex, 0));
     vec2 pos = fract(tex_coord * source_size) - vec2(0.5, 0.5);
     vec2 coord = tex_coord - pos / source_size;
 

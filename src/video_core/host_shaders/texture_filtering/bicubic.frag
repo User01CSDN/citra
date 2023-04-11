@@ -8,7 +8,7 @@ precision mediump float;
 layout(location = 0) in vec2 tex_coord;
 layout(location = 0) out vec4 frag_color;
 
-uniform sampler2D input_texture;
+layout(binding = 0) uniform sampler2D input_texture;
 
 // from http://www.java-gaming.org/index.php?topic=35123.0
 vec4 cubic(float v) {
@@ -22,7 +22,6 @@ vec4 cubic(float v) {
 }
 
 vec4 textureBicubic(sampler2D tex_sampler, vec2 texCoords) {
-
     vec2 texSize = vec2(textureSize(tex_sampler, 0));
     vec2 invTexSize = 1.0 / texSize;
 

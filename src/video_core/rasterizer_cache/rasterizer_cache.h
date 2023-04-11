@@ -168,6 +168,7 @@ private:
     u32 resolution_scale_factor;
     RenderTargets render_targets;
     std::unordered_map<TextureCubeConfig, TextureCube> texture_cube_cache;
+    bool use_filter{};
 };
 
 } // namespace VideoCore
